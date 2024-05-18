@@ -266,6 +266,10 @@ struct ckpool_instance {
 
 	uint32_t version_mask; // Bits which set to true means allow miner to modify those bits
 
+	/* Allowed user agents */
+	char **useragent; // Array of allowed user agents
+	int useragents; // Number of user agent entries
+
 	/* Proxy options */
 	int proxies;
 	char **proxyurl;

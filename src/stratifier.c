@@ -4913,6 +4913,7 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 	int arr_size;
 	json_t *ret;
 	int n2len;
+	bool ua_ret = false;
 
 	if (unlikely(!json_is_array(params_val))) {
 		stratum_send_message(ckp_sdata, client, "Invalid json: params not an array");
@@ -4935,10 +4936,16 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 		buf = json_string_value(json_array_get(params_val, 0));
 		if (buf && strlen(buf)) {
 			client->useragent = strdup(buf);
-			// Only allow nerdminers to subscribe
-			if (safecmp(client->useragent, "NerdMinerV2")) {
-				stratum_send_message(ckp_sdata, client, "Only nerdminers allowed");
-				return json_string("Only nerdminers allowed");
+			// Only allowed user agents may subscribe
+			for (int i = 0; i < ckp->useragents; i++) {
+				if (!safencmp(client->useragent, ckp->useragent[i], strlen(ckp->useragent[i]))) {
+					ua_ret = true;
+					continue;
+				}
+			}
+			if (!ua_ret) {
+				stratum_send_message(ckp_sdata, client, "Only allowed user agents may subscribe");
+				return json_string("Only allowed user agents may subscribe");
 			}
 		}
 		if (arr_size > 1) {

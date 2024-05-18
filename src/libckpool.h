@@ -571,6 +571,7 @@ bool _hex2bin(void *p, const void *vhexstr, size_t len, const char *file, const 
 char *http_base64(const char *src);
 void b58tobin(char *b58bin, const char *b58);
 int safecmp(const char *a, const char *b);
+int safencmp(const char *a, const char *b, size_t len);
 bool cmdmatch(const char *buf, const char *cmd);
 
 int address_to_txn(char *p2h, const char *addr, const bool script, const bool segwit);

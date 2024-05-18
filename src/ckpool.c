@@ -1291,6 +1291,35 @@ static void parse_proxies(ckpool_t *ckp, const json_t *arr_val, const int arr_si
 	}
 }
 
+static bool parse_useragents(ckpool_t *ckp, const json_t *arr_val)
+{
+	bool ret = false;
+	int arr_size, i;
+
+	if (!arr_val)
+		goto out;
+	if (!json_is_array(arr_val)) {
+		LOGINFO("Unable to parse useragent entries as an array");
+		goto out;
+	}
+	arr_size = json_array_size(arr_val);
+	if (!arr_size) {
+		LOGWARNING("Useragent array empty");
+		goto out;
+	}
+	ckp->useragents = arr_size;
+	ckp->useragent = ckalloc(sizeof(char *) * arr_size);
+	for (i = 0; i < arr_size; i++) {
+		json_t *val = json_array_get(arr_val, i);
+
+		if (!_json_get_string(&ckp->useragent[i], val, "useragent"))
+			LOGWARNING("Invalid useragent entry number %d", i);
+	}
+	ret = true;
+out:
+	return ret;
+}
+
 static bool parse_serverurls(ckpool_t *ckp, const json_t *arr_val)
 {
 	bool ret = false;
@@ -1424,7 +1453,7 @@ static void parse_config(ckpool_t *ckp)
 {
 	json_t *json_conf, *arr_val;
 	json_error_t err_val;
-	char *url, *vmask;
+	char *url, *vmask, *user_agent;
 	int arr_size;
 
 	json_conf = json_load_file(ckp->config, JSON_DISABLE_EOF_CHECK, &err_val);
@@ -1456,6 +1485,21 @@ static void parse_config(ckpool_t *ckp)
 		sscanf(vmask, "%x", &ckp->version_mask);
 	else
 		ckp->version_mask = 0x1fffe000;
+	/* Look for an array first and then a single entry */
+	arr_val = json_object_get(json_conf, "useragent");
+	if (!parse_useragents(ckp, arr_val)) {
+		if (json_get_string(&user_agent, json_conf, "useragent")) {
+			ckp->useragent = ckalloc(sizeof(char *));
+			ckp->useragent[0] = user_agent;
+			ckp->useragents = 1;
+		}
+		/* If no user agent has been set, use "NerdMinerV2" as default */
+		else {
+			ckp->useragent = ckalloc(sizeof(char *));
+			ckp->useragent[0] = strdup("NerdMinerV2");
+			ckp->useragents = 1;
+		}
+	}
 	/* Look for an array first and then a single entry */
 	arr_val = json_object_get(json_conf, "serverurl");
 	if (!parse_serverurls(ckp, arr_val)) {
