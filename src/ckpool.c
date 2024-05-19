@@ -1126,6 +1126,16 @@ static void json_get_configstring(char **store, const json_t *val, const char *r
 {
 	bool ret = _json_get_string(store, json_object_get(val, res), res);
 
+	/* Either cookie or basic auth must be defined */
+	if (!ret) {
+		if (!strcmp(res, "auth") || !strcmp(res, "pass")) {
+			ret = json_object_get(val, "cookie");
+		} else if (!strcmp(res, "cookie")) {
+			ret = json_object_get(val, "auth");
+			ret = json_object_get(val, "pass");
+		}
+	}
+
 	if (!ret) {
 		LOGEMERG("Invalid config string or missing object for %s", res);
 		exit(1);
