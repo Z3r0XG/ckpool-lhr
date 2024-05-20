@@ -1128,12 +1128,8 @@ static void json_get_configstring(char **store, const json_t *val, const char *r
 
 	/* Either cookie or basic auth must be defined */
 	if (!ret) {
-		if (!strcmp(res, "auth") || !strcmp(res, "pass")) {
-			ret = json_object_get(val, "cookie");
-		} else if (!strcmp(res, "cookie")) {
-			ret = json_object_get(val, "auth");
-			ret = json_object_get(val, "pass");
-		}
+		if (!strcmp(res, "auth") || !strcmp(res, "pass"))
+			ret = json_is_string(json_object_get(val, "cookie"));
 	}
 
 	if (!ret) {
@@ -1278,7 +1274,7 @@ static void parse_btcds(ckpool_t *ckp, const json_t *arr_val, const int arr_size
 		json_get_configstring(&ckp->btcdurl[i], val, "url");
 		json_get_configstring(&ckp->btcdauth[i], val, "auth");
 		json_get_configstring(&ckp->btcdpass[i], val, "pass");
-		json_get_configstring(&ckp->btcdcookie[i], val, "cookie");
+		json_get_string(&ckp->btcdcookie[i], val, "cookie");
 		json_get_bool(&ckp->btcdnotify[i], val, "notify");
 	}
 }
