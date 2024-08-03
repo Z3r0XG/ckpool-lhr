@@ -1773,8 +1773,10 @@ static int parse_share(gdata_t *gdata, proxy_instance_t *proxi, const char *buf)
 
 	mutex_lock(&gdata->share_lock);
 	HASH_FIND_I64(gdata->shares, &id, share);
-	if (share)
+	if (share) {
 		HASH_DEL(gdata->shares, share);
+		free(share);
+	}
 	mutex_unlock(&gdata->share_lock);
 
 	if (!share) {
@@ -2402,6 +2404,7 @@ static void *proxy_recv(void *arg)
 		HASH_ITER(hh, gdata->shares, share, tmpshare) {
 			if (share->submit_time < now - 120) {
 				HASH_DEL(gdata->shares, share);
+				free(share);
 			}
 		}
 		mutex_unlock(&gdata->share_lock);
@@ -2544,6 +2547,7 @@ static void *userproxy_recv(void *arg)
 		HASH_ITER(hh, gdata->shares, share, tmpshare) {
 			if (share->submit_time < now - 120) {
 				HASH_DEL(gdata->shares, share);
+				free(share);
 			}
 		}
 		mutex_unlock(&gdata->share_lock);
