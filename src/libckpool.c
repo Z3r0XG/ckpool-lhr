@@ -1685,6 +1685,7 @@ int safencmp(const char *a, const char *b, size_t len)
 	return (strncmp(a, b, len));
 }
 
+
 /* Returns whether there is a case insensitive match of buf to cmd, safely
  * handling NULL or zero length strings. */
 bool cmdmatch(const char *buf, const char *cmd)

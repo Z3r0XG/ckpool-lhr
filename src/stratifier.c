@@ -4936,11 +4936,20 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 		buf = json_string_value(json_array_get(params_val, 0));
 		if (buf && strlen(buf)) {
 			client->useragent = strdup(buf);
-			// Only allowed user agents may subscribe
+			// Only allowed user agents may subscribe. If any configured
+			// entry is exactly "*" it means allow all user agents; otherwise
+			// existing behavior remains (prefix match using safencmp).
 			for (int i = 0; i < ckp->useragents; i++) {
-				if (!safencmp(client->useragent, ckp->useragent[i], strlen(ckp->useragent[i]))) {
-					ua_ret = true;
+				const char *pat = ckp->useragent[i];
+				if (!pat)
 					continue;
+				if (pat[0] == '*' && pat[1] == '\0') {
+					ua_ret = true;
+					break;
+				}
+				if (!safencmp(client->useragent, pat, strlen(pat))) {
+					ua_ret = true;
+					break;
 				}
 			}
 			if (!ua_ret) {
