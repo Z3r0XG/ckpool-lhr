@@ -201,7 +201,6 @@ struct worker_instance {
 };
 
 /* Note: stored last-seen useragent for the worker (persisted in user JSON) */
-typedef struct worker_instance worker_instance_t;
 
 typedef struct stratifier_data sdata_t;
 
