@@ -1,3 +1,35 @@
+# Autotools / build artifacts
+autom4te.cache/
+config.log
+config.status
+config.cache
+configure
+Makefile
+Makefile.in
+
+# Compiled object files and libtool files
+**/*.o
+**/*.lo
+**/*.la
+**/*.a
+**/*.so
+.libs/
+
+# Binaries built locally
+/src/ckpool
+/src/ckpmsg
+/src/notifier
+
+# Jansson build artefacts
+/src/jansson-2.14/src/.libs/
+
+# Python artifacts
+*.pyc
+__pycache__/
+
+# Editor temp files
+*~
+.DS_Store
 *.o
 *.bin
 *.la
@@ -39,5 +71,11 @@ ltmain.sh
 .libs/
 
 libtool
+
+# Local development configs
+ckpool-local.conf
+
+# Local runtime logs and transient state
+logs/
 
 
