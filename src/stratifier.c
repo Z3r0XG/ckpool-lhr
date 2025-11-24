@@ -170,6 +170,8 @@ struct user_instance {
 struct worker_instance {
 	user_instance_t *user_instance;
 	char *workername;
+	/* last-seen user agent string for this worker (persisted in user JSON) */
+	char *useragent;
 
 	/* Number of stratum instances attached as this one worker */
 	int instance_count;
@@ -197,6 +199,9 @@ struct worker_instance {
 	bool idle;
 	bool notified_idle;
 };
+
+/* Note: stored last-seen useragent for the worker (persisted in user JSON) */
+typedef struct worker_instance worker_instance_t;
 
 typedef struct stratifier_data sdata_t;
 
@@ -5253,6 +5258,15 @@ static void read_userstats(ckpool_t *ckp, sdata_t *sdata, int tvsec_diff)
 			worker->last_share.tv_sec = lastshare;
 			json_get_double(&worker->best_diff, arr_val, "bestshare");
 			json_get_double(&worker->best_ever, arr_val, "bestever");
+			/* Read optional useragent from stored user logfile */
+			{
+				const char *ua = json_string_value(json_object_get(arr_val, "useragent"));
+				if (ua && strlen(ua)) {
+					worker->useragent = strdup(ua);
+				} else {
+					worker->useragent = NULL;
+				}
+			}
 			if (worker->best_diff > worker->best_ever)
 				worker->best_ever = worker->best_diff;
 			json_get_double(&worker->shares, arr_val, "shares");
@@ -5311,6 +5325,7 @@ static worker_instance_t *__create_worker(user_instance_t *user, const char *wor
 	worker_instance_t *worker = ckzalloc(sizeof(worker_instance_t));
 
 	worker->workername = strdup(workername);
+	worker->useragent = NULL;
 	worker->user_instance = user;
 	DL_APPEND(user->worker_instances, worker);
 	worker->start_time = time(NULL);
@@ -5383,6 +5398,12 @@ static user_instance_t *generate_user(ckpool_t *ckp, stratum_instance_t *client,
 	ck_wlock(&sdata->instance_lock);
 	client->user_instance = user;
 	client->worker_instance = worker;
+	/* record last-seen useragent on combined worker record */
+	if (client->useragent) {
+		if (worker->useragent)
+			free(worker->useragent);
+		worker->useragent = strdup(client->useragent);
+	}
 	DL_APPEND2(user->clients, client, user_prev, user_next);
 	__inc_worker(sdata,user, worker);
 	ck_wunlock(&sdata->instance_lock);
@@ -8097,17 +8118,18 @@ static void *statsupdate(void *arg)
 
 				LOGDEBUG("Storing worker %s", worker->workername);
 
-				JSON_CPACK(wval, "{ss,ss,ss,ss,ss,ss,si,sf,sf,sf}",
-						"workername", worker->workername,
-						"hashrate1m", suffix1,
-						"hashrate5m", suffix5,
-						"hashrate1hr", suffix60,
-						"hashrate1d", suffix1440,
-						"hashrate7d", suffix10080,
-					        "lastshare", worker->last_share.tv_sec,
-						"shares", worker->shares,
-						"bestshare", worker->best_diff,
-						"bestever", worker->best_ever);
+				JSON_CPACK(wval, "{ss,ss,ss,ss,ss,ss,si,sf,sf,sf,ss}",
+					"workername", worker->workername,
+					"hashrate1m", suffix1,
+					"hashrate5m", suffix5,
+					"hashrate1hr", suffix60,
+					"hashrate1d", suffix1440,
+					"hashrate7d", suffix10080,
+					"lastshare", worker->last_share.tv_sec,
+					"shares", worker->shares,
+					"bestshare", worker->best_diff,
+					"bestever", worker->best_ever,
+					"useragent", worker->useragent ? worker->useragent : "");
 				json_array_append_new(user_array, wval);
 			}
 
