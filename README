@@ -1,3 +1,7 @@
+Based on the original CKPOOL by Con Kolivas, this fork features sub-"1" difficulty support for low hash rate miners (esp32 devices and others).
+
+~~~Original Content Below~~~
+
 CKPOOL + CKPROXY + libckpool by Con Kolivas
 
 Ultra low overhead massively scalable multi-process, multi-threaded modular
