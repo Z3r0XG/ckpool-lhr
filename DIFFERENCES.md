@@ -28,7 +28,7 @@ devices and other embedded systems).
 - Manually configured `mindiff` and initial `startdiff` values below 1 are
   accepted and applied correctly
 
-**Files Modified**:
+**Relevant Files**:
 - `src/ckpool.h` - Type definitions
 - `src/ckpool.c` - Configuration parsing
 - `src/stratifier.c` - Difficulty handling and vardiff logic
@@ -52,7 +52,7 @@ devices and other embedded systems).
 - **Whitelist configured**: User agent must match a whitelist entry using prefix matching,
   otherwise connection is rejected. Empty user agents are rejected (they don't match any pattern)
 
-**Files Modified**:
+**Relevant Files**:
 - `src/ckpool.h` - Structure definitions
 - `src/ckpool.c` - Configuration parsing
 - `src/stratifier.c` - Subscription validation and worker tracking
@@ -88,11 +88,11 @@ miners based on their shares.
 appropriately based on their needs - whether for development funding or as a
 pool fee.
 
-**Files Modified**:
+**Relevant Files**:
 - `src/ckpool.h` - Structure definitions
-- `src/ckpool.c` - Added `donaddress` configuration parsing and default value
-- `src/generator.c` - Donation calculation (unchanged)
-- `src/stratifier.c` - Logging (unchanged)
+- `src/ckpool.c` - `donaddress` configuration parsing and default value
+- `src/generator.c` - Donation calculation
+- `src/stratifier.c` - Logging
 
 ### 4. Bitcoind Cookie Authentication Support
 
@@ -104,7 +104,7 @@ pool fee.
 - `json_get_configstring()` allows cookie as alternative to auth/pass
 - Cookie parsing in `parse_btcds()` function
 
-**Files Modified**:
+**Relevant Files**:
 - `src/ckpool.h` - Structure definitions
 - `src/ckpool.c` - Configuration parsing
 
@@ -151,7 +151,7 @@ pool fee.
   - `unaccounted_rejects`, `accounted_rejects`
   - `best_diff` in pool stats
 
-**Files Modified**:
+**Relevant Files**:
 - `src/stratifier.c` - Statistics structures
 - `src/ckpool.h` - Type definitions
 
@@ -161,7 +161,7 @@ pool fee.
 - Copyright dates reflect fork base version
 - Original author attribution maintained (Con Kolivas)
 
-**Files Modified**:
+**Relevant Files**:
 - `src/ckpool.c`
 - `src/ckpool.h`
 - `src/stratifier.c`
