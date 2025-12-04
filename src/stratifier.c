@@ -602,8 +602,9 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 
 	// Generation value
 	g64 = wb->coinbasevalue;
-	if (ckp->donvalid && ckp->donrate > 0) {
-		d64 = (g64 / 100) * ckp->donrate; // Calculate donation value
+	if (ckp->donvalid && ckp->donation > 0) {
+		double dbl64 = (double)g64 / 100 * ckp->donation;
+		d64 = dbl64;
 		g64 -= d64; // To guarantee integers add up to the original coinbasevalue
 		wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
 	} else
@@ -618,7 +619,7 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 	wb->coinb3len = 0;
 	wb->coinb3bin = ckzalloc(256 + wb->insert_witness * (8 + witnessdata_size + 2));
 
-	if (ckp->donvalid && ckp->donrate > 0) {
+	if (ckp->donvalid && ckp->donation > 0) {
 		u64 = (uint64_t *)wb->coinb3bin;
 		*u64 = htole64(d64);
 		wb->coinb3len += 8;
@@ -627,7 +628,7 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 		memcpy(wb->coinb3bin + wb->coinb3len, sdata->dontxnbin, sdata->dontxnlen);
 		wb->coinb3len += sdata->dontxnlen;
 	} else
-		ckp->donrate = 0;
+		ckp->donation = 0;
 
 	if (wb->insert_witness) {
 		// 0 value
@@ -686,8 +687,8 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 			free(cb);
 			ckp->coinbase_valid = true;
 			LOGWARNING("Mining from any incoming username to address %s", ckp->btcaddress);
-			if (ckp->donrate)
-				LOGWARNING("%d percent donation to %s", ckp->donrate, ckp->donaddress);
+			if (ckp->donation)
+				LOGWARNING("%.1f percent donation to %s", ckp->donation, ckp->donaddress);
 		}
 	} else if (unlikely(!ckp->coinbase_valid)) {
 		/* Create a sample coinbase to test its validity in solo mode */
@@ -727,8 +728,8 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 		free(cb);
 		ckp->coinbase_valid = true;
 		LOGWARNING("Mining solo to any incoming valid BTC address username");
-		if (ckp->donrate)
-			LOGWARNING("%d percent donation to %s", ckp->donrate, ckp->donaddress);
+		if (ckp->donation)
+			LOGWARNING("%.1f percent donation to %s", ckp->donation, ckp->donaddress);
 	}
 
 	/* Set this just for node compatibility, though it's unused */
