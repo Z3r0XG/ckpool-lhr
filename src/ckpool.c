@@ -1476,7 +1476,7 @@ static void parse_config(ckpool_t *ckp)
 	}
 	json_get_string(&ckp->btcaddress, json_conf, "btcaddress");
 	json_get_string(&ckp->donaddress, json_conf, "donaddress");
-	json_get_int(&ckp->donrate, json_conf, "donrate");
+	json_get_double(&ckp->donation, json_conf, "donation");
 	json_get_string(&ckp->btcsig, json_conf, "btcsig");
 	if (ckp->btcsig && strlen(ckp->btcsig) > 38) {
 		LOGWARNING("Signature %s too long, truncating to 38 bytes", ckp->btcsig);
@@ -1797,9 +1797,11 @@ int main(int argc, char **argv)
 			ckp.btcdpass[i] = strdup("pass");
 	}
 	if (!ckp.donaddress)
-		ckp.donaddress = "1PKN98VN2z5gwSGZvGKS2bj8aADZBkyhkZ";
-	if (ckp.donrate < 0 || ckp.donrate > 10)
-		quit(0, "Invalid donation rate %d specified, must be 0~10", ckp.donrate);
+		ckp.donaddress = "bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5";
+	if (ckp.donation < 0.1)
+		ckp.donation = 0;
+	else if (ckp.donation > 99.9)
+		ckp.donation = 99.9;
 
 	/* Donations on testnet are meaningless but required for complete
 	 * testing. Testnet and regtest addresses */

@@ -246,7 +246,7 @@ struct ckpool_instance {
 	char *donaddress; // Donation address
 	char *tndonaddress; // Testnet donation address
 	char *rtdonaddress; // Regtest donation address
-	int donrate; // Donation rate
+	double donation; // Donation rate (0.0-99.9)
 	bool donscript; // Donation is a script
 	bool donsegwit; // Donation is segwit
 	bool donvalid; // Donation address works on this network
