@@ -3572,7 +3572,7 @@ static void drop_client(ckpool_t *ckp, sdata_t *sdata, const int64_t id)
 
 	ck_wlock(&sdata->instance_lock);
 	client = __instance_by_id(sdata, id);
-	if (client && !client->dropped) {
+	if (client) {
 		__disconnect_session(sdata, client);
 		/* If the client is still holding a reference, don't drop them
 		 * now but wait till the reference is dropped */
