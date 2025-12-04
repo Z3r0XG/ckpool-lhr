@@ -8002,11 +8002,11 @@ static void *statsupdate(void *arg)
 
 		while (client) {
 			tv_time(&now);
-			/* Look for clients that may have been dropped which the
-			 * stratifier has not been informed about and ask the
-			 * connector if they still exist */
+			/* Look for clients that have been dropped which the
+			 * connector may not have been informed about and should
+			 * disconnect. */
 			if (client->dropped)
-				connector_test_client(ckp, client->id);
+				connector_drop_client(ckp, client->id);
 			else if (remote_server(client)) {
 				/* Do nothing to these */
 			} else if (!client->authorised) {
