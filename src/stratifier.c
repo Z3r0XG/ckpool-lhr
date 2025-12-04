@@ -3376,7 +3376,10 @@ static stratum_instance_t *__stratum_add_instance(ckpool_t *ckp, int64_t id, con
 	client = __recruit_stratum_instance(sdata);
 	ck_wunlock(&sdata->instance_lock);
 
-	client->start_time = time(NULL);
+	/* Fake a share time at startup to prevent client being dropped for
+	 * being idle. */
+	client->start_time = client->last_share.tv_sec = time(NULL);
+
 	client->id = id;
 	client->session_id = ++sdata->session_id;
 	strcpy(client->address, address);
@@ -4941,17 +4944,18 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 		buf = json_string_value(json_array_get(params_val, 0));
 		if (buf && strlen(buf)) {
 			client->useragent = strdup(buf);
-			// Only allowed user agents may subscribe. If any configured
-			// entry is exactly "*" it means allow all user agents; otherwise
-			// existing behavior remains (prefix match using safencmp).
+		} else
+			client->useragent = ckzalloc(1); // Set to ""
+		
+		// Whitelist check: only enabled if configured. When enabled, user agents
+		// must match an entry in the whitelist, otherwise reject. Empty user agent
+		// does not match any pattern. If whitelist is not configured (missing or
+		// empty array), all user agents are allowed.
+		if (ckp->useragents > 0) {
 			for (int i = 0; i < ckp->useragents; i++) {
 				const char *pat = ckp->useragent[i];
 				if (!pat)
 					continue;
-				if (pat[0] == '*' && pat[1] == '\0') {
-					ua_ret = true;
-					break;
-				}
 				if (!safencmp(client->useragent, pat, strlen(pat))) {
 					ua_ret = true;
 					break;
@@ -4962,6 +4966,7 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 				return json_string("Only allowed user agents may subscribe");
 			}
 		}
+		
 		if (arr_size > 1) {
 			/* This would be the session id for reconnect, it will
 			 * not work for clients on a proxied connection. */
@@ -4980,9 +4985,25 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 			}
 		}
 	} else {
-		// Block empty useragent as well
-		stratum_send_message(ckp_sdata, client, "Empty useragent not allowed");
-		return json_string("Empty useragent not allowed");
+		client->useragent = ckzalloc(1);
+		// Whitelist check for empty params array: if whitelist is configured,
+		// empty user agent must match an entry (empty does not match any pattern),
+		// otherwise reject. If whitelist is not configured, all user agents allowed.
+		if (ckp->useragents > 0) {
+			for (int i = 0; i < ckp->useragents; i++) {
+				const char *pat = ckp->useragent[i];
+				if (!pat)
+					continue;
+				if (!safencmp(client->useragent, pat, strlen(pat))) {
+					ua_ret = true;
+					break;
+				}
+			}
+			if (!ua_ret) {
+				stratum_send_message(ckp_sdata, client, "Only allowed user agents may subscribe");
+				return json_string("Only allowed user agents may subscribe");
+			}
+		}
 	}
 	/* We got what we needed */
 	if (ckp->node)
@@ -5509,7 +5530,7 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 		*err_val = json_string("params missing array entries");
 		goto out;
 	}
-	if (unlikely(!client->useragent)) {
+	if (unlikely(!client->subscribed)) {
 		*err_val = json_string("Failed subscription");
 		goto out;
 	}
@@ -6272,7 +6293,7 @@ out_nowb:
 	json_set_string(val, "workername", client->workername);
 	json_set_string(val, "username", user->username);
         json_set_string(val, "address", client->address);
-        json_set_string(val, "agent", client->useragent);
+        json_set_string(val, "agent", client->useragent ? client->useragent : "");
 
 	if (ckp->logshares) {
 		fp = fopen(fname, "ae");
