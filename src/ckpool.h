@@ -164,6 +164,8 @@ struct ckpool_instance {
 	bool handover;
 	/* How many clients maximum to accept before rejecting further */
 	int maxclients;
+	/* Drop clients that have been idle for this many seconds, 0 to disable */
+	int dropidle;
 
 	/* API message queue */
 	ckmsgq_t *ckpapi;
