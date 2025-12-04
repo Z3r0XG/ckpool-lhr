@@ -16,17 +16,16 @@ along with other enhancements and changes.
 **Purpose**: Enable difficulty values below 1.0 for low hash rate miners (ESP32
 devices and other embedded systems).
 
-**Changes**:
-- Changed `mindiff` and `startdiff` from `int64_t` to `double` in `ckpool.h`
-- Changed difficulty-related variables from `int64_t` to `double` throughout:
+**Implementation**:
+- `mindiff` and `startdiff` are `double` type in `ckpool.h` (support sub-"1" values)
+- Difficulty-related variables are `double` type:
   - `client->diff`, `client->old_diff`, `client->suggest_diff`
   - `client->ssdc` (shares since diff change)
   - Various share counting variables (`shares`, `best_diff`, `best_ever`)
-- Modified `json_get_int64()` to `json_get_double()` for `mindiff` and `startdiff`
-  in `ckpool.c`
-- The automatic vardiff adjustment still prevents reducing difficulty below 1
-  (line 5734 in `stratifier.c`: `if (unlikely(optimal < 1)) return;`), but
-  manually configured `mindiff` and initial `startdiff` values below 1 are
+- Uses `json_get_double()` for `mindiff` and `startdiff` parsing in `ckpool.c`
+- Automatic vardiff adjustment prevents reducing difficulty below 1
+  (line 5734 in `stratifier.c`: `if (unlikely(optimal < 1)) return;`)
+- Manually configured `mindiff` and initial `startdiff` values below 1 are
   accepted and applied correctly
 
 **Files Modified**:
@@ -78,12 +77,10 @@ miners based on their shares.
 - Set `donaddress` to pool operator address (use as pool fee)
 - Set `donation` to 0 (no fee/donation)
 
-**Current Implementation**:
+**Implementation**:
 - `donation` is a `double` type supporting fractional percentages (e.g., 0.5%, 1.5%)
-- Same as original CKPOOL - no change to donation type or calculation
-- `donaddress` is now configurable via JSON config file (was hardcoded in original)
-- Default donation address: `bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5` (fork default)
-- Original default was: `bc1q28kkr5hk4gnqe3evma6runjrd2pvqyp8fpwfzu` (Con Kolivas's address)
+- `donaddress` is configurable via JSON config file
+- Default donation address: `bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5`
 - Validation: Values below 0.1 are treated as 0, values above 99.9 are clamped to 99.9
 - The donation is taken from block rewards (coinbase transaction)
 
@@ -101,11 +98,11 @@ pool fee.
 
 **Purpose**: Support cookie-based authentication for bitcoind connections.
 
-**Changes**:
-- Added `cookie` field to bitcoind configuration structure
-- Added `btcdcookie` array to `ckpool_t` structure
-- Modified `json_get_configstring()` to allow cookie as alternative to auth/pass
-- Added cookie parsing in `parse_btcds()` function
+**Implementation**:
+- `cookie` field in bitcoind configuration structure
+- `btcdcookie` array in `ckpool_t` structure
+- `json_get_configstring()` allows cookie as alternative to auth/pass
+- Cookie parsing in `parse_btcds()` function
 
 **Files Modified**:
 - `src/ckpool.h` - Structure definitions
@@ -114,24 +111,23 @@ pool fee.
 ### 5. Idle Client Management
 
 **dropidle Feature**:
-- Added support for automatically disconnecting idle clients
+- Automatically disconnects idle clients after configurable timeout
 - Configurable idle timeout in seconds (default: 0 = disabled)
 - When enabled, clients idle longer than the threshold are disconnected
 - Worker stats are preserved and matched by workername on reconnect
-- Safe for low hash rate miners - 1 hour default is very generous
+- Safe for low hash rate miners - 1 hour (3600) is very generous
 
-**Removed from CKPOOL-LHR**:
+### 6. Features Not Present in CKPOOL-LHR
+
+**Missing Features**:
 - `dropall` command support (disconnect all clients)
 - SHA256 hardware acceleration files:
   - `src/sha256_arm_shani.c` (ARM SHA-NI acceleration)
-  - `src/sha256_x86_shani.c` (x86 SHA-NI acceleration)
+  - `src/sha256_x86_shani.c` (x86 SHA-NI acceleration) - Note: x86 SHA-NI support exists via merged code
 
-**Note**: The original CKPOOL has these files, but they may not be actively used
-depending on build configuration.
+### 7. Documentation
 
-### 6. Documentation Changes
-
-**New Files**:
+**Additional Documentation Files**:
 - `FAQ.md` - Comprehensive documentation of repository structure and workflows
 - `README-PROXY` - Proxy mode documentation
 - `README-PASSTHROUGH` - Passthrough mode documentation
@@ -139,19 +135,17 @@ depending on build configuration.
 - `README-REDIRECTOR` - Redirector mode documentation
 - `README-USERPROXY` - Userproxy mode documentation
 
-**Modified Files**:
-- `README` - Reorganized for fork, added sub-"1" difficulty documentation,
-  added missing configuration options, reformatted configuration sections
-- `README-SOLOMINING` - Updated for fork, streamlined for solo mining focus
+**Fork-Specific Documentation**:
+- `README` - Fork-focused documentation with sub-"1" difficulty support details
+- `README-SOLOMINING` - Solo mining guide
 - `AUTHORS` - Separated original authors from fork contributors
-- `ChangeLog` - Added fork identification
+- `ChangeLog` - Fork identification
 
-### 7. Code Quality and Type Changes
+### 8. Type System
 
-**Type System Improvements**:
-- Changed share counting from `int64_t` to `double` for better precision with
-  sub-"1" difficulty shares
-- Updated statistics structures to use `double` for share tracking:
+**Share Counting Types**:
+- Share counting uses `double` type for precision with sub-"1" difficulty shares
+- Statistics structures use `double` for share tracking:
   - `unaccounted_shares`, `accounted_shares`
   - `unaccounted_diff_shares`, `accounted_diff_shares`
   - `unaccounted_rejects`, `accounted_rejects`
@@ -161,11 +155,11 @@ depending on build configuration.
 - `src/stratifier.c` - Statistics structures
 - `src/ckpool.h` - Type definitions
 
-### 8. Copyright Updates
+### 9. Copyright
 
-**Changes**:
-- Removed "2025" from copyright notices (fork is based on earlier version)
-- Maintained original author attribution (Con Kolivas)
+**Copyright Notices**:
+- Copyright dates reflect fork base version
+- Original author attribution maintained (Con Kolivas)
 
 **Files Modified**:
 - `src/ckpool.c`
@@ -174,40 +168,37 @@ depending on build configuration.
 
 ## Version Information
 
-- **Original CKPOOL**: Based on commit `3a6da1fa` (latest in original repo appears
-  to be from 2025-12-04)
-- **CKPOOL-LHR**: Forked from earlier version, latest commit `38d3d3ea`
+- **CKPOOL-LHR Fork Base**: Commit `3a6da1fa` from original CKPOOL repository
 
 ## Build System
 
-Both repositories use the same autotools build system. The fork includes:
-- Same `configure.ac` structure
-- Same `Makefile.am` files
-- Additional build artifacts in fork (compiled binaries, object files, etc.)
+CKPOOL-LHR uses autotools build system:
+- `configure.ac` - Build configuration
+- `Makefile.am` files - Build rules
+- Test suite in `tests/` directory
 
 ## Configuration File Differences
 
-**New Options in CKPOOL-LHR**:
+**Additional Options in CKPOOL-LHR**:
 - `useragent` - Array of allowed user agent strings
-- `donaddress` - Bitcoin address for donations (now configurable, was hardcoded in original)
-
-**New Options in CKPOOL-LHR**:
+- `donaddress` - Bitcoin address for donations (configurable)
 - `dropidle` - Drop idle clients after specified seconds (default: 0 = disabled)
 
-**Changed Options**:
-- `mindiff` - Now accepts double (sub-"1" values supported)
-- `startdiff` - Now accepts double (sub-"1" values supported)
-- `donaddress` - Now configurable (was hardcoded in original), default address changed
+**Different Behavior**:
+- `mindiff` - Accepts double type (sub-"1" values supported)
+- `startdiff` - Accepts double type (sub-"1" values supported)
+- `donaddress` - Configurable (default: `bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5`)
 
 ## Summary
 
-The CKPOOL-LHR fork focuses on:
+The CKPOOL-LHR fork provides:
 1. **Low Hash Rate Support**: Sub-"1" difficulty for embedded systems
 2. **Security**: User agent whitelisting
 3. **Flexibility**: Cookie-based bitcoind authentication
-4. **Documentation**: Comprehensive mode-specific READMEs
-5. **Code Quality**: Improved type system for precision with fractional difficulties
+4. **Resource Management**: Idle client disconnection (dropidle)
+5. **Documentation**: Comprehensive mode-specific READMEs
+6. **Type System**: Double precision for fractional difficulties
 
 The fork maintains backward compatibility with standard pool operations while
-adding specialized features for low hash rate mining scenarios.
+providing specialized features for low hash rate mining scenarios.
 
