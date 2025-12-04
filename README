@@ -329,6 +329,12 @@ maximum.
 "maxclients" : Optional upper limit on the number of clients ckpool will
 accept before rejecting further clients.
 
+"dropidle" : Drop clients that have been idle (no shares submitted) for this
+duration in seconds. Use 0 to disable. Default 0 (disabled).
+When enabled, clients idle longer than the threshold are automatically
+disconnected. Worker statistics are preserved and matched by workername
+on reconnect. Safe for low hash rate miners - 1 hour (3600) is very generous.
+
 "zmqblock" : Optional interface to use for zmq blockhash notification - ckpool
 only. Requires use of matched bitcoind -zmqpubhashblock option.
 Default: tcp://127.0.0.1:28332
