@@ -15,6 +15,14 @@ AC_CANONICAL_HOST
 dnl Make sure anyone changing configure.ac/Makefile.am has a clue
 AM_MAINTAINER_MODE
 
+AC_MSG_CHECKING([whether to set default CFLAGS])
+if test -z "$CFLAGS"; then
+    CFLAGS="-O2 -Wall -march=native"
+    AC_MSG_RESULT([yes, setting default CFLAGS to $CFLAGS])
+else
+    AC_MSG_RESULT([no, using user-provided CFLAGS])
+fi
+
 dnl Checks for programs
 AC_PROG_CC
 # gl_EARLY - maybe later
@@ -29,6 +37,14 @@ dnl Checks for header files.
 AC_FUNC_ALLOCA
 
 PKG_PROG_PKG_CONFIG()
+
+# Check for CMocka (optional, for testing - disabled for now to use simple framework)
+# PKG_CHECK_MODULES([CMOCKA], [cmocka >= 1.0.0], [HAVE_CMOCKA=yes], [HAVE_CMOCKA=no])
+HAVE_CMOCKA=no
+AM_CONDITIONAL([HAVE_CMOCKA], [test x$HAVE_CMOCKA = xyes])
+# if test x$HAVE_CMOCKA = xyes; then
+#	AC_DEFINE([HAVE_CMOCKA], [1], [Have CMocka testing framework])
+# fi
 
 AC_CHECK_HEADERS(stdio.h stdlib.h fcntl.h sys/time.h unistd.h dirent.h)
 AC_CHECK_HEADERS(ctype.h errno.h byteswap.h string.h time.h fenv.h)
@@ -79,7 +95,7 @@ AC_SEARCH_LIBS(exp, m, , echo "Error: Required library math not found." && exit 
 AC_SEARCH_LIBS(pthread_mutex_trylock, pthread, , echo "Error: Required library pthreads not found." && exit 1)
 AC_SEARCH_LIBS(zmq_socket, zmq, ZMQ=yes, ZMQ=no)
 
-AC_CONFIG_FILES([Makefile src/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile])
 AC_OUTPUT
 
 LDFLAGS="${LDFLAGS} -Wl,--as-needed"
