@@ -176,12 +176,20 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
    - No longer appears in stats at all
 
 **Official behavior (after commit)**:
-1. **After 60 seconds of no shares**:
+1. **If user has never submitted a share** (`last_share.tv_sec == 0`):
+   - User is immediately skipped (before any processing)
+   - This catches users who were created but never submitted any shares
+2. **After 60 seconds of no shares** (if user has submitted shares before):
    - Hashrate stats start decaying (same as fork)
    - Stats **ARE logged** to pool logs (always logged, removed `if (!idle)` check)
    - Stats are saved to disk in JSON files
-2. **If user has no shares at all** (`last_share.tv_sec == 0`):
-   - User is skipped (different cleanup logic)
+
+**What "no shares at all" means**:
+- `last_share.tv_sec == 0` means the user has **never submitted a share, ever**
+- This happens when:
+  - User was just created (initialized to 0) and hasn't submitted a share yet
+  - User was loaded from disk but JSON file had no "lastshare" field or it was 0 (unusual, but possible)
+- This is **different** from "idle for X time" - it's checking if user has EVER submitted a share, not how long since the last share
 
 **Key Difference**:
 - **Fork**: Decays stats but doesn't log idle users/workers to pool logs (saves disk I/O and log noise)
