@@ -1,5 +1,4 @@
-CKPOOL-LHR
-==========
+# CKPOOL-LHR
 
 A fork of CKPOOL featuring sub-"1" difficulty support for low hash rate miners
 (ESP32 devices and others), along with additional enhancements for solo mining.
@@ -7,32 +6,27 @@ A fork of CKPOOL featuring sub-"1" difficulty support for low hash rate miners
 Ultra low overhead, scalable, multi-process, multi-threaded Bitcoin mining
 pool software in C for Linux.
 
+## Key Features
 
-Key Features (Fork Enhancements):
----------------------------------
 - Sub-"1" difficulty support for low hash rate miners
 - Bitcoind cookie authentication
 - User agent whitelisting
 - Configurable user data cleanup
 - Configurable donation address
 
-
----
-ACKNOWLEDGMENT:
+## Acknowledgment
 
 This software is a fork of CKPOOL by Con Kolivas. The original project is
 provided free of charge under the GPLv3 license. We honor and acknowledge
 Con Kolivas's foundational work that made this fork possible.
 
-Original project: https://bitbucket.org/ckolivas/ckpool
+**Original project:** https://bitbucket.org/ckolivas/ckpool
 
-
----
-LICENSE:
+## License
 
 GNU Public license V3. See included COPYING for details.
 
-# Solo Mode with CKPOOL-LHR
+# Solo Mode
 
 ## Use Case
 
@@ -56,9 +50,6 @@ specified address.
 **Workflow**: Bitcoind provides block template → Pool generates work → Miner
 connects with Bitcoin address as username → Miner submits shares → Block found →
 Reward sent directly to miner's address.
-
-**Note**: The `btcaddress` configuration option is ignored in solo mode.
-Each miner's username determines where their rewards go.
 
 ---
 
@@ -98,11 +89,14 @@ src/ckpool -B
 
 ## Quick Start
 
-### Option 1: Automated Installation (Recommended)
+### Option 1: Automated Installation
+
+> [!TIP]
+> **Recommended for most users.** This script handles all dependencies and configuration.
 
 Run the installation script as root/sudo:
 ```bash
-scripts/install-ckpool-solo.sh
+sudo ./scripts/install-ckpool-solo.sh
 ```
 
 This automatically installs Bitcoin Core and ckpool-lhr, sets up systemd
@@ -280,7 +274,12 @@ option is ignored in solo mode (miners provide their own address as username).
 
 ## Notes
 
-- JSON is strict with formatting. Do not put a comma after the last field.
-- You can mine with a pruned blockchain, though it may add latency.
-- Mining on testnet may create cascading solved blocks when difficulty is 1.
-  This is normal behavior optimized for mainnet where block solving is rare.
+> [!WARNING]
+> JSON is strict with formatting. Do not put a comma after the last field.
+
+> [!NOTE]
+> You can mine with a pruned blockchain, though it may add latency.
+
+> [!NOTE]
+> Mining on testnet may create cascading solved blocks when difficulty is 1.
+> This is normal behavior optimized for mainnet where block solving is rare.

@@ -11,6 +11,9 @@ Automated installer for CKPool-LHR in solo mining mode with Bitcoin Core.
 - Minimum 10GB disk space (pruned) or 700GB+ (full chain)
 - Internet connection
 
+> [!IMPORTANT]
+> Full blockchain sync can take several days. Pruned mode is faster but has some limitations.
+
 ### Usage
 
 ```bash
@@ -126,6 +129,9 @@ journalctl -u ckpool -f
 
 ### Uninstalling
 
+> [!CAUTION]
+> Removing blockchain data (`~/.bitcoin`) will require a full re-sync if you reinstall.
+
 ```bash
 # Stop and disable services
 sudo systemctl stop ckpool bitcoind
@@ -149,14 +155,17 @@ rm -rf ~/.bitcoin
 
 ### Troubleshooting
 
-**CKPool not starting?**
-- Check if blockchain is synced: `bitcoin-cli getblockchaininfo`
-- CKPool waits for sync before starting
+> [!TIP]
+> **CKPool not starting?**
+> - Check if blockchain is synced: `bitcoin-cli getblockchaininfo`
+> - CKPool waits for sync before starting
 
-**Connection refused on port 3333?**
-- Verify CKPool is running: `systemctl status ckpool`
-- Check firewall: `sudo ufw allow 3333/tcp`
+> [!TIP]
+> **Connection refused on port 3333?**
+> - Verify CKPool is running: `systemctl status ckpool`
+> - Check firewall: `sudo ufw allow 3333/tcp`
 
-**RPC errors?**
-- Verify bitcoind is running: `systemctl status bitcoind`
-- Check RPC credentials match between configs
+> [!TIP]
+> **RPC errors?**
+> - Verify bitcoind is running: `systemctl status bitcoind`
+> - Check RPC credentials match between configs

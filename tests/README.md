@@ -24,7 +24,8 @@ This directory contains unit tests for CKPOOL-LHR.
 
 ### Prerequisites
 
-Tests use a simple built-in test framework (no external dependencies required).
+> [!NOTE]
+> Tests use a simple built-in test framework (no external dependencies required).
 
 ### Build and Run
 
@@ -96,15 +97,18 @@ The test suite covers:
 
 ## Troubleshooting
 
-### Tests don't compile
-- Ensure `libckpool.a` is built first: `cd src && make`
-- Check that all required headers are accessible
-- Verify autotools files are up to date: `./autogen.sh && ./configure`
+> [!TIP]
+> **Tests don't compile?**
+> - Ensure `libckpool.a` is built first: `cd src && make`
+> - Check that all required headers are accessible
+> - Verify autotools files are up to date: `./autogen.sh && ./configure`
 
-### Link errors
-- Ensure jansson library is built: `cd src/jansson-2.14 && make`
-- Check that `libckpool.a` includes all required objects
+> [!TIP]
+> **Link errors?**
+> - Ensure jansson library is built: `cd src/jansson-2.14 && make`
+> - Check that `libckpool.a` includes all required objects
 
-### Test failures
-- Check `tests/test-suite.log` for detailed error messages
-- Run individual test binaries for more verbose output
+> [!TIP]
+> **Test failures?**
+> - Check `tests/test-suite.log` for detailed error messages
+> - Run individual test binaries for more verbose output
