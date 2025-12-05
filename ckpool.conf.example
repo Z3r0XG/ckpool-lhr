@@ -41,9 +41,6 @@
 "startdiff" : 0.0005,
 "maxdiff" : 0.0,
 "zmqblock" : "tcp://127.0.0.1:28332",
-"logdir" : "logs",
-"useragent": [
-	"*"
-]
+"logdir" : "logs"
 }
 Comments from here on are ignored.
