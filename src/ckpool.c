@@ -433,6 +433,10 @@ retry:
 		LOGWARNING("Listener received reject message, rejecting clients");
 		send_proc(ckp->connector, "reject");
 		send_unix_msg(sockd, "rejecting");
+	} else if (cmdmatch(buf, "dropall")) {
+		LOGWARNING("Listener received dropall message, disconnecting all clients");
+		send_proc(ckp->stratifier, buf);
+		send_unix_msg(sockd, "dropping all");
 	} else if (cmdmatch(buf, "reconnect")) {
 		LOGWARNING("Listener received request to send reconnect to clients");
 		send_proc(ckp->stratifier, buf);
@@ -1310,7 +1314,7 @@ static bool parse_useragents(ckpool_t *ckp, const json_t *arr_val)
 	}
 	arr_size = json_array_size(arr_val);
 	if (!arr_size) {
-		LOGWARNING("Useragent array empty");
+		/* Empty array means no whitelist - allow all user agents */
 		goto out;
 	}
 	ckp->useragents = arr_size;
@@ -1493,20 +1497,13 @@ static void parse_config(ckpool_t *ckp)
 		ckp->version_mask = 0x1fffe000;
 	/* Default don't drop idle clients */
 	json_get_int(&ckp->dropidle, json_conf, "dropidle");
+	/* Default never cleanup user data (0 = never, matches official behavior) */
+	json_get_int(&ckp->user_cleanup_days, json_conf, "user_cleanup_days");
 	/* Look for an array first and then a single entry */
 	arr_val = json_object_get(json_conf, "useragent");
 	if (!parse_useragents(ckp, arr_val)) {
-		if (json_get_string(&user_agent, json_conf, "useragent")) {
-			ckp->useragent = ckalloc(sizeof(char *));
-			ckp->useragent[0] = user_agent;
-			ckp->useragents = 1;
-		}
-		/* If no user agent has been set, use "NerdMinerV2" as default */
-		else {
-			ckp->useragent = ckalloc(sizeof(char *));
-			ckp->useragent[0] = strdup("NerdMinerV2");
-			ckp->useragents = 1;
-		}
+		/* If useragent is not configured, ckp->useragents remains 0, allowing all.
+		 * No default user agent is set. */
 	}
 	/* Look for an array first and then a single entry */
 	arr_val = json_object_get(json_conf, "serverurl");
@@ -1804,6 +1801,9 @@ int main(int argc, char **argv)
 		ckp.donation = 0;
 	else if (ckp.donation > 99.9)
 		ckp.donation = 99.9;
+	/* Default never cleanup user data (0 = never, matches official behavior) */
+	if (ckp.user_cleanup_days < 0)
+		ckp.user_cleanup_days = 0;
 
 	/* Donations on testnet are meaningless but required for complete
 	 * testing. Testnet and regtest addresses */
@@ -1848,12 +1848,6 @@ int main(int argc, char **argv)
 	ret = mkdir(ckp.logdir, 0750);
 	if (ret && errno != EEXIST)
 		quit(1, "Failed to make log directory %s", ckp.logdir);
-
-	/* Create the workers logdir */
-	sprintf(buf, "%s/workers", ckp.logdir);
-	ret = mkdir(buf, 0750);
-	if (ret && errno != EEXIST)
-		quit(1, "Failed to make workers log directory %s", buf);
 
 	/* Create the user logdir */
 	sprintf(buf, "%s/users", ckp.logdir);

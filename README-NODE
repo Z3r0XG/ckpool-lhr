@@ -1,0 +1,185 @@
+# Node Mode with CKPOOL-LHR
+
+## Use Case
+
+Node mode combines passthrough functionality with local bitcoind and block
+submission capability. It behaves like passthrough but requires a locally
+running bitcoind and can submit blocks itself in addition to forwarding shares
+to the upstream pool. This provides redundant block submission paths and allows
+for distributed pool architecture.
+
+**Ideal for:**
+- Distributed pool architecture with local block submission
+- Redundant block submission paths
+- Regional pool nodes with local bitcoind
+- High-availability pool deployments
+
+## How Node Mode Works
+
+In node mode, ckpool-lhr combines passthrough functionality (streaming individual
+miner data to upstream pool) with local bitcoind connectivity. The node can
+submit blocks to its local bitcoind in addition to forwarding shares to the
+upstream pool. This provides redundancy - if the upstream pool has issues, the
+node can still submit blocks locally.
+
+**Workflow**: Downstream miners connect → Subscribe → Authorize → Receive work →
+Submit shares → Node streams miner data to upstream pool AND can submit blocks
+to local bitcoind → Upstream pool validates and responds → Node forwards responses
+to downstream miners.
+
+**Important**: 
+- Requires local bitcoind connection (btcd configuration required)
+- Monitors hashrate and requires additional resources
+- Upstream pools must specify dedicated IPs/ports for node communication using
+  the `nodeserver` directive
+- Preserves individual miner identity on upstream pool
+
+For complete configuration reference, see the main README.
+
+---
+
+## Required Options
+
+### Command Line
+
+**`-N` or `--node`**: **REQUIRED** to start ckpool-lhr in node mode.
+
+Example:
+```bash
+src/ckpool -N
+```
+
+### Configuration File
+
+**"btcd"** : Bitcoind connection configuration. **REQUIRED**
+- Type: Array of objects
+- Each entry: url (string, required), auth (string, required), pass (string, required),
+  cookie (string, optional), notify (boolean, optional)
+- Default: localhost:8332 with user "user" and password "pass" if not specified
+- Example:
+```json
+"btcd" : [
+    {
+        "url" : "127.0.0.1:8332",
+        "auth" : "username",
+        "pass" : "password",
+        "notify" : true
+    }
+]
+```
+
+**"proxy"** : Upstream pool connection configuration. **REQUIRED**
+- Type: Array of objects
+- Each entry: url (string, required), auth (string, required), pass (string, required)
+- Multiple entries can be specified for redundancy/load balancing
+- Example:
+```json
+"proxy" : [
+    {
+        "url" : "upstream.pool.com:3333",
+        "auth" : "username",
+        "pass" : "password"
+    }
+]
+```
+
+---
+
+## Quick Start
+
+### 1. Configure bitcoind
+
+Edit `bitcoin.conf` to enable RPC:
+```
+server=1
+rpcuser=username
+rpcpassword=password
+rpcallowip=127.0.0.1
+rpcbind=127.0.0.1
+```
+
+Restart bitcoind with ZMQ notifications (recommended):
+```
+-zmqpubhashblock=tcp://127.0.0.1:28332
+```
+
+Or use the notifier if ZMQ is unavailable:
+```
+-blocknotify=$CKPOOLSOURCE/src/notifier
+```
+(Replace `$CKPOOLSOURCE` with your CKPOOL-LHR source path)
+
+### 2. Create Configuration File
+
+Copy the example configuration file and customize it:
+```bash
+cp cknode.conf.example cknode.conf
+```
+
+Edit `cknode.conf` with the required `btcd` and `proxy` settings (see Required Options above).
+
+### 3. Start ckpool-lhr in Node Mode
+
+```bash
+src/ckpool -N
+```
+
+### 4. Configure Your Miners
+
+Point your mining hardware to the node:
+- **URL**: `192.168.1.100:3334` (your node IP address, default port 3334)
+- **Username**: Your upstream pool username (preserved to upstream)
+- **Password**: Your upstream pool password (preserved to upstream)
+
+---
+
+## Optional Configuration Options
+
+All configuration options relevant to node mode are listed below. Options not
+listed (btcaddress, redirecturl, trusted, upstream) are not used in node mode.
+
+**"serverurl"** : Server bindings for downstream miner connections. **OPTIONAL**
+- Type: Array of strings
+- Values: "IP:port" or "hostname:port"
+- Default: All interfaces on port 3334
+- Note: Ports below 1024 usually require privileged access
+- Example: `"serverurl" : ["192.168.1.100:3334", "127.0.0.1:3334"]`
+
+**"nodeserver"** : Additional server bindings for mining node communications. **OPTIONAL**
+- Type: Array of strings
+- Values: "IP:port" or "hostname:port"
+- Default: None
+- Note: Recommended to isolate these addresses to minimize unnecessary
+  communications with unauthorized nodes. Upstream pools should connect to
+  these addresses for node communication.
+- Example: `"nodeserver" : ["10.0.0.1:3335"]`
+
+**"blockpoll"** : Frequency to poll bitcoind for new blocks. **OPTIONAL**
+- Type: Integer
+- Values: Milliseconds (positive integer)
+- Default: 100
+- Note: Only used if "notify" field is not set on a btcd entry
+
+**"zmqblock"** : ZMQ interface for block hash notifications. **OPTIONAL**
+- Type: String
+- Values: ZMQ URL format (e.g., "tcp://127.0.0.1:28332")
+- Default: "tcp://127.0.0.1:28332"
+- Note: Requires bitcoind -zmqpubhashblock option
+
+**"logdir"** : Directory for storing pool and client logs. **OPTIONAL**
+- Type: String
+- Values: Valid directory path
+- Default: "logs"
+
+**"maxclients"** : Maximum number of concurrent client connections. **OPTIONAL**
+- Type: Integer
+- Values: Positive integer
+- Default: No limit
+- Note: Connections beyond this limit are rejected
+
+**"useragent"** : Allowed user agent strings for miner connections. **OPTIONAL**
+- Type: Array of strings
+- Values: String patterns (prefix matching)
+- Default: Not configured (allow all)
+- Note: If configured, only miners with user agents matching an entry in the whitelist are allowed. Empty user agent strings do not match any pattern and will be rejected if whitelist is configured.
+

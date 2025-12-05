@@ -23,7 +23,7 @@ This directory contains unit tests for CKPOOL-LHR.
 ## Structure
 
 - `unit/` - Unit tests for pure functions
-- `integration/` - Integration tests (future, requires full system)
+- `integration/` - Integration/regression tests for live ckpool instance
 - `fixtures/` - Test data and fixtures (future)
 
 ## Building and Running Tests
@@ -45,7 +45,7 @@ Tests use a simple built-in test framework (no external dependencies required).
 make check
 ```
 
-### Run Individual Tests
+### Run Individual Unit Tests
 
 ```bash
 ./tests/unit/test-difficulty
@@ -63,7 +63,25 @@ make check
 ./tests/unit/test-base58
 ./tests/unit/test-base64
 ./tests/unit/test-dropidle
+./tests/unit/test-vardiff
+./tests/unit/test-share-params
+./tests/unit/test-config
 ```
+
+### Local Regression Testing
+
+**Note**: Regression tests are environment-specific and should be kept local (not committed to repo).
+
+For local validation of a running ckpool instance, you can create environment-specific regression tests in `tests/integration/` (this directory is gitignored).
+
+Example test areas:
+- Network communication (Stratum protocol)
+- Bitcoind connectivity
+- File I/O (logs, user data)
+- Multi-process coordination
+- Service management
+- Configuration validation
+- Share submission flow (requires full Stratum client)
 
 ## Test Framework
 
@@ -90,6 +108,9 @@ Tests use a simple custom test framework defined in `test_common.h`. The framewo
 The test suite covers:
 - All critical fork-specific features (sub-"1" difficulty, donation system, useragent whitelisting, dropidle)
 - Core cryptographic functions (SHA-256, hash validation)
+- Variable difficulty adjustment logic (vardiff)
+- Share submission parameter validation
+- Configuration parsing and validation
 - Encoding/decoding functions (hex, Base58, Base64, address encoding)
 - Utility functions (string operations, time conversions, number serialization)
 - Edge cases and error handling

@@ -5,8 +5,7 @@ and the CKPOOL-LHR fork.
 
 ## Overview
 
-The CKPOOL-LHR fork is based on an earlier version of CKPOOL (commit 3a6da1fa) and
-includes modifications to support sub-"1" difficulty values for low hash rate miners,
+The CKPOOL-LHR fork includes modifications to support sub-"1" difficulty values for low hash rate miners,
 along with other enhancements and changes.
 
 ## Core Changes
@@ -16,35 +15,14 @@ along with other enhancements and changes.
 **Purpose**: Enable difficulty values below 1.0 for low hash rate miners (ESP32
 devices and other embedded systems).
 
-**Implementation**:
-- `mindiff` and `startdiff` are `double` type in `ckpool.h` (support sub-"1" values)
-- Difficulty-related variables are `double` type:
-  - `client->diff`, `client->old_diff`, `client->suggest_diff`
-  - `client->ssdc` (shares since diff change)
-  - Various share counting variables (`shares`, `best_diff`, `best_ever`)
-- Uses `json_get_double()` for `mindiff` and `startdiff` parsing in `ckpool.c`
-- Automatic vardiff adjustment prevents reducing difficulty below 1
-  (line 5734 in `stratifier.c`: `if (unlikely(optimal < 1)) return;`)
-- Manually configured `mindiff` and initial `startdiff` values below 1 are
-  accepted and applied correctly
-
-**Relevant Files**:
-- `src/ckpool.h` - Type definitions
-- `src/ckpool.c` - Configuration parsing
-- `src/stratifier.c` - Difficulty handling and vardiff logic
-- `src/generator.c` - Difficulty calculations
-- `src/libckpool.c` - Library functions
+**Behavior**:
+- `mindiff` and `startdiff` configuration options accept decimal values below 1.0 (e.g., 0.0005, 0.001)
+- Manually configured sub-"1" difficulty values are accepted and applied to miners
+- Automatic vardiff adjustment will not reduce difficulty below 1.0 (manual configuration required for sub-"1" values)
 
 ### 2. User Agent Whitelisting
 
 **Purpose**: Optionally restrict which mining software can connect to the pool.
-
-**Implementation**:
-- `useragent` array and `useragents` count in `ckpool_t` structure
-- `parse_useragents()` function in `ckpool.c` for configuration parsing
-- User agent validation in `stratifier.c` subscription handling
-- `useragent` field in worker instances for persistence
-- Uses prefix matching via `safencmp` function
 
 **Behavior**:
 - **Whitelist not configured** (missing or empty array): All user agents allowed,
@@ -52,79 +30,34 @@ devices and other embedded systems).
 - **Whitelist configured**: User agent must match a whitelist entry using prefix matching,
   otherwise connection is rejected. Empty user agents are rejected (they don't match any pattern)
 
-**Relevant Files**:
-- `src/ckpool.h` - Structure definitions
-- `src/ckpool.c` - Configuration parsing
-- `src/stratifier.c` - Subscription validation and worker tracking
-
-### 3. Donation System Default Address
-
-**Difference**: Default `donaddress` value differs from official CKPOOL.
-
-- **CKPOOL-LHR default**: `bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5`
-- **Official CKPOOL default**: `bc1q28kkr5hk4gnqe3evma6runjrd2pvqyp8fpwfzu`
-
-The donation system implementation is otherwise identical (both use `double` type for `donation`, both have configurable `donaddress`).
-
-### 4. Bitcoind Cookie Authentication Support
+### 3. Bitcoind Cookie Authentication Support
 
 **Purpose**: Support cookie-based authentication for bitcoind connections.
 
-**Implementation**:
-- `cookie` field in bitcoind configuration structure
-- `btcdcookie` array in `ckpool_t` structure
-- `json_get_configstring()` allows cookie as alternative to auth/pass
-- Cookie parsing in `parse_btcds()` function
+**Behavior**:
+- Bitcoind connections can use cookie-based authentication as an alternative to username/password
+- Cookie file path is specified in the bitcoind configuration
 
-**Relevant Files**:
-- `src/ckpool.h` - Structure definitions
-- `src/ckpool.c` - Configuration parsing
+### 4. Configurable User Data Cleanup
 
-### 5. Features Not Present in CKPOOL-LHR
+**Purpose**: Control how long user and worker statistics are retained on disk.
 
-**Missing Features**:
-- `dropall` command support (disconnect all clients)
-- SHA256 hardware acceleration files:
-  - `src/sha256_arm_shani.c` (ARM SHA-NI acceleration)
-  - `src/sha256_x86_shani.c` (x86 SHA-NI acceleration) - Note: x86 SHA-NI support exists via merged code
-
-### 6. Documentation
-
-**Additional Documentation Files**:
-- `FAQ.md` - Comprehensive documentation of repository structure and workflows
-- `README-PROXY` - Proxy mode documentation
-- `README-PASSTHROUGH` - Passthrough mode documentation
-- `README-NODE` - Node mode documentation
-- `README-REDIRECTOR` - Redirector mode documentation
-- `README-USERPROXY` - Userproxy mode documentation
-
-**Fork-Specific Documentation**:
-- `README` - Fork-focused documentation with sub-"1" difficulty support details
-- `README-SOLOMINING` - Solo mining guide
-- `AUTHORS` - Separated original authors from fork contributors
-- `ChangeLog` - Fork identification
-
-
-## Version Information
-
-- **CKPOOL-LHR Fork Base**: Commit `3a6da1fa` from original CKPOOL repository
-
-## Build System
-
-CKPOOL-LHR uses autotools build system:
-- `configure.ac` - Build configuration
-- `Makefile.am` files - Build rules
-- Test suite in `tests/` directory
+**Behavior**:
+- `user_cleanup_days` configuration option (integer, days)
+- Default: `0` (never cleanup, matches official ckpool behavior - user data persists indefinitely)
+- When set to a positive value: User and worker statistics are removed from disk after the specified number of days of inactivity (no shares submitted)
+- Users who have never submitted a share are always skipped regardless of this setting
+- Provides flexibility: `0` = keep forever, `7` = 1 week, `365` = 1 year, etc.
 
 ## Configuration File Differences
 
 **Additional Options in CKPOOL-LHR**:
 - `useragent` - Array of allowed user agent strings
+- `user_cleanup_days` - Days after which inactive user/worker data is cleaned up (0 = never)
 
 **Different Behavior**:
 - `mindiff` - Accepts double type (sub-"1" values supported)
 - `startdiff` - Accepts double type (sub-"1" values supported)
-- `donaddress` - Default address differs (see Section 3)
 
 ## Summary
 
@@ -132,7 +65,7 @@ The CKPOOL-LHR fork provides:
 1. **Low Hash Rate Support**: Sub-"1" difficulty for embedded systems
 2. **Security**: User agent whitelisting
 3. **Flexibility**: Cookie-based bitcoind authentication
-4. **Documentation**: Comprehensive mode-specific READMEs
+4. **Resource Management**: Configurable user data cleanup
 
 The fork maintains backward compatibility with standard pool operations while
 providing specialized features for low hash rate mining scenarios.
