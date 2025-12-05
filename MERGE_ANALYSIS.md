@@ -150,6 +150,37 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 - **Risk**: Low - redirector mode fixes, doesn't touch protected areas
 - **Result**: Successfully merged - improves redirector stability
 
+### 12. Drop Client Fix (Properly Clear Dropped Clients)
+**Status**: ✅ ALREADY IN FORK (ENHANCED)
+- Commit: `0554020d` - "Properly clear dropped clients"
+- **Official change**: Removed `!client->dropped` check entirely: `if (client && !client->dropped)` → `if (client)`
+- **Fork implementation**: Enhanced with `(!client->dropped || !client->ref)` check (commit b4f8ab69)
+- **Status**: Fork already has this fix with optimization (allows cleanup when ref=0)
+- **Action**: No merge needed - fork's version is better
+
+### 13. Decay Inactive Stats
+**Status**: ⚠️ NOT IN FORK (DIFFERENT BEHAVIOR)
+- Commit: `a8f808b5` - "Decay inactive worker and user stats even if not logging them"
+- **Official change**: Always decays stats even if not logging, removes `idle` flag check for logging
+- **Fork status**: Fork still uses old behavior (only decays if idle > 60s, skips logging if idle)
+- **Risk**: Medium - changes stats decay behavior
+- **Action**: Review needed - decide if we want this behavior change
+
+### 14. Remove Deprecated Workers Directory
+**Status**: ⚠️ NOT IN FORK
+- Commit: `4850ba2f` - "Remove deprecated workers directory creation"
+- **Official change**: Removes workers directory creation code
+- **Fork status**: Fork still creates workers directory (line 1856 in ckpool.c)
+- **Risk**: Low - just removes directory creation
+- **Action**: Review needed - check if workers directory is still needed
+
+### 15. Build System: libjansson Installation
+**Status**: ⚠️ NOT MERGED
+- Commit: `d0d66556` - "Do not install any custom libjansson files since they're only statically linked and can overwrite operating system versions"
+- **Official change**: Prevents installing libjansson files that could overwrite system versions
+- **Risk**: Low - build system change
+- **Action**: Review needed - might be safe to merge
+
 ## Recommended Merge Strategy
 
 ### Phase 1: Low-Risk Updates
@@ -210,8 +241,17 @@ For each safe change:
 ## Commits Not Applicable (Skipped - Not Needed)
 
 ❌ **Not Merged (Explicitly Not Brought Over):**
+- `9094ec54` - dropall command support (NOT APPLICABLE - feature not in fork)
 - `3f95bce6`, `227f415a` - configure.ac cleanup (NOT APPLICABLE - we don't have those debug lines)
 - Version bumps - Skipped (version numbers are fork-specific)
+- `3a8b0c21` - Update script to use bitcoin core v29.2 (NOT APPLICABLE - fork doesn't have install scripts)
+
+## Commits Needing Review
+
+⚠️ **Potential Merge Candidates (Need Analysis):**
+- `a8f808b5` - Decay inactive stats (different behavior in fork)
+- `4850ba2f` - Remove deprecated workers directory (fork still creates it)
+- `d0d66556` - libjansson installation fix (build system change)
 
 ## Testing Checklist
 
