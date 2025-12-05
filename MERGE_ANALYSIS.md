@@ -161,61 +161,26 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 ### 13. Decay Inactive Stats
 **Status**: ⚠️ NOT IN FORK (DIFFERENT BEHAVIOR)
 - Commit: `a8f808b5` - "Decay inactive worker and user stats even if not logging them"
-- **What "logging" means**: Adding stats messages to the pool log output (via `LOGNOTICE()`). These messages show up in pool logs and can be queried via `ckpmsg`.
-- **What "decay" means**: Gradually reducing hashrate statistics over time when no new shares are submitted. The hashrate values (1m, 5m, 1hr, 1d, 7d) decrease exponentially over time.
 
-**Scenario: Miner mines for 1 week, then stops**
+**Practical Difference**: Whether user/worker stats are kept forever or cleaned up after 1 week idle.
 
 **Fork behavior (current)**:
-1. **After 60 seconds of no shares**:
-   - Hashrate stats start decaying (values decrease over time)
-   - Stats are **NOT logged** to pool logs (skipped because `idle = true`, line 8131)
-   - Stats are still saved to disk in JSON files (`logdir/users/username`)
-2. **After 1 week (600000 seconds) of no shares**:
-   - User/worker is completely skipped (removed from processing)
-   - No longer appears in stats at all
+- **After 60 seconds idle**: Hashrate stats decay, but stats are **NOT logged** to pool logs (saves disk I/O)
+- **After 1 week idle**: User/worker data is **completely removed** from disk and logs
+- **Result**: User/worker stats are cleaned up after 1 week of inactivity
 
 **Official behavior (after commit)**:
-1. **If user has never submitted a share** (`last_share.tv_sec == 0`):
-   - User is immediately skipped (before any processing)
-   - This catches users who were created but never submitted any shares
-2. **After 60 seconds of no shares** (if user has submitted shares before):
-   - Hashrate stats start decaying (same as fork)
-   - Stats **ARE logged** to pool logs (always logged, removed `if (!idle)` check)
-   - Stats are saved to disk in JSON files
-3. **Users who have submitted shares are NEVER cleaned up**:
-   - Official removed the "1 week idle" cleanup for users
-   - Users persist forever once they've submitted at least one share
-   - Only workers are cleaned up after 1 week idle (600000 seconds)
+- **After 60 seconds idle**: Hashrate stats decay, and stats **ARE logged** to pool logs (always logged)
+- **Users who have submitted shares**: **NEVER cleaned up** - persist forever in disk and logs
+- **Workers**: Still cleaned up after 1 week idle (600000 seconds)
+- **Users with no shares**: Immediately skipped (`last_share.tv_sec == 0` check)
+- **Result**: User stats persist forever once they've submitted at least one share
 
-**What "no shares at all" means**:
-- `last_share.tv_sec == 0` means the user has **never submitted a share, ever**
-- This happens when:
-  - User was just created (initialized to 0) and hasn't submitted a share yet
-  - User was loaded from disk but JSON file had no "lastshare" field or it was 0 (unusual, but possible)
-- This is **different** from "idle for X time" - it's checking if user has EVER submitted a share, not how long since the last share
-
-**Key Difference**:
-- **Fork**: Decays stats but doesn't log idle users/workers to pool logs (saves disk I/O and log noise)
-- **Official**: Decays stats AND always logs them to pool logs (even when idle, so they're visible in logs)
-
-**Pool Stats Handling** (how active/idle/disconnected are counted):
-
-**Fork behavior**:
-- **Active Users/Workers**: Counted in `stats->users` and `stats->workers` (only while connected)
-- **Idle Workers**: Counted in `idle_workers` (clients with no shares for > 60s, but still connected)
-- **Disconnected**: Counted in `stats->disconnected` (sessions cleaned up after 600 seconds)
-- **After 1 week idle**: Users/workers are removed from processing, so they're no longer in stats
-
-**Official behavior**:
-- **Active Users/Workers**: Counted in `stats->users` and `stats->workers` (only while connected) - same as fork
-- **Idle Workers**: Counted in `idle_workers` (clients with no shares for > 60s, but still connected) - same as fork
-- **Disconnected**: Counted in `stats->disconnected` (sessions cleaned up after 600 seconds) - same as fork
-- **After user stops mining**: User is removed from `stats->users` when disconnected, but user data persists in JSON files and is logged to pool logs forever (never cleaned up)
-
-**Important Note**: Pool stats (`stats->users`, `stats->workers`) only count **currently connected** users/workers. The cleanup behavior affects:
-- **Fork**: User data removed from disk/logs after 1 week idle
-- **Official**: User data persists in disk/logs forever (once they've submitted shares)
+**What this means**:
+- **Fork**: User data files (`logdir/users/username`) are deleted after 1 week idle
+- **Official**: User data files persist forever (once user has submitted shares)
+- **Pool stats** (active/idle/disconnected counts): Same in both - only count currently connected users/workers
+- **Log visibility**: Fork hides idle users from pool log messages, official shows them (with decaying hashrate)
 
 **Impact**: 
 - **Log visibility**: In fork, idle users don't appear in pool log messages. In official, they do (with decaying hashrate).
