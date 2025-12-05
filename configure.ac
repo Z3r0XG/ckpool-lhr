@@ -100,6 +100,9 @@ fi
 if test x$sse4 = xsse4_1; then
 	AC_DEFINE([USE_SSE4], [1], [Use sse4 assembly instructions for sha256])
 fi
+if test x$sha2 = xsha2; then
+	AC_DEFINE([USE_ARM_SHA2], [1], [Use ARMv8 instructions for sha256])
+fi
 
 AC_CONFIG_SUBDIRS([src/jansson-2.14])
 JANSSON_LIBS="jansson-2.14/src/.libs/libjansson.a"

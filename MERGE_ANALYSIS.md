@@ -45,12 +45,20 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 ## Safe to Merge (Candidates)
 
 ### 1. Build System Improvements
-**Status**: ✅ MERGED TO MAIN
+**Status**: ✅ MERGED TO MAIN (x86 SHA-NI), ⏳ PENDING (ARM SHA-NI)
 - `configure.ac` cleanup (commits 3f95bce6, 227f415a) - **NOT APPLICABLE** (we don't have those debug lines)
 - Default CFLAGS (commit 2589d759) - **✅ MERGED TO MAIN** (commit 6dbd5585)
 - x86 SHA-NI support (commit 8da33e78) - **✅ MERGED TO MAIN** (commit b30639ab)
-- **Risk**: Low - build system changes rarely conflict with code
-- **Result**: All build system improvements successfully merged and tested
+- ARM SHA-NI support (commit 9b5a8c81) - **⏳ PENDING MERGE**
+  - **What it does**: Adds ARMv8 SHA-256 hardware acceleration for aarch64 CPUs
+  - **Files to add/modify**:
+    - `src/sha256_arm_shani.c` (new file, 191 lines)
+    - `src/sha2.c` (add `#elif defined(USE_ARM_SHA2)` branch)
+    - `configure.ac` (add `AC_DEFINE([USE_ARM_SHA2], ...)`)
+    - `src/Makefile.am` (add ARM SHA2 conditional build)
+  - **Risk**: Very Low - hardware acceleration only, doesn't touch protected areas
+  - **Note**: Our fork already has ARM SHA2 detection in configure.ac, just needs the implementation
+- **Result**: x86 SHA-NI merged and tested, ARM SHA-NI ready to merge
 
 ### 2. Bug Fixes (Already Applied)
 **Status**: ✅ ALREADY IN FORK
