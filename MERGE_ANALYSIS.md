@@ -196,6 +196,17 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 - **Risk**: Low - build system change, only affects installation
 - **Action**: ✅ Merged - prevents potential conflicts with system libraries
 
+### 16. Install Script for Solo Mining
+**Status**: ✅ ADDED TO FORK
+- Commit: `3a8b0c21` - "Update script to use bitcoin core v29.2"
+- **Official change**: Updates Bitcoin Core version in install script
+- **Fork status**: ✅ ADDED (commit 9f00fc94) - Install script added with fork-specific updates
+- **What was added**:
+  - `scripts/install-ckpool-solo.sh` - Automated installation script for solo mining setup
+  - Updates: Git URL points to fork, HTTPS instead of SSH, Bitcoin Core v29.2, CKPool-LHR branding
+  - Maintains original installation paths (`/opt/ckpool`, `/etc/ckpool`, `/var/log/ckpool`) for compatibility
+- **Action**: ✅ Added - provides easy solo mining setup while maintaining path compatibility
+
 
 ## Commits Merged to Main
 
@@ -212,6 +223,9 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 10. `4850ba2f` - Remove deprecated workers directory
 11. `d0d66556` - libjansson installation fix
 12. `9094ec54` - Dropall command support
+
+✅ **Added to Fork (1 total):**
+1. `3a8b0c21` - Install script for solo mining (added with fork-specific updates)
 
 ## Commits Already in Fork (No Merge Needed)
 
@@ -234,8 +248,6 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
   - `3f95bce6`: Removed `AC_MSG_RESULT(["cpuinfo=$cpuinfo"])` debug line
   - **Why**: These debug lines were added to official repo after our fork, then removed. We never had them.
 - Version bumps - Skipped (version numbers are fork-specific)
-- `3a8b0c21` - Update script to use bitcoin core v29.2 (NOT APPLICABLE - fork doesn't have install scripts)
-  - **Why**: Official repo has `scripts/install-ckpool-solo.sh` (added in commit `e6737eb5`), but our fork doesn't have a `scripts/` directory
 
 
 ## Testing Results
@@ -262,4 +274,5 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 - Bug fixes (client initialization, connector, redirector)
 - Feature enhancements (decay stats with configurable cleanup, dropall command)
 - Build system cleanup (workers directory, libjansson installation)
+- Install script added (solo mining setup automation)
 
