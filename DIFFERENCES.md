@@ -56,16 +56,7 @@ devices and other embedded systems).
 - `src/ckpool.c` - Configuration parsing
 - `src/stratifier.c` - Subscription validation and worker tracking
 
-### 3. Donation System Default Address
-
-**Difference**: Default `donaddress` value differs from official CKPOOL.
-
-- **CKPOOL-LHR default**: `bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5`
-- **Official CKPOOL default**: `bc1q28kkr5hk4gnqe3evma6runjrd2pvqyp8fpwfzu`
-
-The donation system implementation is otherwise identical (both use `double` type for `donation`, both have configurable `donaddress`).
-
-### 4. Bitcoind Cookie Authentication Support
+### 3. Bitcoind Cookie Authentication Support
 
 **Purpose**: Support cookie-based authentication for bitcoind connections.
 
@@ -79,40 +70,11 @@ The donation system implementation is otherwise identical (both use `double` typ
 - `src/ckpool.h` - Structure definitions
 - `src/ckpool.c` - Configuration parsing
 
-### 5. Features Not Present in CKPOOL-LHR
+### 4. Features Not Present in CKPOOL-LHR
 
 **Missing Features**:
-- SHA256 hardware acceleration files:
-  - `src/sha256_arm_shani.c` (ARM SHA-NI acceleration)
+- `src/sha256_arm_shani.c` (ARM SHA-NI acceleration)
   - Note: x86 SHA-NI support exists via merged code (`src/sha256_x86_shani.c`)
-
-### 6. Documentation
-
-**Additional Documentation Files**:
-- `FAQ.md` - Comprehensive documentation of repository structure and workflows
-- `README-PROXY` - Proxy mode documentation
-- `README-PASSTHROUGH` - Passthrough mode documentation
-- `README-NODE` - Node mode documentation
-- `README-REDIRECTOR` - Redirector mode documentation
-- `README-USERPROXY` - Userproxy mode documentation
-
-**Fork-Specific Documentation**:
-- `README` - Fork-focused documentation with sub-"1" difficulty support details
-- `README-SOLOMINING` - Solo mining guide
-- `AUTHORS` - Separated original authors from fork contributors
-- `ChangeLog` - Fork identification
-
-
-## Version Information
-
-- **CKPOOL-LHR Fork Base**: Commit `3a6da1fa` from original CKPOOL repository
-
-## Build System
-
-CKPOOL-LHR uses autotools build system:
-- `configure.ac` - Build configuration
-- `Makefile.am` files - Build rules
-- Test suite in `tests/` directory
 
 ## Configuration File Differences
 
@@ -122,7 +84,6 @@ CKPOOL-LHR uses autotools build system:
 **Different Behavior**:
 - `mindiff` - Accepts double type (sub-"1" values supported)
 - `startdiff` - Accepts double type (sub-"1" values supported)
-- `donaddress` - Default address differs (see Section 3)
 
 ## Summary
 
@@ -130,7 +91,6 @@ The CKPOOL-LHR fork provides:
 1. **Low Hash Rate Support**: Sub-"1" difficulty for embedded systems
 2. **Security**: User agent whitelisting
 3. **Flexibility**: Cookie-based bitcoind authentication
-4. **Documentation**: Comprehensive mode-specific READMEs
 
 The fork maintains backward compatibility with standard pool operations while
 providing specialized features for low hash rate mining scenarios.
