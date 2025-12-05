@@ -207,7 +207,19 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 4. **Faster startup**: Fewer user files to load at pool restart
 
 **Risk**: Medium - changes log visibility and cleanup logic
-**Action**: Review needed - decide if we want idle users visible in pool logs and if historical data preservation is worth the disk space cost
+
+**Recommendation**: 
+Given this fork's focus on **low hash rate miners** (ESP32 devices, hobby projects, intermittent mining):
+- **Low hash rate miners are more likely to mine intermittently** - they may take breaks and come back
+- **Preserving "best share ever" and total shares** is valuable for these users who may have limited mining time
+- **Disk space cost is relatively low** - user JSON files are small (few KB each), and low hash rate pools typically have fewer users
+- **Quality of life benefit** - users don't lose their achievements when they return after a break
+
+**Suggested approach**: Merge this change to match official behavior. The benefits (user reconnection with preserved stats, especially "best share ever") outweigh the costs (small disk space, minor log noise) for the fork's target audience of low hash rate/intermittent miners.
+
+**Alternative**: If disk space is a major concern, could add a configurable cleanup threshold (e.g., `user_cleanup_days`) instead of hardcoded 1 week, but this adds complexity.
+
+**Action**: ⚠️ Review needed - recommend merging for better user experience with low hash rate miners
 
 ### 14. Remove Deprecated Workers Directory
 **Status**: ✅ MERGE CANDIDATE
