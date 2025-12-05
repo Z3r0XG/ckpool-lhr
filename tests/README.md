@@ -65,19 +65,20 @@ make check
 ./tests/unit/test-dropidle
 ```
 
-### Run Integration/Regression Tests
+### Local Regression Testing
 
-**Note**: Integration tests require a running ckpool instance.
+**Note**: Regression tests are environment-specific and should be kept local (not committed to repo).
 
-```bash
-# Test against default pool and config
-./tests/integration/test-regression.py
+For local validation of a running ckpool instance, you can create environment-specific regression tests in `tests/integration/` (this directory is gitignored).
 
-# Test against specific pool and config
-./tests/integration/test-regression.py 192.168.1.100:3333 /path/to/ckpool.conf
-```
-
-See `integration/README.md` for details on integration test coverage.
+Example test areas:
+- Network communication (Stratum protocol)
+- Bitcoind connectivity
+- File I/O (logs, user data)
+- Multi-process coordination
+- Service management
+- Configuration validation
+- Share submission flow (requires full Stratum client)
 
 ## Test Framework
 
