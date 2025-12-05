@@ -82,7 +82,7 @@ fi
 if test $host_cpu = 'aarch64'; then
 	CFLAGS="$CFLAGS -march=armv8-a+crypto"
 	sha2=`cat /proc/cpuinfo | grep -o -m 1 sha2`
-fi
+		fi
 AM_CONDITIONAL([HAVE_X86_SHANI], [test x$x86_shani = xsha_ni])
 AM_CONDITIONAL([HAVE_AVX2], [test x$rorx = xavx2])
 AM_CONDITIONAL([HAVE_AVX1], [test x$avx1 = xavx])

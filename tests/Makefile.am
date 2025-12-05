@@ -23,7 +23,10 @@ check_PROGRAMS = \
 	unit/test-time-conversion \
 	unit/test-base58 \
 	unit/test-base64 \
-	unit/test-dropidle
+	unit/test-dropidle \
+	unit/test-vardiff \
+	unit/test-share-params \
+	unit/test-config
 
 TESTS = $(check_PROGRAMS)
 
@@ -86,6 +89,18 @@ unit_test_base64_SOURCES = \
 # dropidle feature tests
 unit_test_dropidle_SOURCES = \
 	unit/test-dropidle.c
+
+# Vardiff logic tests
+unit_test_vardiff_SOURCES = \
+	unit/test-vardiff.c
+
+# Share parameter validation tests
+unit_test_share_params_SOURCES = \
+	unit/test-share-params.c
+
+# Configuration parsing tests
+unit_test_config_SOURCES = \
+	unit/test-config.c
 
 # All tests depend on libckpool
 $(check_PROGRAMS): $(top_builddir)/src/libckpool.a

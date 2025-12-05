@@ -6566,8 +6566,34 @@ static void init_client(const stratum_instance_t *client, const int64_t client_i
 	sdata_t *sdata = client->sdata;
 
 	stratum_send_diff(sdata, client);
+	/* In solo mode, work is sent after authorization via update_solo_client().
+	 * In pool mode, send work immediately after subscription. */
 	if (!client->ckp->btcsolo)
 		stratum_send_update(sdata, client_id, true);
+	else if (client->authorised && client->user_instance) {
+		/* In solo mode, if client is already authorized, send work immediately */
+		workbase_t *wb;
+		user_instance_t *user = client->user_instance;
+
+		ck_rlock(&sdata->workbase_lock);
+		wb = sdata->current_workbase;
+		if (wb) {
+			wb->readcount++;
+			ck_runlock(&sdata->workbase_lock);
+
+			ck_wlock(&sdata->instance_lock);
+			__generate_userwb(sdata, wb, user);
+			ck_wunlock(&sdata->instance_lock);
+
+			update_solo_client(sdata, wb, client_id, user);
+
+			ck_wlock(&sdata->workbase_lock);
+			wb->readcount--;
+			ck_wunlock(&sdata->workbase_lock);
+		} else {
+			ck_runlock(&sdata->workbase_lock);
+		}
+	}
 }
 
 /* When a node first connects it has no transactions so we have to send all

@@ -63,6 +63,9 @@ make check
 ./tests/unit/test-base58
 ./tests/unit/test-base64
 ./tests/unit/test-dropidle
+./tests/unit/test-vardiff
+./tests/unit/test-share-params
+./tests/unit/test-config
 ```
 
 ### Local Regression Testing
@@ -105,6 +108,9 @@ Tests use a simple custom test framework defined in `test_common.h`. The framewo
 The test suite covers:
 - All critical fork-specific features (sub-"1" difficulty, donation system, useragent whitelisting, dropidle)
 - Core cryptographic functions (SHA-256, hash validation)
+- Variable difficulty adjustment logic (vardiff)
+- Share submission parameter validation
+- Configuration parsing and validation
 - Encoding/decoding functions (hex, Base58, Base64, address encoding)
 - Utility functions (string operations, time conversions, number serialization)
 - Edge cases and error handling
