@@ -1502,17 +1502,8 @@ static void parse_config(ckpool_t *ckp)
 	/* Look for an array first and then a single entry */
 	arr_val = json_object_get(json_conf, "useragent");
 	if (!parse_useragents(ckp, arr_val)) {
-		if (json_get_string(&user_agent, json_conf, "useragent")) {
-			ckp->useragent = ckalloc(sizeof(char *));
-			ckp->useragent[0] = user_agent;
-			ckp->useragents = 1;
-		}
-		/* If no user agent has been set, use "NerdMinerV2" as default */
-		else {
-			ckp->useragent = ckalloc(sizeof(char *));
-			ckp->useragent[0] = strdup("NerdMinerV2");
-			ckp->useragents = 1;
-		}
+		/* If useragent is not configured, ckp->useragents remains 0, allowing all.
+		 * No default user agent is set. */
 	}
 	/* Look for an array first and then a single entry */
 	arr_val = json_object_get(json_conf, "serverurl");
