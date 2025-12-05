@@ -57,7 +57,7 @@ wish to mine to, and put anything in the password field (such as "x")
 .e.g if ckpool has a local IP address of 192.168.1.100
 
 url: 192.168.1.100:3333
-username: 1PKN98VN2z5gwSGZvGKS2bj8aADZBkyhkZ
+username: bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5
 password: x
 
 Any valid bitcoin address will work
