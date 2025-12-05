@@ -60,8 +60,6 @@ Reward sent directly to miner's address.
 **Note**: The `btcaddress` configuration option is ignored in solo mode.
 Each miner's username determines where their rewards go.
 
-For complete configuration reference, see the main README.
-
 ---
 
 ## Required Options
@@ -165,10 +163,10 @@ src/ckpool -B
 
 Point mining hardware to the pool:
 - **URL**: `192.168.1.100:3333` (pool IP address, default port 3333)
-- **Username**: Your Bitcoin address (e.g., `bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5`)
+- **Username**: Your Bitcoin address, optionally with a worker name (e.g., `bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5.worker1`)
 - **Password**: Anything (e.g., "x")
 
-Any valid Bitcoin address works as the username.
+Any valid Bitcoin address works as the username. Append `.workername` to track multiple miners separately.
 
 ---
 
@@ -284,7 +282,5 @@ option is ignored in solo mode (miners provide their own address as username).
 
 - JSON is strict with formatting. Do not put a comma after the last field.
 - You can mine with a pruned blockchain, though it may add latency.
-- Bitcoin Core is not optimized for mining by default. Solo mining locally
-  should be a backup operation unless you have optimized infrastructure.
 - Mining on testnet may create cascading solved blocks when difficulty is 1.
   This is normal behavior optimized for mainnet where block solving is rare.
