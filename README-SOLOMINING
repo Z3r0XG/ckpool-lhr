@@ -2,6 +2,16 @@ Local solo mining.
 
 ---
 
+QUICK START OPTIONS:
+
+**Option 1: Automated Installation Script (Recommended for new users)**
+- Run `scripts/install-ckpool-solo.sh` as root/sudo
+- Automatically installs Bitcoin Core v29.2 and CKPool-LHR
+- Sets up systemd services for both
+- Configures everything for solo mining
+- See script comments for details
+
+**Option 2: Manual Setup**
 QUICK START INSTRUCTIONS (build instructions not included.)
 
 Edit bitcoin.conf, enabling RPC (remote procedure calls) with a username and
@@ -91,6 +101,12 @@ You can set the starting diff (instead of the default 42) on the pool as
 follows:
 
 "startdiff" : 10000,
+
+
+"user_cleanup_days" : Clean up user and worker data after this many days of inactivity.
+Use 0 to never cleanup (default, matches official ckpool behavior). When set to a positive
+value, user and worker statistics are removed from disk after the specified number of days
+of inactivity. Users who have never submitted a share are always skipped.
 
 
 You can define a signature to be mined into any blocks you solved as follows:

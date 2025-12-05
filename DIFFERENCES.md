@@ -5,8 +5,7 @@ and the CKPOOL-LHR fork.
 
 ## Overview
 
-The CKPOOL-LHR fork is based on an earlier version of CKPOOL (commit 3a6da1fa) and
-includes modifications to support sub-"1" difficulty values for low hash rate miners,
+The CKPOOL-LHR fork includes modifications to support sub-"1" difficulty values for low hash rate miners,
 along with other enhancements and changes.
 
 ## Core Changes
@@ -83,10 +82,9 @@ The donation system implementation is otherwise identical (both use `double` typ
 ### 5. Features Not Present in CKPOOL-LHR
 
 **Missing Features**:
-- `dropall` command support (disconnect all clients)
 - SHA256 hardware acceleration files:
   - `src/sha256_arm_shani.c` (ARM SHA-NI acceleration)
-  - `src/sha256_x86_shani.c` (x86 SHA-NI acceleration) - Note: x86 SHA-NI support exists via merged code
+  - Note: x86 SHA-NI support exists via merged code (`src/sha256_x86_shani.c`)
 
 ### 6. Documentation
 

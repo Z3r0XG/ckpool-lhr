@@ -142,7 +142,9 @@ ckpool - The main pool back end
 
 ckproxy - A link to ckpool that automatically starts it in proxy mode
 
-ckpmsg - An application for passing messages in libckpool format to ckpool
+ckpmsg - An application for passing messages in libckpool format to ckpool.
+	Supports commands like "dropall" (disconnect all clients), "reject",
+	"accept", "reconnect", and "restart".
 
 notifier - An application designed to be run with bitcoind's -blocknotify to
 	notify ckpool of block changes.
