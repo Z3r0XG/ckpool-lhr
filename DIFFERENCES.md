@@ -73,8 +73,7 @@ devices and other embedded systems).
 ### 4. Features Not Present in CKPOOL-LHR
 
 **Missing Features**:
-- `src/sha256_arm_shani.c` (ARM SHA-NI acceleration)
-  - Note: x86 SHA-NI support exists via merged code (`src/sha256_x86_shani.c`)
+- None (all hardware acceleration features from official repo are now merged)
 
 ## Configuration File Differences
 
