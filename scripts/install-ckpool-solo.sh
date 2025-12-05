@@ -230,7 +230,7 @@ dbcache=$dbcache
 EOF
 
 # Install CKPool-Solo
-git clone git@github.com:Z3r0XG/ckpool-solo.git /opt/ckpool
+git clone https://github.com/Z3r0XG/ckpool-solo.git /opt/ckpool
 chown -R $service_user:$service_user /opt/ckpool
 cd /opt/ckpool
 ./autogen.sh
