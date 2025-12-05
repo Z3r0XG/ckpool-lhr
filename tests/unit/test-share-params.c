@@ -108,7 +108,7 @@ static void test_workername_validation(void)
     workername = "worker1";
     assert_true(workername && strlen(workername) > 0 && !strchr(workername, '/'));
     
-    workername = "bc1qryh7hv7quzceehet75udcta0u6lkm4hjvrt9mw.worker1";
+    workername = "bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5.worker1";
     assert_true(workername && strlen(workername) > 0 && !strchr(workername, '/'));
     
     /* Invalid workernames */
