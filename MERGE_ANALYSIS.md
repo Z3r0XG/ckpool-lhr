@@ -98,12 +98,13 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 - **Risk**: Low - prevents race condition in stats updates
 - **Result**: Successfully merged - improves client initialization even without dropidle
 
-### 6. Debug Message for Idle Drop
-**Status**: ✅ ALREADY IN FORK
-- Commit: `e9162099` - "Add idle drop debug message"
-- **Change**: Adds LOGINFO for dropping idle clients
-- **Status**: Fork already has LOGINFO for dropidle (line 8045 in stratifier.c)
-- **Action**: No merge needed - already implemented
+### 6. Dropidle Feature
+**Status**: ✅ RE-IMPLEMENTED IN FORK (NOT MERGED)
+- Official commit: `b13f3eee` - "dropidle feature"
+- **Official change**: Adds dropidle configuration and idle client disconnection
+- **Fork status**: Fork independently re-implemented dropidle (commit 3575ff65)
+- **Action**: No merge needed - fork has its own implementation
+- **Note**: Implementation is functionally equivalent, but fork's version is protected
 
 ### 7. Version/Configure Updates
 **Status**: ⚠️ NOT MERGED
@@ -205,10 +206,10 @@ For each safe change:
 
 ## Commits Not Applicable (Skipped)
 
-❌ **Not Merged (Feature Removed or Not Needed):**
+❌ **Not Merged (Re-implemented Independently or Not Needed):**
+- `b13f3eee` - dropidle feature (RE-IMPLEMENTED IN FORK - fork has independent implementation, commit 3575ff65)
+- `e9162099` - idle drop debug (ALREADY IN FORK - logging included in fork's dropidle implementation)
 - `e0dabf4a`, `32a7178a` - dropidle disable (NOT APPLICABLE - fork has dropidle enabled by default 0, same behavior)
-- `b13f3eee` - dropidle feature (NOT APPLICABLE - fork re-implemented dropidle independently)
-- `e9162099` - idle drop debug (ALREADY IN FORK - logging already implemented)
 - `3f95bce6`, `227f415a` - configure.ac cleanup (NOT APPLICABLE - we don't have those debug lines)
 - Version bumps - Skipped (version numbers are fork-specific)
 
