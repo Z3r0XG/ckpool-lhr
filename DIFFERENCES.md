@@ -70,11 +70,6 @@ devices and other embedded systems).
 - `src/ckpool.h` - Structure definitions
 - `src/ckpool.c` - Configuration parsing
 
-### 4. Features Not Present in CKPOOL-LHR
-
-**Missing Features**:
-- None (all hardware acceleration features from official repo are now merged)
-
 ## Configuration File Differences
 
 **Additional Options in CKPOOL-LHR**:
