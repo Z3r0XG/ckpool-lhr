@@ -34,9 +34,13 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
    - Changes: Cookie-based bitcoind auth support
    - **Action**: Do not merge changes to bitcoind connection/auth
 
-5. **Removed Features**
+5. **Idle Client Management (dropidle)**
+   - Files: `src/ckpool.h`, `src/ckpool.c`, `src/stratifier.c`
+   - Changes: Configurable `dropidle` option, `lazy_drop_client` logic
+   - **Action**: Do not overwrite - feature re-added to fork
+
+6. **Removed Features**
    - `dropall` command (may still exist, but behavior differs)
-   - **Note**: `dropidle` feature was added back to fork (not merged from official)
 
 ## Safe to Merge (Candidates)
 
@@ -95,11 +99,11 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 - **Result**: Successfully merged - improves client initialization even without dropidle
 
 ### 6. Debug Message for Idle Drop
-**Status**: ❌ NOT APPLICABLE
+**Status**: ✅ ALREADY IN FORK
 - Commit: `e9162099` - "Add idle drop debug message"
 - **Change**: Adds LOGINFO for dropping idle clients
-- **Risk**: N/A - we removed dropidle
-- **Action**: Do not merge (feature removed)
+- **Status**: Fork already has LOGINFO for dropidle (line 8045 in stratifier.c)
+- **Action**: No merge needed - already implemented
 
 ### 7. Version/Configure Updates
 **Status**: ⚠️ NOT MERGED
@@ -202,9 +206,9 @@ For each safe change:
 ## Commits Not Applicable (Skipped)
 
 ❌ **Not Merged (Feature Removed or Not Needed):**
-- `e9162099` - idle drop debug (feature removed - dropidle not in fork)
-- `e0dabf4a`, `32a7178a` - dropidle disable (feature removed - dropidle not in fork)
-- `b13f3eee` - dropidle feature (feature removed - dropidle not in fork)
+- `e0dabf4a`, `32a7178a` - dropidle disable (NOT APPLICABLE - fork has dropidle enabled by default 0, same behavior)
+- `b13f3eee` - dropidle feature (NOT APPLICABLE - fork re-implemented dropidle independently)
+- `e9162099` - idle drop debug (ALREADY IN FORK - logging already implemented)
 - `3f95bce6`, `227f415a` - configure.ac cleanup (NOT APPLICABLE - we don't have those debug lines)
 - Version bumps - Skipped (version numbers are fork-specific)
 
@@ -215,10 +219,11 @@ After merging any changes:
 - [x] Useragent whitelisting still works (empty, configured, not configured) - ✅ Verified
 - [x] Donation system still works - ✅ Verified
 - [x] Cookie authentication still works - ✅ Verified
+- [x] dropidle feature works (disabled by default, configurable) - ✅ Verified
 - [x] Pool mode starts correctly - ✅ Verified
 - [x] Solo mode starts correctly - ✅ Verified
 - [x] Proxy mode starts correctly - ✅ Verified
-- [x] No regressions in existing functionality - ✅ All 14 unit tests passing
+- [x] No regressions in existing functionality - ✅ All 15 unit tests passing (including test-dropidle)
 - [x] All builds successful - ✅ Verified
 - [x] No linter errors - ✅ Verified
 
@@ -233,5 +238,5 @@ After merging any changes:
 
 - [ ] Continue monitoring official ckpool for new safe merges
 - [ ] Consider integration testing with live bitcoind and miners (as mentioned in TESTING_STRATEGY.md)
-- [ ] Update DIFFERENCES.md if any merged features need documentation
+- [x] Update DIFFERENCES.md - ✅ Completed (removed non-differences, focused on actual differences)
 
