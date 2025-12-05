@@ -161,21 +161,39 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 ### 13. Decay Inactive Stats
 **Status**: ⚠️ NOT IN FORK (DIFFERENT BEHAVIOR)
 - Commit: `a8f808b5` - "Decay inactive worker and user stats even if not logging them"
-- **What stats are affected**: Hashrate statistics (1m, 5m, 1hr, 1d, 7d) for users and workers
-- **Fork behavior (current)**: 
-  - Decays hashrate stats if idle > 60 seconds
-  - **Skips logging idle users/workers to stats message queue** (line 8131: `if (!idle)`)
-  - Skips users idle for 1 week (600000 seconds)
-- **Official behavior (after commit)**:
-  - Always decays hashrate stats if idle > 60 seconds (same as fork)
-  - **Always logs users/workers to stats message queue** (removed `if (!idle)` check)
-  - Skips users with no shares at all (`last_share.tv_sec == 0`) instead of 1 week threshold
-- **Impact**: 
-  - **Stats visibility**: In fork, idle users/workers don't appear in `ckpmsg` stats queries. In official, they do.
-  - **Memory**: Both decay stats, but official logs them anyway (more memory for message queue)
-  - **User cleanup**: Official uses "no shares" check instead of "1 week idle" for cleanup
-- **Risk**: Medium - changes stats visibility and cleanup logic
-- **Action**: Review needed - decide if we want idle users visible in stats queries
+- **What "logging" means**: Adding stats messages to the pool log output (via `LOGNOTICE()`). These messages show up in pool logs and can be queried via `ckpmsg`.
+- **What "decay" means**: Gradually reducing hashrate statistics over time when no new shares are submitted. The hashrate values (1m, 5m, 1hr, 1d, 7d) decrease exponentially over time.
+
+**Scenario: Miner mines for 1 week, then stops**
+
+**Fork behavior (current)**:
+1. **After 60 seconds of no shares**:
+   - Hashrate stats start decaying (values decrease over time)
+   - Stats are **NOT logged** to pool logs (skipped because `idle = true`, line 8131)
+   - Stats are still saved to disk in JSON files (`logdir/users/username`)
+2. **After 1 week (600000 seconds) of no shares**:
+   - User/worker is completely skipped (removed from processing)
+   - No longer appears in stats at all
+
+**Official behavior (after commit)**:
+1. **After 60 seconds of no shares**:
+   - Hashrate stats start decaying (same as fork)
+   - Stats **ARE logged** to pool logs (always logged, removed `if (!idle)` check)
+   - Stats are saved to disk in JSON files
+2. **If user has no shares at all** (`last_share.tv_sec == 0`):
+   - User is skipped (different cleanup logic)
+
+**Key Difference**:
+- **Fork**: Decays stats but doesn't log idle users/workers to pool logs (saves disk I/O and log noise)
+- **Official**: Decays stats AND always logs them to pool logs (even when idle, so they're visible in logs)
+
+**Impact**: 
+- **Log visibility**: In fork, idle users don't appear in pool log messages. In official, they do (with decaying hashrate).
+- **Disk I/O**: Fork saves less to logs (only active users). Official saves all users to logs.
+- **Cleanup logic**: Fork uses "1 week idle" threshold. Official uses "no shares at all" check.
+
+**Risk**: Medium - changes log visibility and cleanup logic
+**Action**: Review needed - decide if we want idle users visible in pool logs
 
 ### 14. Remove Deprecated Workers Directory
 **Status**: ✅ MERGE CANDIDATE
