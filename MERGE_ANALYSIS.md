@@ -182,13 +182,32 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 - **Pool stats** (active/idle/disconnected counts): Same in both - only count currently connected users/workers
 - **Log visibility**: Fork hides idle users from pool log messages, official shows them (with decaying hashrate)
 
-**Impact**: 
-- **Log visibility**: In fork, idle users don't appear in pool log messages. In official, they do (with decaying hashrate).
-- **Disk I/O**: Fork saves less to logs (only active users). Official saves all users to logs.
-- **Cleanup logic**: Fork uses "1 week idle" threshold. Official uses "no shares at all" check.
+**Benefits of keeping stats forever (official behavior)**:
+1. **Historical data preservation**: Complete mining history maintained indefinitely
+2. **User reconnection**: When users reconnect after being away, their stats are restored from disk:
+   - Total shares count preserved
+   - Best share ever (`best_ever`) preserved
+   - Hashrate history preserved (decayed but not lost)
+   - Worker stats preserved
+3. **Long-term analytics**: Pool operators can track user behavior over months/years
+4. **Intermittent miners**: Users who mine sporadically don't lose their stats between sessions
+5. **Best share tracking**: "Best share ever" persists across disconnections and pool restarts
+6. **Audit trail**: Complete historical record for accounting/verification purposes
+
+**Costs of keeping stats forever**:
+1. **Disk space**: User data files accumulate indefinitely (one file per user)
+2. **Log noise**: Idle users appear in pool logs with decaying hashrate
+3. **Disk I/O**: More frequent writes to log files (all users, not just active)
+4. **Memory**: More user instances loaded at pool startup (from `read_userstats()`)
+
+**Benefits of cleanup after 1 week (fork behavior)**:
+1. **Disk space**: Old inactive users are automatically cleaned up
+2. **Log cleanliness**: Only active users appear in pool logs
+3. **Reduced I/O**: Less frequent writes (only active users)
+4. **Faster startup**: Fewer user files to load at pool restart
 
 **Risk**: Medium - changes log visibility and cleanup logic
-**Action**: Review needed - decide if we want idle users visible in pool logs
+**Action**: Review needed - decide if we want idle users visible in pool logs and if historical data preservation is worth the disk space cost
 
 ### 14. Remove Deprecated Workers Directory
 **Status**: ✅ MERGE CANDIDATE
