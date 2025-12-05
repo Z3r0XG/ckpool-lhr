@@ -23,7 +23,7 @@ This directory contains unit tests for CKPOOL-LHR.
 ## Structure
 
 - `unit/` - Unit tests for pure functions
-- `integration/` - Integration tests (future, requires full system)
+- `integration/` - Integration/regression tests for live ckpool instance
 - `fixtures/` - Test data and fixtures (future)
 
 ## Building and Running Tests
@@ -45,7 +45,7 @@ Tests use a simple built-in test framework (no external dependencies required).
 make check
 ```
 
-### Run Individual Tests
+### Run Individual Unit Tests
 
 ```bash
 ./tests/unit/test-difficulty
@@ -64,6 +64,20 @@ make check
 ./tests/unit/test-base64
 ./tests/unit/test-dropidle
 ```
+
+### Run Integration/Regression Tests
+
+**Note**: Integration tests require a running ckpool instance.
+
+```bash
+# Test against default pool and config
+./tests/integration/test-regression.py
+
+# Test against specific pool and config
+./tests/integration/test-regression.py 192.168.1.100:3333 /path/to/ckpool.conf
+```
+
+See `integration/README.md` for details on integration test coverage.
 
 ## Test Framework
 
