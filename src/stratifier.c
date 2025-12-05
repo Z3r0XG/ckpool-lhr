@@ -3392,6 +3392,7 @@ static stratum_instance_t *__stratum_add_instance(ckpool_t *ckp, int64_t id, con
 	/* Fake a share time at startup to prevent client being dropped for
 	 * being idle. */
 	client->start_time = client->last_share.tv_sec = time(NULL);
+	client->last_share.tv_usec = 0;
 
 	client->id = id;
 	client->session_id = ++sdata->session_id;
