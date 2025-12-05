@@ -228,6 +228,8 @@ checkblocks=6
 blockreconstructionextratxn=1000
 dbcache=$dbcache
 EOF
+chown $service_user:$service_user "$DATADIR/bitcoin.conf"
+chmod 600 "$DATADIR/bitcoin.conf"
 
 # Install CKPool-LHR Solo
 git clone https://github.com/Z3r0XG/ckpool-solo.git /opt/ckpool
@@ -256,6 +258,7 @@ cat << EOF > /etc/ckpool/ckpool.conf
   "logdir" : "/var/log/ckpool"
 }
 EOF
+chmod 600 /etc/ckpool/ckpool.conf
 mkdir -p /var/log/ckpool
 chown -R $service_user:$service_user /etc/ckpool /var/log/ckpool
 
