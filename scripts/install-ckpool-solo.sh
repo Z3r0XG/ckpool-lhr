@@ -38,7 +38,7 @@ fi
 
 # Detect previous installation
 PREVIOUS_INSTALL=false
-if [ -f /etc/systemd/system/bitcoind.service ] || [ -f /etc/systemd/system/ckpool-lhr.service ] || [ -d /opt/ckpool-lhr ] || [ -d /etc/ckpool-lhr ] || [ -d /var/log/ckpool-lhr ] || [ -f /usr/local/bin/wait-for-bitcoind-sync.sh ]; then
+if [ -f /etc/systemd/system/bitcoind.service ] || [ -f /etc/systemd/system/ckpool.service ] || [ -d /opt/ckpool ] || [ -d /etc/ckpool ] || [ -d /var/log/ckpool ] || [ -f /usr/local/bin/wait-for-bitcoind-sync.sh ]; then
     PREVIOUS_INSTALL=true
 fi
 
@@ -50,13 +50,13 @@ if $PREVIOUS_INSTALL; then
     fi
     echo "Overwriting previous installation..."
     # Stop and disable services if they exist
-    systemctl stop ckpool-lhr 2>/dev/null || true
+    systemctl stop ckpool 2>/dev/null || true
     systemctl stop bitcoind 2>/dev/null || true
-    systemctl disable ckpool-lhr 2>/dev/null || true
+    systemctl disable ckpool 2>/dev/null || true
     systemctl disable bitcoind 2>/dev/null || true
     # Remove old files
-    rm -f /etc/systemd/system/ckpool-lhr.service /etc/systemd/system/bitcoind.service
-    rm -rf /opt/ckpool-lhr /etc/ckpool-lhr /var/log/ckpool-lhr
+    rm -f /etc/systemd/system/ckpool.service /etc/systemd/system/bitcoind.service
+    rm -rf /opt/ckpool /etc/ckpool /var/log/ckpool
     rm -f /usr/local/bin/wait-for-bitcoind-sync.sh
     # Reload systemd
     systemctl daemon-reload
@@ -71,10 +71,10 @@ echo "Important: You cannot mine with CKPool-LHR Solo until the Bitcoin Core blo
 current_user=${SUDO_USER:-root}
 echo "Optionally, choose a user to run Bitcoin Core and CKPool-LHR as (instead of $current_user)."
 echo "Any existing blockchain data in the user's .bitcoin directory will be used."
-read -p "Enter existing username, or 'create' to make a new 'ckpool-lhr' user (leave blank for $current_user): " input_user
+read -p "Enter existing username, or 'create' to make a new 'ckpool' user (leave blank for $current_user): " input_user
 if [ "$input_user" = "create" ]; then
-    useradd -m -s /bin/bash ckpool-lhr
-    service_user="ckpool-lhr"
+    useradd -m -s /bin/bash ckpool
+    service_user="ckpool"
 elif [ -z "$input_user" ]; then
     service_user="$current_user"
 else
@@ -142,7 +142,7 @@ if [[ "$donation_answer" =~ ^[Yy]$ ]]; then
     echo "Donation of 0.5% enabled. Thank you for supporting CKPool-LHR development!"
 else
     donation_line=""
-    echo "Donation disabled. You can enable it later in /etc/ckpool-lhr/ckpool.conf."
+    echo "Donation disabled. You can enable it later in /etc/ckpool/ckpool.conf."
 fi
 
 # Prompt for coinbase signature
@@ -152,7 +152,7 @@ if [ -n "$btcsig" ]; then
     echo "Coinbase signature '$btcsig' will be included in mined blocks."
 else
     btcsig_line=""
-    echo "No coinbase signature set. You can add one later in /etc/ckpool-lhr/ckpool.conf."
+    echo "No coinbase signature set. You can add one later in /etc/ckpool/ckpool.conf."
 fi
 
 detect_distro
@@ -230,17 +230,17 @@ dbcache=$dbcache
 EOF
 
 # Install CKPool-LHR Solo
-git clone https://github.com/Z3r0XG/ckpool-solo.git /opt/ckpool-lhr
-chown -R $service_user:$service_user /opt/ckpool-lhr
-cd /opt/ckpool-lhr
+git clone https://github.com/Z3r0XG/ckpool-solo.git /opt/ckpool
+chown -R $service_user:$service_user /opt/ckpool
+cd /opt/ckpool
 ./autogen.sh
 ./configure
 make
 make install
 
 # Set up CKPool-LHR config (minimal, per README-SOLOMINING)
-mkdir -p /etc/ckpool-lhr
-cat << EOF > /etc/ckpool-lhr/ckpool.conf
+mkdir -p /etc/ckpool
+cat << EOF > /etc/ckpool/ckpool.conf
 {
   $donation_line
   $btcsig_line
@@ -253,11 +253,11 @@ cat << EOF > /etc/ckpool-lhr/ckpool.conf
     }
   ],
   "startdiff" : 10000,
-  "logdir" : "/var/log/ckpool-lhr"
+  "logdir" : "/var/log/ckpool"
 }
 EOF
-mkdir -p /var/log/ckpool-lhr
-chown -R $service_user:$service_user /etc/ckpool-lhr /var/log/ckpool-lhr
+mkdir -p /var/log/ckpool
+chown -R $service_user:$service_user /etc/ckpool /var/log/ckpool
 
 # Create wait script for bitcoind sync with block progress
 cat << EOF > /usr/local/bin/wait-for-bitcoind-sync.sh
@@ -316,14 +316,14 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-cat << EOF > /etc/systemd/system/ckpool-lhr.service
+cat << EOF > /etc/systemd/system/ckpool.service
 [Unit]
 Description=CKPool-LHR Solo
 After=bitcoind.service
 
 [Service]
 User=$service_user
-ExecStart=/bin/bash -c '/usr/local/bin/wait-for-bitcoind-sync.sh && exec /usr/local/bin/ckpool -B -q -c /etc/ckpool-lhr/ckpool.conf'
+ExecStart=/bin/bash -c '/usr/local/bin/wait-for-bitcoind-sync.sh && exec /usr/local/bin/ckpool -B -q -c /etc/ckpool/ckpool.conf'
 StandardOutput=journal
 StandardError=journal
 Restart=always
@@ -333,18 +333,18 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable bitcoind ckpool-lhr
-systemctl start bitcoind ckpool-lhr
+systemctl enable bitcoind ckpool
+systemctl start bitcoind ckpool
 
 echo "Installation complete! CKPool-LHR Solo is set to start on port 3333 after blockchain sync."
 echo "Important: You cannot mine until the Bitcoin Core blockchain is fully synchronized, which may take days."
 echo "Check sync progress with:"
-echo "  - journalctl -u ckpool-lhr -f (block progress until CKPool-LHR starts)"
+echo "  - journalctl -u ckpool -f (block progress until CKPool-LHR starts)"
 echo "  - journalctl -u bitcoind -f (detailed sync logs)"
 echo "  - tail -f $DATADIR/debug.log (detailed sync logs)"
-echo "CKPool-LHR startup is delayed until sync completes (monitor with: journalctl -u ckpool-lhr -f)."
+echo "CKPool-LHR startup is delayed until sync completes (monitor with: journalctl -u ckpool -f)."
 echo "Connect miners using: stratum+tcp://[machine IP]:3333 with your Bitcoin address as username and 'x' as password. Replace [machine IP] with the IP address of this machine (use ifconfig or ip addr to find it)."
 echo "Monitor logs:"
-echo "  - CKPool-LHR: tail -f /var/log/ckpool-lhr/ckpool.log (full logs) or journalctl -u ckpool-lhr -f (block progress, then reduced CKPool-LHR logs)"
+echo "  - CKPool-LHR: tail -f /var/log/ckpool/ckpool.log (full logs) or journalctl -u ckpool -f (block progress, then reduced CKPool-LHR logs)"
 echo "  - Bitcoin Core: tail -f $DATADIR/debug.log or journalctl -u bitcoind -f"
-echo "Edit configs in $DATADIR/bitcoin.conf and /etc/ckpool-lhr/ckpool.conf if needed, then restart services with: systemctl restart bitcoind ckpool-lhr"
+echo "Edit configs in $DATADIR/bitcoin.conf and /etc/ckpool/ckpool.conf if needed, then restart services with: systemctl restart bitcoind ckpool"
