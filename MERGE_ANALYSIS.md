@@ -209,17 +209,27 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 **Risk**: Medium - changes log visibility and cleanup logic
 
 **Recommendation**: 
-Given this fork's focus on **low hash rate miners** (ESP32 devices, hobby projects, intermittent mining):
-- **Low hash rate miners are more likely to mine intermittently** - they may take breaks and come back
-- **Preserving "best share ever" and total shares** is valuable for these users who may have limited mining time
-- **Disk space cost is relatively low** - user JSON files are small (few KB each), and low hash rate pools typically have fewer users
-- **Quality of life benefit** - users don't lose their achievements when they return after a break
+This fork supports **all mining devices** (not just low hash rate), with the added capability of sub-"1" difficulty for LHR miners. Consider both use cases:
 
-**Suggested approach**: Merge this change to match official behavior. The benefits (user reconnection with preserved stats, especially "best share ever") outweigh the costs (small disk space, minor log noise) for the fork's target audience of low hash rate/intermittent miners.
+**Arguments for merging (keep stats forever)**:
+- **User reconnection**: Any user (LHR or regular) who returns after a break gets their stats restored
+- **"Best share ever" preservation**: Meaningful for all miners, especially those who mine intermittently
+- **Disk space cost**: User JSON files are small (few KB each), manageable for most deployments
+- **Consistency with official**: Matches upstream behavior, easier to maintain
+- **Quality of life**: Users don't lose achievements when they return
 
-**Alternative**: If disk space is a major concern, could add a configurable cleanup threshold (e.g., `user_cleanup_days`) instead of hardcoded 1 week, but this adds complexity.
+**Arguments against merging (keep 1 week cleanup)**:
+- **System health**: Automatic cleanup prevents indefinite disk growth
+- **Log cleanliness**: Only active users appear in logs (less noise)
+- **Resource efficiency**: Less disk I/O, faster startup with fewer files
+- **Large pool deployments**: For pools with many users, indefinite growth could become an issue
 
-**Action**: ⚠️ Review needed - recommend merging for better user experience with low hash rate miners
+**Suggested approach**: 
+- **Small to medium pools** (< 1000 users): Merge - benefits outweigh costs
+- **Large pools** (> 1000 users): Consider keeping cleanup or making it configurable
+- **Best of both worlds**: Add configurable cleanup threshold (e.g., `user_cleanup_days: 0` = never, `7` = 1 week, `30` = 1 month) - gives operators control without hardcoding behavior
+
+**Action**: ⚠️ Review needed - decision depends on expected pool size and operator preferences
 
 ### 14. Remove Deprecated Workers Directory
 **Status**: ✅ MERGE CANDIDATE
