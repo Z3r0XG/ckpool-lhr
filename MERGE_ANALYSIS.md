@@ -183,6 +183,10 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
    - Hashrate stats start decaying (same as fork)
    - Stats **ARE logged** to pool logs (always logged, removed `if (!idle)` check)
    - Stats are saved to disk in JSON files
+3. **Users who have submitted shares are NEVER cleaned up**:
+   - Official removed the "1 week idle" cleanup for users
+   - Users persist forever once they've submitted at least one share
+   - Only workers are cleaned up after 1 week idle (600000 seconds)
 
 **What "no shares at all" means**:
 - `last_share.tv_sec == 0` means the user has **never submitted a share, ever**
