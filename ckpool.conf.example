@@ -7,6 +7,6 @@
 		"notify" : true
 	}
 ],
-"btcaddress" : "your_bitcoin_address_here",
+"startdiff" : 10000,
 "logdir" : "logs"
 }

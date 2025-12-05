@@ -27,6 +27,16 @@ Con Kolivas's foundational work that made this fork possible.
 
 Original project: https://bitbucket.org/ckolivas/ckpool
 
+For full documentation on all modes (proxy, passthrough, node, redirector, etc.),
+see the original README at the official repository.
+
+
+---
+MAINTENANCE SCOPE:
+
+This fork is actively maintained for solo mining mode (-B flag).
+Other modes are inherited from upstream and provided as-is.
+
 
 ---
 LICENSE:
