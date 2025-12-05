@@ -247,15 +247,15 @@ Merge the official change (remove hardcoded 1 week cleanup) AND add a configurab
 **Action**: ✅ Recommended - Merge official change + add configurable threshold (low effort, high value)
 
 ### 14. Remove Deprecated Workers Directory
-**Status**: ✅ MERGE CANDIDATE
+**Status**: ✅ MERGED TO MAIN
 - Commit: `4850ba2f` - "Remove deprecated workers directory creation"
 - **Official change**: Removes workers directory creation code (lines removed from `src/ckpool.c`)
-- **Fork status**: Fork still creates workers directory (line 1856 in ckpool.c)
+- **Fork status**: ✅ MERGED (commit 28abb357 in merge-remaining-fixes)
 - **Risk**: Low - just removes unused directory creation
-- **Action**: ✅ Should merge - directory is deprecated and not used
+- **Action**: ✅ Merged - directory was deprecated and not used
 
 ### 15. Build System: libjansson Installation
-**Status**: ✅ MERGE CANDIDATE
+**Status**: ✅ MERGED TO MAIN
 - Commit: `d0d66556` - "Do not install any custom libjansson files since they're only statically linked and can overwrite operating system versions"
 - **Official change**: 
   - Changes `lib_LTLIBRARIES` to `noinst_LTLIBRARIES` (don't install library)
@@ -263,7 +263,7 @@ Merge the official change (remove hardcoded 1 week cleanup) AND add a configurab
   - Removes `pkgconfig_DATA` (don't install pkg-config file)
 - **Why**: Prevents overwriting system libjansson with statically-linked version
 - **Risk**: Low - build system change, only affects installation
-- **Action**: ✅ Should merge - prevents potential conflicts with system libraries
+- **Action**: ✅ Merged - prevents potential conflicts with system libraries
 
 ## Recommended Merge Strategy
 
@@ -300,7 +300,7 @@ For each safe change:
 
 ## Commits Merged to Main
 
-✅ **Successfully Merged (8 total):**
+✅ **Successfully Merged (12 total):**
 1. `0c82c048` - Client initialization fix (commit a0204333)
 2. `2589d759` - Default CFLAGS (commit 6dbd5585)
 3. `8da33e78` - x86 SHA-NI support (commit b30639ab)
@@ -309,6 +309,10 @@ For each safe change:
 6. `8d70596b` - Transaction watch logging (commit e332a0d4)
 7. `550e3a46` - Redirector fix - prevent double redirect (commit 4022af54)
 8. `bb73059f` - Redirector fix - parent pointer (commit 4022af54)
+9. `a8f808b5` - Decay inactive stats (commit e389f987, with configurable cleanup enhancement)
+10. `4850ba2f` - Remove deprecated workers directory (commit in merge-remaining-fixes)
+11. `d0d66556` - libjansson installation fix (commit in merge-remaining-fixes)
+12. `9094ec54` - Dropall command support (commit in merge-remaining-fixes)
 
 ## Commits Already in Fork (No Merge Needed)
 
@@ -323,13 +327,13 @@ For each safe change:
 - `e0dabf4a`, `32a7178a` - dropidle disable (ALREADY IN FORK - fork has dropidle default 0, same behavior)
 
 ### 16. Dropall Command Support
-**Status**: ⚠️ MERGE CANDIDATE (NEEDS REVIEW)
+**Status**: ✅ MERGED TO MAIN
 - Commit: `9094ec54` - "Allow the main ckpool process to accept the dropall command to pass to the stratifier"
 - **Official change**: Adds `dropall` command handler in `src/ckpool.c` that forwards to stratifier
 - **What it does**: Allows disconnecting all clients via command (useful for maintenance/emergency)
-- **Fork status**: Not present in fork
+- **Fork status**: ✅ MERGED (commit in merge-remaining-fixes)
 - **Risk**: Low - just adds command handler, doesn't touch protected areas
-- **Action**: ⚠️ Review needed - decide if we want this administrative feature
+- **Action**: ✅ Merged - useful administrative feature
 
 ## Commits Not Applicable (Skipped - Not Needed)
 
@@ -361,10 +365,16 @@ After merging any changes:
 
 ## Merge Summary
 
-**Total Merges Completed**: 8
+**Total Merges Completed**: 12
 **Status**: All merges successfully completed, tested, and merged to main
 **Date**: Completed in current session
 **Result**: Repository is up-to-date with safe improvements from official ckpool while preserving all fork-specific features
+
+**Latest Merges (Current Session):**
+- Decay inactive stats with configurable cleanup threshold (a8f808b5 + enhancement)
+- Remove deprecated workers directory (4850ba2f)
+- libjansson installation fix (d0d66556)
+- Dropall command support (9094ec54)
 
 ## Next Steps
 
