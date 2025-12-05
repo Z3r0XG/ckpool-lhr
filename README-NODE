@@ -56,6 +56,8 @@ src/ckpool -N
 - Each entry: url (string, required), auth (string, required), pass (string, required),
   cookie (string, optional), notify (boolean, optional)
 - Default: localhost:8332 with user "user" and password "pass" if not specified
+- Note: Cookie-based authentication can be used as an alternative to auth/pass by
+  specifying the cookie file path instead of auth/pass.
 - Example:
 ```json
 "btcd" : [
@@ -136,50 +138,52 @@ Point your mining hardware to the node:
 ## Optional Configuration Options
 
 All configuration options relevant to node mode are listed below. Options not
-listed (btcaddress, redirecturl, trusted, upstream) are not used in node mode.
+listed (btcaddress, redirecturl, trusted) are not used in node mode.
 
-**"serverurl"** : Server bindings for downstream miner connections. **OPTIONAL**
+**"upstream"** : Upstream pool URL for trusted remote mode. **OPTIONAL**
+- Type: String
+- Values: "hostname:port" format
+- Default: None
+- Note: Used when operating as a trusted remote node that connects to an upstream pool.
+  The upstream pool should specify this node in its "trusted" configuration.
+- Example: `"upstream" : "main.pool.com:3336"`
+
+**"serverurl"** : Server bindings for miner connections. **OPTIONAL**
 - Type: Array of strings
 - Values: "IP:port" or "hostname:port"
 - Default: All interfaces on port 3334
 - Note: Ports below 1024 usually require privileged access
 - Example: `"serverurl" : ["192.168.1.100:3334", "127.0.0.1:3334"]`
 
-**"nodeserver"** : Additional server bindings for mining node communications. **OPTIONAL**
+**"nodeserver"** : Additional bindings for mining node communications. **OPTIONAL**
 - Type: Array of strings
 - Values: "IP:port" or "hostname:port"
 - Default: None
-- Note: Recommended to isolate these addresses to minimize unnecessary
-  communications with unauthorized nodes. Upstream pools should connect to
-  these addresses for node communication.
+- Note: Isolate these addresses for security. Used for upstream pool connections.
 - Example: `"nodeserver" : ["10.0.0.1:3335"]`
 
 **"blockpoll"** : Frequency to poll bitcoind for new blocks. **OPTIONAL**
 - Type: Integer
-- Values: Milliseconds (positive integer)
+- Values: Milliseconds
 - Default: 100
-- Note: Only used if "notify" field is not set on a btcd entry
+- Note: Only used if "notify" is not set on btcd entry.
 
-**"zmqblock"** : ZMQ interface for block hash notifications. **OPTIONAL**
+**"zmqblock"** : ZMQ interface for block notifications. **OPTIONAL**
 - Type: String
-- Values: ZMQ URL format (e.g., "tcp://127.0.0.1:28332")
+- Values: ZMQ URL format
 - Default: "tcp://127.0.0.1:28332"
-- Note: Requires bitcoind -zmqpubhashblock option
+- Note: Requires bitcoind -zmqpubhashblock option.
 
-**"logdir"** : Directory for storing pool and client logs. **OPTIONAL**
+**"logdir"** : Directory for logs. **OPTIONAL**
 - Type: String
-- Values: Valid directory path
 - Default: "logs"
 
-**"maxclients"** : Maximum number of concurrent client connections. **OPTIONAL**
+**"maxclients"** : Maximum concurrent client connections. **OPTIONAL**
 - Type: Integer
-- Values: Positive integer
-- Default: No limit
-- Note: Connections beyond this limit are rejected
+- Default: 0 (no limit)
 
-**"useragent"** : Allowed user agent strings for miner connections. **OPTIONAL**
+**"useragent"** : Allowed user agent strings (whitelist). **OPTIONAL**
 - Type: Array of strings
-- Values: String patterns (prefix matching)
-- Default: Not configured (allow all)
-- Note: If configured, only miners with user agents matching an entry in the whitelist are allowed. Empty user agent strings do not match any pattern and will be rejected if whitelist is configured.
+- Default: None (all allowed)
+- Note: Prefix matching. Empty user agents rejected if whitelist configured.
 

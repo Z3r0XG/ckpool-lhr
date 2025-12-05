@@ -1,6 +1,6 @@
-Based on the original CKPOOL by Con Kolivas, this fork features sub-"1" difficulty support for low hash rate miners (esp32 devices and others).
+CKPOOL-LHR features sub-"1" difficulty support for low hash rate miners (esp32 devices and others).
 
-~~~Original Content Below~~~
+---
 
 CKPOOL + CKPROXY + libckpool by Con Kolivas
 
@@ -272,20 +272,36 @@ after the valid json are ignored and the space there can be used for comments.
 The options recognised are as follows:
 
 
-"btcd" : This is an array of bitcoind(s) with the options url, auth  and pass
-which match the configured bitcoind. The optional boolean field notify tells
-ckpool this btcd is using the notifier and does not need to be polled for block
-changes. If no btcd is specified, ckpool will look for one on localhost:8332
-with the username "user" and password "pass".
+"btcd" : This is an array of bitcoind(s) with the options url, auth, pass, and
+optional cookie which match the configured bitcoind. The optional boolean field
+notify tells ckpool this btcd is using the notifier and does not need to be
+polled for block changes. The optional cookie field specifies the path to a
+cookie file for cookie-based authentication (alternative to username/password).
+If no btcd is specified, ckpool will look for one on localhost:8332 with the
+username "user" and password "pass".
 
 "proxy" : This is an array in the same format as btcd above but is used in
-proxy and passthrough mode to set the upstream pool and is mandatory.
+proxy, passthrough, node, redirector, and userproxy modes to set the upstream
+pool and is mandatory in those modes.
 
-"btcaddress" : This is the bitcoin address to try to generate blocks to. It is
-ignored in BTCSOLO mode.
+"upstream" : This is the URL of the upstream pool in trusted remote mode.
+Optional. Format: "hostname:port". Default: none. Used when operating as a
+trusted remote node that connects to an upstream pool.
+
+"btcaddress" : This is the bitcoin address to try to generate blocks to.
+Required in pool mode, ignored in BTCSOLO mode. Default: none.
+
+"donaddress" : This is the bitcoin address to receive donation payments when
+blocks are solved. Optional. Default: bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5.
+Only used when "donation" is configured and greater than 0.
+
+"donation" : This is the percentage of block reward to donate when blocks are
+solved. Optional. Values from 0.0 to 99.9. Default 0 (disabled). Values below
+0.1 are treated as 0 to avoid dust-sized donations. Works in both pool mode and
+solo mode (BTCSOLO).
 
 "btcsig" : This is an optional signature to put into the coinbase of mined
-blocks.
+blocks. Default: none. Maximum 38 characters.
 
 "blockpoll" : This is the frequency in milliseconds for how often to check for
 new network blocks and is 100 by default. It is intended to be a backup only
@@ -324,13 +340,13 @@ miners to in redirector mode. They must be valid resolvable URLs+ports.
 
 "startdiff" : Starting diff that new clients are given. Default 42
 
-"maxdiff" : Optional maximum diff that vardiff will clamp to where zero is no
-maximum.
+"maxdiff" : Optional maximum diff that vardiff will clamp to. Default 0 (no
+maximum).
 
 "logdir" : Which directory to store pool and client logs. Default "logs"
 
 "maxclients" : Optional upper limit on the number of clients ckpool will
-accept before rejecting further clients.
+accept before rejecting further clients. Default 0 (no limit).
 
 "dropidle" : Drop clients that have been idle (no shares submitted) for this
 duration in seconds. Use 0 to disable. Default 0 (disabled).
@@ -339,11 +355,17 @@ disconnected. Worker statistics are preserved and matched by workername
 on reconnect. Safe for low hash rate miners - 1 hour (3600) is very generous.
 
 "user_cleanup_days" : Clean up user and worker data after this many days of inactivity.
-Use 0 to never cleanup. Default 0 (never cleanup, matches official ckpool behavior).
+Use 0 to never cleanup. Default 0 (never cleanup).
 When set to a positive value, user and worker statistics are removed from disk after
 the specified number of days of inactivity (no shares submitted). Users who have never
 submitted a share are always skipped. Setting to 0 preserves all user data indefinitely,
 which is useful for pools where users may reconnect after long breaks.
+
+"useragent" : This is an array of allowed user agent strings for miner connections.
+Optional. Default: none (all user agents allowed). If configured, only miners with
+user agents matching an entry in the whitelist are allowed. Matching uses prefix
+matching. Empty user agent strings do not match any pattern and will be rejected
+if whitelist is configured.
 
 "zmqblock" : Optional interface to use for zmq blockhash notification - ckpool
 only. Requires use of matched bitcoind -zmqpubhashblock option.

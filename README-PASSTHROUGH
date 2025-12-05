@@ -92,30 +92,33 @@ Point your mining hardware to the passthrough:
 ## Optional Configuration Options
 
 All configuration options relevant to passthrough mode are listed below. Options
-not listed (btcd, btcaddress, redirecturl, nodeserver, trusted, upstream) are
-not used in passthrough mode.
+not listed (btcd, btcaddress, redirecturl, nodeserver, trusted) are not used in passthrough mode.
 
-**"serverurl"** : Server bindings for downstream miner connections. **OPTIONAL**
+**"upstream"** : Upstream pool URL for trusted remote mode. **OPTIONAL**
+- Type: String
+- Values: "hostname:port" format
+- Default: None
+- Note: Used when operating as a trusted remote passthrough that connects to an upstream pool.
+  The upstream pool should specify this passthrough in its "trusted" configuration.
+- Example: `"upstream" : "main.pool.com:3336"`
+
+**"serverurl"** : Server bindings for miner connections. **OPTIONAL**
 - Type: Array of strings
 - Values: "IP:port" or "hostname:port"
 - Default: All interfaces on port 3334
 - Note: Ports below 1024 usually require privileged access
 - Example: `"serverurl" : ["192.168.1.100:3334", "127.0.0.1:3334"]`
 
-**"logdir"** : Directory for storing pool and client logs. **OPTIONAL**
+**"logdir"** : Directory for logs. **OPTIONAL**
 - Type: String
-- Values: Valid directory path
 - Default: "logs"
 
-**"maxclients"** : Maximum number of concurrent client connections. **OPTIONAL**
+**"maxclients"** : Maximum concurrent client connections. **OPTIONAL**
 - Type: Integer
-- Values: Positive integer
-- Default: No limit
-- Note: Connections beyond this limit are rejected
+- Default: 0 (no limit)
 
-**"useragent"** : Allowed user agent strings for miner connections. **OPTIONAL**
+**"useragent"** : Allowed user agent strings (whitelist). **OPTIONAL**
 - Type: Array of strings
-- Values: String patterns (prefix matching)
-- Default: Not configured (allow all)
-- Note: If configured, only miners with user agents matching an entry in the whitelist are allowed. Empty user agent strings do not match any pattern and will be rejected if whitelist is configured.
+- Default: None (all allowed)
+- Note: Prefix matching. Empty user agents rejected if whitelist configured.
 

@@ -111,38 +111,33 @@ All configuration options relevant to userproxy mode are listed below. Options
 not listed (btcd, btcaddress, redirecturl, nodeserver, trusted, upstream) are
 not used in userproxy mode.
 
-**"serverurl"** : Server bindings for downstream miner connections. **OPTIONAL**
+**"serverurl"** : Server bindings for miner connections. **OPTIONAL**
 - Type: Array of strings
 - Values: "IP:port" or "hostname:port"
 - Default: All interfaces on port 3334
 - Note: Ports below 1024 usually require privileged access
 - Example: `"serverurl" : ["192.168.1.100:3334", "127.0.0.1:3334"]`
 
-**"mindiff"** : Minimum difficulty that vardiff will allow miners to drop to. **OPTIONAL**
+**"mindiff"** : Minimum difficulty for vardiff. **OPTIONAL**
 - Type: Double
-- Values: Any positive number (no minimum floor)
+- Values: Any positive number
 - Default: 1.0
-- Note: This fork supports sub-"1" values (e.g., 0.0005) for low hash rate miners.
-  Automatic vardiff adjustment will not reduce difficulty below 1, but manually
-  configured mindiff values below 1 will work correctly.
+- Note: Supports sub-"1" values (e.g., 0.0005) for low hash rate miners.
 - Example: `"mindiff" : 0.0005`
 
 **"startdiff"** : Starting difficulty for new clients. **OPTIONAL**
 - Type: Double
-- Values: Any positive number (no minimum floor)
+- Values: Any positive number
 - Default: 42.0
-- Note: Can be set below 1 (e.g., 0.0005) for low hash rate miners. If startdiff
-  is set below 1, clients will start at that difficulty. While automatic vardiff
-  adjustment will not reduce difficulty below 1, it can still increase difficulty
-  if the miner's hash rate warrants it.
+- Note: Can be set below 1 for low hash rate miners.
 - Example: `"startdiff" : 0.0005`
 
-**"maxdiff"** : Maximum difficulty that vardiff will clamp to. **OPTIONAL**
+**"maxdiff"** : Maximum difficulty for vardiff. **OPTIONAL**
 - Type: Integer64
 - Values: Positive integer, or 0 for no maximum
 - Default: 0 (no maximum)
 
-**"update_interval"** : Frequency to send stratum updates to miners. **OPTIONAL**
+**"update_interval"** : Frequency to send stratum updates. **OPTIONAL**
 - Type: Integer
 - Values: Seconds (positive integer)
 - Default: 30
@@ -150,22 +145,18 @@ not used in userproxy mode.
 **"nonce2length"** : Length of extranonce2 in bytes. **OPTIONAL**
 - Type: Integer
 - Values: 2-8
-- Default: 0 (in proxy mode if not specified)
+- Default: 0 (proxy mode)
 
-**"logdir"** : Directory for storing pool and client logs. **OPTIONAL**
+**"logdir"** : Directory for logs. **OPTIONAL**
 - Type: String
-- Values: Valid directory path
 - Default: "logs"
 
-**"maxclients"** : Maximum number of concurrent client connections. **OPTIONAL**
+**"maxclients"** : Maximum concurrent client connections. **OPTIONAL**
 - Type: Integer
-- Values: Positive integer
-- Default: No limit
-- Note: Connections beyond this limit are rejected
+- Default: 0 (no limit)
 
-**"useragent"** : Allowed user agent strings for miner connections. **OPTIONAL**
+**"useragent"** : Allowed user agent strings (whitelist). **OPTIONAL**
 - Type: Array of strings
-- Values: String patterns (prefix matching)
-- Default: Not configured (allow all)
-- Note: If configured, only miners with user agents matching an entry in the whitelist are allowed. Empty user agent strings do not match any pattern and will be rejected if whitelist is configured.
+- Default: None (all allowed)
+- Note: Prefix matching. Empty user agents rejected if whitelist configured.
 

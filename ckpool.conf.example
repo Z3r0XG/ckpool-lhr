@@ -1,46 +1,12 @@
 {
-"btcd" :  [
+"btcd" : [
 	{
 		"url" : "localhost:8332",
 		"auth" : "user",
 		"pass" : "pass",
-		"cookie": "/home/user/.bitcoin/.cookie",
 		"notify" : true
-	},
-	{
-		"url" : "backup:8332",
-		"auth" : "user",
-		"pass" : "pass",
-		"notify" : false
 	}
 ],
-"upstream" : "main.ckpool.org:3336",
-"btcaddress" : "bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5",
-"donaddress" : "bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5",
-"donation" : 1.0,
-"btcsig" : "/mined by ck/",
-"blockpoll" : 100,
-"nonce1length" : 4,
-"nonce2length" : 8,
-"update_interval" : 30,
-"version_mask" : "1fffe000",
-"dropidle" : 0,
-"user_cleanup_days" : 0,
-"serverurl" : [
-	"ckpool.org:3333",
-	"node.ckpool.org:3333",
-	"node.ckpool.org:80"
-],
-"nodeserver" : [
-	"ckpool.org:3335"
-],
-"trusted" : [
-	"ckpool.org:3336"
-],
-"mindiff" : 0.0005,
-"startdiff" : 0.0005,
-"maxdiff" : 0.0,
-"zmqblock" : "tcp://127.0.0.1:28332",
+"btcaddress" : "your_bitcoin_address_here",
 "logdir" : "logs"
 }
-Comments from here on are ignored.
