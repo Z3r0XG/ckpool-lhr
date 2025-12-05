@@ -1,17 +1,32 @@
-CKPOOL-LHR features sub-"1" difficulty support for low hash rate miners (esp32 devices and others).
+CKPOOL-LHR
+==========
+
+A fork of CKPOOL featuring sub-"1" difficulty support for low hash rate miners
+(ESP32 devices and others), along with additional enhancements for solo mining
+and pool operation.
+
+Ultra low overhead, massively scalable, multi-process, multi-threaded modular
+Bitcoin mining pool, proxy, passthrough, and library in C for Linux.
+
+
+Key Features (Fork Enhancements):
+---------------------------------
+- Sub-"1" difficulty support for low hash rate miners
+- Bitcoind cookie authentication
+- User agent whitelisting
+- Configurable user data cleanup
+- Configurable donation address
+
 
 ---
+ACKNOWLEDGMENT:
 
-CKPOOL + CKPROXY + libckpool by Con Kolivas
+This software is a fork of CKPOOL by Con Kolivas. The original project is
+provided free of charge under the GPLv3 license. We honor and acknowledge
+Con Kolivas's foundational work that made this fork possible.
 
-Ultra low overhead massively scalable multi-process, multi-threaded modular
-bitcoin mining pool, proxy, passthrough, and library in c for Linux.
+Original project: https://bitbucket.org/ckolivas/ckpool
 
-CKPOOL is code provided free of charge under the GPLv3 license but its development
-is mostly paid for by commissioned funding, and the pool by default contributes
-0.5% of solved blocks in pool mode to the development team. Please consider leaving
-this contribution in the code if you are running it on a pool or contributing to the
-authors listed in AUTHORS if you use this code to aid funding further development.
 
 ---
 LICENSE:
