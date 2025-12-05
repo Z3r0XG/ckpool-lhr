@@ -1,8 +1,8 @@
-# CKPool-LHR Installation Scripts
+# CKPOOL-LHR Installation Scripts
 
 ## install-ckpool-solo.sh
 
-Automated installer for CKPool-LHR in solo mining mode with Bitcoin Core.
+Automated installer for CKPOOL-LHR in solo mining mode with Bitcoin Core.
 
 ### Requirements
 
@@ -24,7 +24,7 @@ The script will prompt for:
 - **Service user**: User account to run services (default: current user)
 - **Disk space**: Pruned or full blockchain
 - **Assumevalid**: Block hash to speed up sync
-- **Donation**: Optional 0.5% donation to maintainer
+- **Donation**: Optional 0.5% donation to the fork maintainer
 - **Coinbase signature**: Optional signature in mined blocks
 
 ### What Gets Installed
@@ -32,9 +32,9 @@ The script will prompt for:
 | Component | Location |
 |-----------|----------|
 | Bitcoin Core | `/usr/local/bin/bitcoind`, `/usr/local/bin/bitcoin-cli` |
-| CKPool-LHR | `/usr/local/bin/ckpool` (source at `/opt/ckpool`) |
-| CKPool config | `/etc/ckpool/ckpool.conf` |
-| CKPool logs | `/var/log/ckpool/` |
+| CKPOOL-LHR | `/usr/local/bin/ckpool` (source at `/opt/ckpool`) |
+| ckpool config | `/etc/ckpool/ckpool.conf` |
+| ckpool logs | `/var/log/ckpool/` |
 | Bitcoin data | `~/.bitcoin/` |
 
 ### Systemd Services
@@ -96,7 +96,7 @@ systemctl stop bitcoind
 ### Monitoring
 
 ```bash
-# CKPool logs
+# ckpool logs
 tail -f /var/log/ckpool/ckpool.log
 
 # Bitcoin Core logs
@@ -124,7 +124,7 @@ journalctl -u ckpool -f
 2. Monitor sync: `journalctl -u ckpool -f`
 3. Once synced, connect miners:
    - URL: `stratum+tcp://<server-ip>:3333`
-   - Username: Your Bitcoin address
+   - Username: Your Bitcoin address (optionally with `.workername`, e.g., `bc1q...abc.worker1`)
    - Password: `x`
 
 ### Uninstalling
@@ -156,13 +156,13 @@ rm -rf ~/.bitcoin
 ### Troubleshooting
 
 > [!TIP]
-> **CKPool not starting?**
+> **ckpool not starting?**
 > - Check if blockchain is synced: `bitcoin-cli getblockchaininfo`
-> - CKPool waits for sync before starting
+> - ckpool waits for sync before starting
 
 > [!TIP]
 > **Connection refused on port 3333?**
-> - Verify CKPool is running: `systemctl status ckpool`
+> - Verify ckpool is running: `systemctl status ckpool`
 > - Check firewall: `sudo ufw allow 3333/tcp`
 
 > [!TIP]

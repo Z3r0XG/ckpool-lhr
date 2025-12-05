@@ -26,6 +26,8 @@ Con Kolivas's foundational work that made this fork possible.
 
 GNU Public license V3. See included COPYING for details.
 
+---
+
 # Solo Mode
 
 ## Use Case
@@ -253,7 +255,7 @@ option is ignored in solo mode (miners provide their own address as username).
 
 **"maxclients"** : Maximum concurrent client connections. **OPTIONAL**
 - Type: Integer
-- Default: 0 (no limit)
+- Default: 0 (auto-calculated as 90% of system's `ulimit -n`)
 
 **"dropidle"** : Drop idle clients after this many seconds. **OPTIONAL**
 - Type: Integer

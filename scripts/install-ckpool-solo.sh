@@ -63,13 +63,13 @@ if $PREVIOUS_INSTALL; then
 fi
 
 # Main installation
-echo "Starting installation of Bitcoin Core v29.2 and CKPool-LHR Solo. This requires sudo privileges."
+echo "Starting installation of Bitcoin Core v29.2 and CKPOOL-LHR Solo. This requires sudo privileges."
 echo "Warning: Bitcoin Core will download up to ~675GB of blockchain data (or less if pruned). Ensure sufficient disk space."
-echo "Important: You cannot mine with CKPool-LHR Solo until the Bitcoin Core blockchain is fully synchronized, which may take days depending on your hardware and network speed."
+echo "Important: You cannot mine with CKPOOL-LHR Solo until the Bitcoin Core blockchain is fully synchronized, which may take days depending on your hardware and network speed."
 
 # Prompt for service user (default to current sudo user)
 current_user=${SUDO_USER:-root}
-echo "Optionally, choose a user to run Bitcoin Core and CKPool-LHR as (instead of $current_user)."
+echo "Optionally, choose a user to run Bitcoin Core and CKPOOL-LHR as (instead of $current_user)."
 echo "Any existing blockchain data in the user's .bitcoin directory will be used."
 read -p "Enter existing username, or 'create' to make a new 'ckpool' user (leave blank for $current_user): " input_user
 if [ "$input_user" = "create" ]; then
@@ -135,11 +135,11 @@ else
     assumevalid_line="assumevalid=00000000000000000001e6a5aec8788183793b27370ef638b152b4d02f9f0787"
 fi
 
-# Prompt for donation to CKPool-LHR maintainer
-read -p "Support CKPool-LHR maintainer with a 0.5% donation on mined blocks? (y/N, default: no): " donation_answer
+# Prompt for donation to CKPOOL-LHR maintainer
+read -p "Support CKPOOL-LHR maintainer with a 0.5% donation on mined blocks? (y/N, default: no): " donation_answer
 if [[ "$donation_answer" =~ ^[Yy]$ ]]; then
     donation_line='"donation" : 0.5,'
-    echo "Donation of 0.5% enabled. Thank you for supporting CKPool-LHR development!"
+    echo "Donation of 0.5% enabled. Thank you for supporting CKPOOL-LHR development!"
 else
     donation_line=""
     echo "Donation disabled. You can enable it later in /etc/ckpool/ckpool.conf."
@@ -231,7 +231,7 @@ EOF
 chown $service_user:$service_user "$DATADIR/bitcoin.conf"
 chmod 600 "$DATADIR/bitcoin.conf"
 
-# Install CKPool-LHR Solo
+# Install CKPOOL-LHR Solo
 git clone https://github.com/Z3r0XG/ckpool-solo.git /opt/ckpool
 chown -R $service_user:$service_user /opt/ckpool
 cd /opt/ckpool
@@ -240,7 +240,7 @@ cd /opt/ckpool
 make
 make install
 
-# Set up CKPool-LHR config (minimal, per README-SOLOMINING)
+# Set up CKPOOL-LHR config (minimal, per README-SOLOMINING)
 mkdir -p /etc/ckpool
 cat << EOF > /etc/ckpool/ckpool.conf
 {
@@ -321,7 +321,7 @@ EOF
 
 cat << EOF > /etc/systemd/system/ckpool.service
 [Unit]
-Description=CKPool-LHR Solo
+Description=CKPOOL-LHR Solo
 After=bitcoind.service
 
 [Service]
@@ -339,15 +339,15 @@ systemctl daemon-reload
 systemctl enable bitcoind ckpool
 systemctl start bitcoind ckpool
 
-echo "Installation complete! CKPool-LHR Solo is set to start on port 3333 after blockchain sync."
+echo "Installation complete! CKPOOL-LHR Solo is set to start on port 3333 after blockchain sync."
 echo "Important: You cannot mine until the Bitcoin Core blockchain is fully synchronized, which may take days."
 echo "Check sync progress with:"
-echo "  - journalctl -u ckpool -f (block progress until CKPool-LHR starts)"
+echo "  - journalctl -u ckpool -f (block progress until CKPOOL-LHR starts)"
 echo "  - journalctl -u bitcoind -f (detailed sync logs)"
 echo "  - tail -f $DATADIR/debug.log (detailed sync logs)"
-echo "CKPool-LHR startup is delayed until sync completes (monitor with: journalctl -u ckpool -f)."
+echo "CKPOOL-LHR startup is delayed until sync completes (monitor with: journalctl -u ckpool -f)."
 echo "Connect miners using: stratum+tcp://[machine IP]:3333 with your Bitcoin address as username and 'x' as password. Replace [machine IP] with the IP address of this machine (use ifconfig or ip addr to find it)."
 echo "Monitor logs:"
-echo "  - CKPool-LHR: tail -f /var/log/ckpool/ckpool.log (full logs) or journalctl -u ckpool -f (block progress, then reduced CKPool-LHR logs)"
+echo "  - CKPOOL-LHR: tail -f /var/log/ckpool/ckpool.log (full logs) or journalctl -u ckpool -f (block progress, then reduced CKPOOL-LHR logs)"
 echo "  - Bitcoin Core: tail -f $DATADIR/debug.log or journalctl -u bitcoind -f"
 echo "Edit configs in $DATADIR/bitcoin.conf and /etc/ckpool/ckpool.conf if needed, then restart services with: systemctl restart bitcoind ckpool"
