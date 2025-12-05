@@ -15,35 +15,14 @@ along with other enhancements and changes.
 **Purpose**: Enable difficulty values below 1.0 for low hash rate miners (ESP32
 devices and other embedded systems).
 
-**Implementation**:
-- `mindiff` and `startdiff` are `double` type in `ckpool.h` (support sub-"1" values)
-- Difficulty-related variables are `double` type:
-  - `client->diff`, `client->old_diff`, `client->suggest_diff`
-  - `client->ssdc` (shares since diff change)
-  - Various share counting variables (`shares`, `best_diff`, `best_ever`)
-- Uses `json_get_double()` for `mindiff` and `startdiff` parsing in `ckpool.c`
-- Automatic vardiff adjustment prevents reducing difficulty below 1
-  (line 5734 in `stratifier.c`: `if (unlikely(optimal < 1)) return;`)
-- Manually configured `mindiff` and initial `startdiff` values below 1 are
-  accepted and applied correctly
-
-**Relevant Files**:
-- `src/ckpool.h` - Type definitions
-- `src/ckpool.c` - Configuration parsing
-- `src/stratifier.c` - Difficulty handling and vardiff logic
-- `src/generator.c` - Difficulty calculations
-- `src/libckpool.c` - Library functions
+**Behavior**:
+- `mindiff` and `startdiff` configuration options accept decimal values below 1.0 (e.g., 0.0005, 0.001)
+- Manually configured sub-"1" difficulty values are accepted and applied to miners
+- Automatic vardiff adjustment will not reduce difficulty below 1.0 (manual configuration required for sub-"1" values)
 
 ### 2. User Agent Whitelisting
 
 **Purpose**: Optionally restrict which mining software can connect to the pool.
-
-**Implementation**:
-- `useragent` array and `useragents` count in `ckpool_t` structure
-- `parse_useragents()` function in `ckpool.c` for configuration parsing
-- User agent validation in `stratifier.c` subscription handling
-- `useragent` field in worker instances for persistence
-- Uses prefix matching via `safencmp` function
 
 **Behavior**:
 - **Whitelist not configured** (missing or empty array): All user agents allowed,
@@ -51,24 +30,13 @@ devices and other embedded systems).
 - **Whitelist configured**: User agent must match a whitelist entry using prefix matching,
   otherwise connection is rejected. Empty user agents are rejected (they don't match any pattern)
 
-**Relevant Files**:
-- `src/ckpool.h` - Structure definitions
-- `src/ckpool.c` - Configuration parsing
-- `src/stratifier.c` - Subscription validation and worker tracking
-
 ### 3. Bitcoind Cookie Authentication Support
 
 **Purpose**: Support cookie-based authentication for bitcoind connections.
 
-**Implementation**:
-- `cookie` field in bitcoind configuration structure
-- `btcdcookie` array in `ckpool_t` structure
-- `json_get_configstring()` allows cookie as alternative to auth/pass
-- Cookie parsing in `parse_btcds()` function
-
-**Relevant Files**:
-- `src/ckpool.h` - Structure definitions
-- `src/ckpool.c` - Configuration parsing
+**Behavior**:
+- Bitcoind connections can use cookie-based authentication as an alternative to username/password
+- Cookie file path is specified in the bitcoind configuration
 
 ## Configuration File Differences
 
