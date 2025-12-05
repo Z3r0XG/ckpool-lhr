@@ -199,6 +199,24 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 - **Fork**: Decays stats but doesn't log idle users/workers to pool logs (saves disk I/O and log noise)
 - **Official**: Decays stats AND always logs them to pool logs (even when idle, so they're visible in logs)
 
+**Pool Stats Handling** (how active/idle/disconnected are counted):
+
+**Fork behavior**:
+- **Active Users/Workers**: Counted in `stats->users` and `stats->workers` (only while connected)
+- **Idle Workers**: Counted in `idle_workers` (clients with no shares for > 60s, but still connected)
+- **Disconnected**: Counted in `stats->disconnected` (sessions cleaned up after 600 seconds)
+- **After 1 week idle**: Users/workers are removed from processing, so they're no longer in stats
+
+**Official behavior**:
+- **Active Users/Workers**: Counted in `stats->users` and `stats->workers` (only while connected) - same as fork
+- **Idle Workers**: Counted in `idle_workers` (clients with no shares for > 60s, but still connected) - same as fork
+- **Disconnected**: Counted in `stats->disconnected` (sessions cleaned up after 600 seconds) - same as fork
+- **After user stops mining**: User is removed from `stats->users` when disconnected, but user data persists in JSON files and is logged to pool logs forever (never cleaned up)
+
+**Important Note**: Pool stats (`stats->users`, `stats->workers`) only count **currently connected** users/workers. The cleanup behavior affects:
+- **Fork**: User data removed from disk/logs after 1 week idle
+- **Official**: User data persists in disk/logs forever (once they've submitted shares)
+
 **Impact**: 
 - **Log visibility**: In fork, idle users don't appear in pool log messages. In official, they do (with decaying hashrate).
 - **Disk I/O**: Fork saves less to logs (only active users). Official saves all users to logs.
