@@ -197,19 +197,19 @@ For each safe change:
 
 ## Commits Already in Fork (No Merge Needed)
 
-✅ **Already Present (Enhanced or Equivalent):**
+✅ **Already Present (Enhanced, Equivalent, or Re-implemented):**
 - `dc7b2e17` - btcaddress validation (ENHANCED version - includes proxy check)
 - `dbd161d2` - memleak fix (already present)
 - `ae99fbcc` - overflow fix (already present)
 - `f66fe9e5` - precision fix (already present)
 - `fff16c07` - segwit fix (already present)
-
-## Commits Not Applicable (Skipped)
-
-❌ **Not Merged (Re-implemented Independently or Not Needed):**
 - `b13f3eee` - dropidle feature (RE-IMPLEMENTED IN FORK - fork has independent implementation, commit 3575ff65)
 - `e9162099` - idle drop debug (ALREADY IN FORK - logging included in fork's dropidle implementation)
-- `e0dabf4a`, `32a7178a` - dropidle disable (NOT APPLICABLE - fork has dropidle enabled by default 0, same behavior)
+- `e0dabf4a`, `32a7178a` - dropidle disable (ALREADY IN FORK - fork has dropidle default 0, same behavior)
+
+## Commits Not Applicable (Skipped - Not Needed)
+
+❌ **Not Merged (Explicitly Not Brought Over):**
 - `3f95bce6`, `227f415a` - configure.ac cleanup (NOT APPLICABLE - we don't have those debug lines)
 - Version bumps - Skipped (version numbers are fork-specific)
 
