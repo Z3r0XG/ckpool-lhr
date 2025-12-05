@@ -218,7 +218,7 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 
 ## Commits Merged to Main
 
-✅ **Successfully Merged (12 total):**
+✅ **Successfully Merged (13 total):**
 1. `0c82c048` - Client initialization fix
 2. `2589d759` - Default CFLAGS
 3. `8da33e78` - x86 SHA-NI support
@@ -231,6 +231,7 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 10. `4850ba2f` - Remove deprecated workers directory
 11. `d0d66556` - libjansson installation fix
 12. `9094ec54` - Dropall command support
+13. `bb7b0aeb` - Non-executable stack security fix for asm code
 
 ✅ **Added to Fork (1 total):**
 1. `3a8b0c21` - Install script for solo mining (added with fork-specific updates)
@@ -273,7 +274,7 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 
 ## Merge Summary
 
-**Total Merges Completed**: 12
+**Total Merges Completed**: 13
 **Status**: ✅ All merges successfully completed, tested, and committed
 **Result**: Repository is up-to-date with safe improvements from official ckpool while preserving all fork-specific features
 
