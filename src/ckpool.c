@@ -1314,7 +1314,7 @@ static bool parse_useragents(ckpool_t *ckp, const json_t *arr_val)
 	}
 	arr_size = json_array_size(arr_val);
 	if (!arr_size) {
-		LOGWARNING("Useragent array empty");
+		/* Empty array means no whitelist - allow all user agents */
 		goto out;
 	}
 	ckp->useragents = arr_size;
