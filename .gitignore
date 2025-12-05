@@ -86,4 +86,8 @@ tests/TESTING_STATUS.md
 MERGE_ANALYSIS.md
 TESTING_STRATEGY.md
 
+# Test artifacts
+test-suite.log
+*.trs
+
 

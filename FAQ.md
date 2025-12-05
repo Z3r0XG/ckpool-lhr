@@ -82,8 +82,8 @@ Autotools helper scripts for cross-platform compilation and installation.
 #### `README`
 Primary documentation covering design philosophy, features, building instructions, running options, and configuration parameters.
 
-#### `README-SOLOMINING`
-Instructions for setting up and running ckpool in solo mining mode for local Bitcoin mining.
+#### `README-SOLO`
+Instructions for setting up and running ckpool in solo mining mode.
 
 #### `AUTHORS`
 List of project authors and contributors with their contact information and Bitcoin addresses.
@@ -91,7 +91,7 @@ List of project authors and contributors with their contact information and Bitc
 #### `COPYING`
 GNU General Public License version 3 text.
 
-#### `ChangeLog` and `NEWS`
+#### `ChangeLog`
 Version history and release notes.
 
 ### Third-Party Components

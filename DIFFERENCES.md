@@ -26,7 +26,7 @@ devices and other embedded systems).
 
 **Behavior**:
 - **Whitelist not configured** (missing or empty array): All user agents allowed,
-  including empty strings (matches original CKPOOL behavior)
+  including empty strings
 - **Whitelist configured**: User agent must match a whitelist entry using prefix matching,
   otherwise connection is rejected. Empty user agents are rejected (they don't match any pattern)
 
@@ -44,7 +44,7 @@ devices and other embedded systems).
 
 **Behavior**:
 - `user_cleanup_days` configuration option (integer, days)
-- Default: `0` (never cleanup, matches official ckpool behavior - user data persists indefinitely)
+- Default: `0` (never cleanup - user data persists indefinitely)
 - When set to a positive value: User and worker statistics are removed from disk after the specified number of days of inactivity (no shares submitted)
 - Users who have never submitted a share are always skipped regardless of this setting
 - Provides flexibility: `0` = keep forever, `7` = 1 week, `365` = 1 year, etc.

@@ -14,15 +14,34 @@ stamp-h1
 *.Tpo
 *.Plo
 
-# Test binaries (executables)
-test-*
-unit/test-*
-integration/test-*
+# Test binaries (executables without extension)
+# Note: We track source files (*.c) but ignore compiled binaries
+unit/test-address
+unit/test-base58
+unit/test-base64
+unit/test-config
+unit/test-difficulty
+unit/test-donation
+unit/test-dropidle
+unit/test-encoding
+unit/test-endian
+unit/test-fulltest
+unit/test-serialization
+unit/test-sha256
+unit/test-share-params
+unit/test-string-utils
+unit/test-time-conversion
+unit/test-time-utils
+unit/test-useragent
+unit/test-vardiff
 
 # Test suite logs
 test-suite.log
 *.log
 *.trs
+
+# Integration tests are environment-specific
+integration/
 
 # Autotools artifacts
 autom4te.cache/
@@ -30,4 +49,3 @@ config.log
 config.status
 config.h
 config.h.in
-

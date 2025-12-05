@@ -20,12 +20,6 @@ This directory contains unit tests for CKPOOL-LHR.
 14. **test-base64.c** - Base64 encoding (LOW)
 15. **test-dropidle.c** - dropidle feature (idle client management) (MEDIUM)
 
-## Structure
-
-- `unit/` - Unit tests for pure functions
-- `integration/` - Integration/regression tests for live ckpool instance
-- `fixtures/` - Test data and fixtures (future)
-
 ## Building and Running Tests
 
 ### Prerequisites
@@ -67,21 +61,6 @@ make check
 ./tests/unit/test-share-params
 ./tests/unit/test-config
 ```
-
-### Local Regression Testing
-
-**Note**: Regression tests are environment-specific and should be kept local (not committed to repo).
-
-For local validation of a running ckpool instance, you can create environment-specific regression tests in `tests/integration/` (this directory is gitignored).
-
-Example test areas:
-- Network communication (Stratum protocol)
-- Bitcoind connectivity
-- File I/O (logs, user data)
-- Multi-process coordination
-- Service management
-- Configuration validation
-- Share submission flow (requires full Stratum client)
 
 ## Test Framework
 
