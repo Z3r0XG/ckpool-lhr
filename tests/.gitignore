@@ -1,0 +1,33 @@
+# Test build artifacts
+*.o
+*.lo
+*.a
+*.la
+*.so
+.deps/
+.libs/
+Makefile
+Makefile.in
+.dirstamp
+stamp-h1
+*.Po
+*.Tpo
+*.Plo
+
+# Test binaries (executables)
+test-*
+unit/test-*
+integration/test-*
+
+# Test suite logs
+test-suite.log
+*.log
+*.trs
+
+# Autotools artifacts
+autom4te.cache/
+config.log
+config.status
+config.h
+config.h.in
+

@@ -1493,6 +1493,8 @@ static void parse_config(ckpool_t *ckp)
 		ckp->version_mask = 0x1fffe000;
 	/* Default don't drop idle clients */
 	json_get_int(&ckp->dropidle, json_conf, "dropidle");
+	/* Default never cleanup user data (0 = never, matches official behavior) */
+	json_get_int(&ckp->user_cleanup_days, json_conf, "user_cleanup_days");
 	/* Look for an array first and then a single entry */
 	arr_val = json_object_get(json_conf, "useragent");
 	if (!parse_useragents(ckp, arr_val)) {
@@ -1804,6 +1806,9 @@ int main(int argc, char **argv)
 		ckp.donation = 0;
 	else if (ckp.donation > 99.9)
 		ckp.donation = 99.9;
+	/* Default never cleanup user data (0 = never, matches official behavior) */
+	if (ckp.user_cleanup_days < 0)
+		ckp.user_cleanup_days = 0;
 
 	/* Donations on testnet are meaningless but required for complete
 	 * testing. Testnet and regtest addresses */

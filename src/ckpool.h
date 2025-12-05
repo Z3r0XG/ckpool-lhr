@@ -166,6 +166,8 @@ struct ckpool_instance {
 	int maxclients;
 	/* Drop clients that have been idle for this many seconds, 0 to disable */
 	int dropidle;
+	/* Clean up user/worker data after this many days of inactivity, 0 to never cleanup */
+	int user_cleanup_days;
 
 	/* API message queue */
 	ckmsgq_t *ckpapi;

@@ -8071,7 +8071,6 @@ static void *statsupdate(void *arg)
 		while ((user = next_user(sdata, user)) != NULL) {
 			worker_instance_t *worker;
 			json_t *user_array;
-			bool idle = false;
 
 			if (!user->authorised)
 				continue;
@@ -8080,15 +8079,18 @@ static void *statsupdate(void *arg)
 
 			/* Decay times per user */
 			per_tdiff = tvdiff(&now, &user->last_share);
-			if (per_tdiff > 60) {
-				/* Drop storage of users idle for 1 week */
-				if (per_tdiff > 600000) {
-					LOGDEBUG("Skipping user %s", user->username);
-					continue;
-				}
-				decay_user(user, 0, &now);
-				idle = true;
+			/* Drop storage of users with no shares */
+			if (!user->last_share.tv_sec) {
+				LOGDEBUG("Skipping inactive user %s", user->username);
+				continue;
 			}
+			/* Cleanup users idle longer than user_cleanup_days (if configured) */
+			if (ckp->user_cleanup_days > 0 && per_tdiff > (ckp->user_cleanup_days * 86400)) {
+				LOGDEBUG("Skipping user %s (idle for %d days)", user->username, ckp->user_cleanup_days);
+				continue;
+			}
+			if (per_tdiff > 60)
+				decay_user(user, 0, &now);
 
 			ghs = user->dsps1440 * nonces;
 			suffix_string(ghs, suffix1440, 16, 0);
@@ -8128,12 +8130,10 @@ static void *statsupdate(void *arg)
 					remote_users++;
 			}
 
-			if (!idle) {
-				s = json_dumps(val, JSON_NO_UTF8 | JSON_PRESERVE_ORDER | JSON_COMPACT);
-				ASPRINTF(&sp, "User %s:%s", user->username, s);
-				dealloc(s);
-				add_msg_entry(&char_list, &sp);
-			}
+			s = json_dumps(val, JSON_NO_UTF8 | JSON_PRESERVE_ORDER | JSON_COMPACT);
+			ASPRINTF(&sp, "User %s:%s", user->username, s);
+			dealloc(s);
+			add_msg_entry(&char_list, &sp);
 			user_array = json_array();
 			worker = NULL;
 
@@ -8143,13 +8143,17 @@ static void *statsupdate(void *arg)
 
 				per_tdiff = tvdiff(&now, &worker->last_share);
 				if (per_tdiff > 60) {
-					/* Drop storage of workers idle for 1 week */
-					if (per_tdiff > 600000) {
-						LOGDEBUG("Skipping worker %s", worker->workername);
-						continue;
-					}
 					decay_worker(worker, 0, &now);
 					worker->idle = true;
+					/* Drop storage of workers idle for longer than user_cleanup_days (if configured) */
+					if (ckp->user_cleanup_days > 0 && per_tdiff > (ckp->user_cleanup_days * 86400)) {
+						LOGDEBUG("Skipping inactive worker %s (idle for %d days)", worker->workername, ckp->user_cleanup_days);
+						continue;
+					}
+				} else if (ckp->user_cleanup_days > 0 && per_tdiff > (ckp->user_cleanup_days * 86400)) {
+					/* Also check cleanup threshold for workers that haven't been idle long enough to decay */
+					LOGDEBUG("Skipping inactive worker %s (idle for %d days)", worker->workername, ckp->user_cleanup_days);
+					continue;
 				}
 
 				ghs = worker->dsps1440 * nonces;

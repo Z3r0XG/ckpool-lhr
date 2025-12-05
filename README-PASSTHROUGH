@@ -1,0 +1,121 @@
+# Passthrough Mode with CKPOOL-LHR
+
+## Use Case
+
+Passthrough mode combines multiple downstream miner connections into a single
+upstream connection while preserving each miner's individual identity on the
+upstream pool. Each downstream miner retains their separate presence on the
+upstream pool, allowing for individual tracking and statistics.
+
+**Ideal for:**
+- Large-scale pool deployments
+- Isolating main pool infrastructure from direct client connections
+- Reducing network overhead on main pool
+- Scaling to millions of clients
+
+## How Passthrough Mode Works
+
+In passthrough mode, ckpool-lhr accepts connections from downstream miners and
+streams all miner data on a single connection to the upstream pool. Each downstream
+miner maintains their individual identity (username, password, statistics) on the
+upstream pool. This allows the main pool to be isolated from direct client
+communication while still tracking individual miners.
+
+**Workflow**: Downstream miners connect → Subscribe → Authorize with credentials →
+Receive work → Submit shares → Passthrough streams all miner data on single
+connection → Upstream pool sees individual miners → Upstream pool validates and
+responds → Passthrough forwards responses to appropriate downstream miners.
+
+**Important**: Standalone mode is implied in passthrough mode. The upstream pool
+must be ckpool-compatible for proper operation.
+
+For complete configuration reference, see the main README.
+
+---
+
+## Required Options
+
+### Command Line
+
+**`-P` or `--passthrough`**: **REQUIRED** to start ckpool-lhr in passthrough mode.
+
+Example:
+```bash
+src/ckpool -P
+```
+
+### Configuration File
+
+**"proxy"** : Upstream pool connection configuration. **REQUIRED**
+- Type: Array of objects
+- Each entry: url (string, required), auth (string, required), pass (string, required)
+- Multiple entries can be specified for redundancy/load balancing
+- Example:
+```json
+"proxy" : [
+    {
+        "url" : "upstream.pool.com:3333",
+        "auth" : "username",
+        "pass" : "password"
+    }
+]
+```
+
+---
+
+## Quick Start
+
+### 1. Create Configuration File
+
+Copy the example configuration file and customize it:
+```bash
+cp ckpassthrough.conf.example ckpassthrough.conf
+```
+
+Edit `ckpassthrough.conf` with the required `proxy` setting (see Required Options above).
+
+### 2. Start ckpool-lhr in Passthrough Mode
+
+```bash
+src/ckpool -P
+```
+
+### 3. Configure Your Miners
+
+Point your mining hardware to the passthrough:
+- **URL**: `192.168.1.100:3334` (your passthrough IP address, default port 3334)
+- **Username**: Your upstream pool username (preserved to upstream)
+- **Password**: Your upstream pool password (preserved to upstream)
+
+---
+
+## Optional Configuration Options
+
+All configuration options relevant to passthrough mode are listed below. Options
+not listed (btcd, btcaddress, redirecturl, nodeserver, trusted, upstream) are
+not used in passthrough mode.
+
+**"serverurl"** : Server bindings for downstream miner connections. **OPTIONAL**
+- Type: Array of strings
+- Values: "IP:port" or "hostname:port"
+- Default: All interfaces on port 3334
+- Note: Ports below 1024 usually require privileged access
+- Example: `"serverurl" : ["192.168.1.100:3334", "127.0.0.1:3334"]`
+
+**"logdir"** : Directory for storing pool and client logs. **OPTIONAL**
+- Type: String
+- Values: Valid directory path
+- Default: "logs"
+
+**"maxclients"** : Maximum number of concurrent client connections. **OPTIONAL**
+- Type: Integer
+- Values: Positive integer
+- Default: No limit
+- Note: Connections beyond this limit are rejected
+
+**"useragent"** : Allowed user agent strings for miner connections. **OPTIONAL**
+- Type: Array of strings
+- Values: String patterns (prefix matching)
+- Default: Not configured (allow all)
+- Note: If configured, only miners with user agents matching an entry in the whitelist are allowed. Empty user agent strings do not match any pattern and will be rejected if whitelist is configured.
+

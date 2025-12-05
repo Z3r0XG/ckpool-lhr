@@ -25,6 +25,7 @@
 "update_interval" : 30,
 "version_mask" : "1fffe000",
 "dropidle" : 0,
+"user_cleanup_days" : 0,
 "serverurl" : [
 	"ckpool.org:3333",
 	"node.ckpool.org:3333",
