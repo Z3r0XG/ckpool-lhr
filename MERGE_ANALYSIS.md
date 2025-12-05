@@ -225,11 +225,26 @@ This fork supports **all mining devices** (not just low hash rate), with the add
 - **Large pool deployments**: For pools with many users, indefinite growth could become an issue
 
 **Suggested approach**: 
-- **Small to medium pools** (< 1000 users): Merge - benefits outweigh costs
-- **Large pools** (> 1000 users): Consider keeping cleanup or making it configurable
-- **Best of both worlds**: Add configurable cleanup threshold (e.g., `user_cleanup_days: 0` = never, `7` = 1 week, `30` = 1 month) - gives operators control without hardcoding behavior
+Merge the official change (remove hardcoded 1 week cleanup) AND add a configurable cleanup threshold for flexibility.
 
-**Action**: ⚠️ Review needed - decision depends on expected pool size and operator preferences
+**Low-effort implementation**:
+- Add `user_cleanup_days` config option (integer, days)
+- `0` = never cleanup (matches official behavior, default)
+- `7` = cleanup after 1 week (current fork behavior)
+- `365` = cleanup after 1 year (prune old data)
+- Implementation: ~4 lines of code
+  1. Add `int user_cleanup_days;` to `ckpool_t` structure
+  2. Parse config: `json_get_int(&ckp->user_cleanup_days, json_conf, "user_cleanup_days");`
+  3. Replace `600000` with `(ckp->user_cleanup_days * 86400)` in cleanup checks
+  4. Default to `0` (never cleanup) if not specified
+
+**Benefits**:
+- Matches official behavior by default (never cleanup)
+- Operators can enable cleanup if desired (set `user_cleanup_days: 7` or `365`)
+- Minimal code changes (~4 lines)
+- Best of both worlds: flexibility without hardcoding
+
+**Action**: ✅ Recommended - Merge official change + add configurable threshold (low effort, high value)
 
 ### 14. Remove Deprecated Workers Directory
 **Status**: ✅ MERGE CANDIDATE
