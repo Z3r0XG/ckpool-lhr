@@ -161,25 +161,40 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 ### 13. Decay Inactive Stats
 **Status**: ⚠️ NOT IN FORK (DIFFERENT BEHAVIOR)
 - Commit: `a8f808b5` - "Decay inactive worker and user stats even if not logging them"
-- **Official change**: Always decays stats even if not logging, removes `idle` flag check for logging
-- **Fork status**: Fork still uses old behavior (only decays if idle > 60s, skips logging if idle)
-- **Risk**: Medium - changes stats decay behavior
-- **Action**: Review needed - decide if we want this behavior change
+- **What stats are affected**: Hashrate statistics (1m, 5m, 1hr, 1d, 7d) for users and workers
+- **Fork behavior (current)**: 
+  - Decays hashrate stats if idle > 60 seconds
+  - **Skips logging idle users/workers to stats message queue** (line 8131: `if (!idle)`)
+  - Skips users idle for 1 week (600000 seconds)
+- **Official behavior (after commit)**:
+  - Always decays hashrate stats if idle > 60 seconds (same as fork)
+  - **Always logs users/workers to stats message queue** (removed `if (!idle)` check)
+  - Skips users with no shares at all (`last_share.tv_sec == 0`) instead of 1 week threshold
+- **Impact**: 
+  - **Stats visibility**: In fork, idle users/workers don't appear in `ckpmsg` stats queries. In official, they do.
+  - **Memory**: Both decay stats, but official logs them anyway (more memory for message queue)
+  - **User cleanup**: Official uses "no shares" check instead of "1 week idle" for cleanup
+- **Risk**: Medium - changes stats visibility and cleanup logic
+- **Action**: Review needed - decide if we want idle users visible in stats queries
 
 ### 14. Remove Deprecated Workers Directory
-**Status**: ⚠️ NOT IN FORK
+**Status**: ✅ MERGE CANDIDATE
 - Commit: `4850ba2f` - "Remove deprecated workers directory creation"
-- **Official change**: Removes workers directory creation code
+- **Official change**: Removes workers directory creation code (lines removed from `src/ckpool.c`)
 - **Fork status**: Fork still creates workers directory (line 1856 in ckpool.c)
-- **Risk**: Low - just removes directory creation
-- **Action**: Review needed - check if workers directory is still needed
+- **Risk**: Low - just removes unused directory creation
+- **Action**: ✅ Should merge - directory is deprecated and not used
 
 ### 15. Build System: libjansson Installation
-**Status**: ⚠️ NOT MERGED
+**Status**: ✅ MERGE CANDIDATE
 - Commit: `d0d66556` - "Do not install any custom libjansson files since they're only statically linked and can overwrite operating system versions"
-- **Official change**: Prevents installing libjansson files that could overwrite system versions
-- **Risk**: Low - build system change
-- **Action**: Review needed - might be safe to merge
+- **Official change**: 
+  - Changes `lib_LTLIBRARIES` to `noinst_LTLIBRARIES` (don't install library)
+  - Changes `include_HEADERS` to `noinst_HEADERS` (don't install headers)
+  - Removes `pkgconfig_DATA` (don't install pkg-config file)
+- **Why**: Prevents overwriting system libjansson with statically-linked version
+- **Risk**: Low - build system change, only affects installation
+- **Action**: ✅ Should merge - prevents potential conflicts with system libraries
 
 ## Recommended Merge Strategy
 
@@ -238,20 +253,27 @@ For each safe change:
 - `e9162099` - idle drop debug (ALREADY IN FORK - logging included in fork's dropidle implementation)
 - `e0dabf4a`, `32a7178a` - dropidle disable (ALREADY IN FORK - fork has dropidle default 0, same behavior)
 
+### 16. Dropall Command Support
+**Status**: ⚠️ MERGE CANDIDATE (NEEDS REVIEW)
+- Commit: `9094ec54` - "Allow the main ckpool process to accept the dropall command to pass to the stratifier"
+- **Official change**: Adds `dropall` command handler in `src/ckpool.c` that forwards to stratifier
+- **What it does**: Allows disconnecting all clients via command (useful for maintenance/emergency)
+- **Fork status**: Not present in fork
+- **Risk**: Low - just adds command handler, doesn't touch protected areas
+- **Action**: ⚠️ Review needed - decide if we want this administrative feature
+
 ## Commits Not Applicable (Skipped - Not Needed)
 
 ❌ **Not Merged (Explicitly Not Brought Over):**
-- `9094ec54` - dropall command support (NOT APPLICABLE - feature not in fork)
 - `3f95bce6`, `227f415a` - configure.ac cleanup (NOT APPLICABLE - we don't have those debug lines)
 - Version bumps - Skipped (version numbers are fork-specific)
 - `3a8b0c21` - Update script to use bitcoin core v29.2 (NOT APPLICABLE - fork doesn't have install scripts)
 
 ## Commits Needing Review
 
-⚠️ **Potential Merge Candidates (Need Analysis):**
-- `a8f808b5` - Decay inactive stats (different behavior in fork)
-- `4850ba2f` - Remove deprecated workers directory (fork still creates it)
-- `d0d66556` - libjansson installation fix (build system change)
+⚠️ **Potential Merge Candidates (Need Decision):**
+- `a8f808b5` - Decay inactive stats (different behavior - affects stats visibility)
+- `9094ec54` - Dropall command support (administrative feature)
 
 ## Testing Checklist
 
