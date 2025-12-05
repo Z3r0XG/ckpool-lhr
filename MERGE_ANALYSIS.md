@@ -228,10 +228,14 @@ These areas have been modified in CKPOOL-LHR and should NOT be overwritten:
 
 ## Commits Not Applicable (Skipped - Not Needed)
 
-❌ **Not Merged (Explicitly Not Brought Over):**
-- `3f95bce6`, `227f415a` - configure.ac cleanup (NOT APPLICABLE - we don't have those debug lines)
+❌ **Not Merged (Not Present in Fork):**
+- `3f95bce6`, `227f415a` - configure.ac cleanup (NOT APPLICABLE - fork never had these debug lines)
+  - `227f415a`: Removed `echo "Testxxx2=$x86_shani"` debug line
+  - `3f95bce6`: Removed `AC_MSG_RESULT(["cpuinfo=$cpuinfo"])` debug line
+  - **Why**: These debug lines were added to official repo after our fork, then removed. We never had them.
 - Version bumps - Skipped (version numbers are fork-specific)
 - `3a8b0c21` - Update script to use bitcoin core v29.2 (NOT APPLICABLE - fork doesn't have install scripts)
+  - **Why**: Official repo has `scripts/install-ckpool-solo.sh` (added in commit `e6737eb5`), but our fork doesn't have a `scripts/` directory
 
 
 ## Testing Results
