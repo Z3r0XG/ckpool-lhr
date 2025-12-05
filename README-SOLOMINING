@@ -39,8 +39,10 @@ notifier included by adding the following command
 (Replace $CKPOOLSOURCE with the path to where you have the ckpool source code)
 
 
-Create or modify a ckpool configuration file (such as ckpool.conf), including
-the minimum necessary entries.
+Create a ckpool configuration file by copying the example:
+cp ckpool.conf.example ckpool.conf
+
+Then edit ckpool.conf, including the minimum necessary entries.
 
 {
 "btcd" :  [
@@ -81,7 +83,7 @@ OPTIONAL CHANGES.
 
 Most of the ckpool configuration options would not need to be modified for a
 local solo mining operation, and some of the config options are not used in
-solo mode. The ckpool.conf included with the source has all the available
+solo mode. The ckpool.conf.example included with the source shows all the available
 configuration options and is not recommended to be used as is. The following
 options may be useful for a local solo mining operation.
 
