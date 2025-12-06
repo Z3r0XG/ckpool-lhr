@@ -1523,6 +1523,7 @@ static void parse_config(ckpool_t *ckp)
 	json_get_double(&ckp->startdiff, json_conf, "startdiff");
 	json_get_int64(&ckp->highdiff, json_conf, "highdiff");
 	json_get_int64(&ckp->maxdiff, json_conf, "maxdiff");
+	json_get_bool(&ckp->allow_low_diff, json_conf, "allow_low_diff");
 	json_get_string(&ckp->logdir, json_conf, "logdir");
 	json_get_int(&ckp->maxclients, json_conf, "maxclients");
 	arr_val = json_object_get(json_conf, "proxy");

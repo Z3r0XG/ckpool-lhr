@@ -49,3 +49,5 @@ config.log
 config.status
 config.h
 config.h.in
+unit/test-low-diff
+test-low-diff

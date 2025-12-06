@@ -217,6 +217,13 @@ option is ignored in solo mode (miners provide their own address as username).
 - Values: Positive integer, or 0 for no maximum
 - Default: 0 (no maximum)
 
+**"allow_low_diff"** : Remove minimum network difficulty floor (for regtest). **OPTIONAL**
+- Type: Boolean
+- Default: false
+- Note: Enables block submission to blockchains with sub-1.0 network difficulty (e.g., regtest).
+- Warning: For regtest testing only. Do NOT enable on mainnet or testnet.
+- Example: `"allow_low_diff" : true`
+
 **"nonce1length"** : Length of extranonce1 in bytes. **OPTIONAL**
 - Type: Integer
 - Values: 2-8

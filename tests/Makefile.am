@@ -26,7 +26,8 @@ check_PROGRAMS = \
 	unit/test-dropidle \
 	unit/test-vardiff \
 	unit/test-share-params \
-	unit/test-config
+	unit/test-config \
+	unit/test-low-diff
 
 TESTS = $(check_PROGRAMS)
 
@@ -101,6 +102,10 @@ unit_test_share_params_SOURCES = \
 # Configuration parsing tests
 unit_test_config_SOURCES = \
 	unit/test-config.c
+
+# Low diff (allow_low_diff) feature tests
+unit_test_low_diff_SOURCES = \
+	unit/test-low-diff.c
 
 # All tests depend on libckpool
 $(check_PROGRAMS): $(top_builddir)/src/libckpool.a

@@ -1043,7 +1043,8 @@ static void add_base(ckpool_t *ckp, sdata_t *sdata, workbase_t *wb, bool *new_bl
 	/* Stats network_diff is not protected by lock but is not a critical
 	 * value */
 	wb->network_diff = diff_from_nbits(wb->headerbin + 72);
-	if (wb->network_diff < 1)
+	/* Allow sub-1.0 network diff only when explicitly enabled (for regtest testing) */
+	if (!ckp->allow_low_diff && wb->network_diff < 1)
 		wb->network_diff = 1;
 	stats->network_diff = wb->network_diff;
 	if (stats->network_diff != old_diff)
