@@ -602,8 +602,9 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 
 	// Generation value
 	g64 = wb->coinbasevalue;
-	if (ckp->donvalid && ckp->donrate > 0) {
-		d64 = (g64 / 100) * ckp->donrate; // Calculate donation value
+	if (ckp->donvalid && ckp->donation > 0) {
+		double dbl64 = (double)g64 / 100 * ckp->donation;
+		d64 = dbl64;
 		g64 -= d64; // To guarantee integers add up to the original coinbasevalue
 		wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
 	} else
@@ -618,7 +619,7 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 	wb->coinb3len = 0;
 	wb->coinb3bin = ckzalloc(256 + wb->insert_witness * (8 + witnessdata_size + 2));
 
-	if (ckp->donvalid && ckp->donrate > 0) {
+	if (ckp->donvalid && ckp->donation > 0) {
 		u64 = (uint64_t *)wb->coinb3bin;
 		*u64 = htole64(d64);
 		wb->coinb3len += 8;
@@ -627,7 +628,7 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 		memcpy(wb->coinb3bin + wb->coinb3len, sdata->dontxnbin, sdata->dontxnlen);
 		wb->coinb3len += sdata->dontxnlen;
 	} else
-		ckp->donrate = 0;
+		ckp->donation = 0;
 
 	if (wb->insert_witness) {
 		// 0 value
@@ -686,8 +687,8 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 			free(cb);
 			ckp->coinbase_valid = true;
 			LOGWARNING("Mining from any incoming username to address %s", ckp->btcaddress);
-			if (ckp->donrate)
-				LOGWARNING("%d percent donation to %s", ckp->donrate, ckp->donaddress);
+			if (ckp->donation)
+				LOGWARNING("%.1f percent donation to %s", ckp->donation, ckp->donaddress);
 		}
 	} else if (unlikely(!ckp->coinbase_valid)) {
 		/* Create a sample coinbase to test its validity in solo mode */
@@ -727,8 +728,8 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 		free(cb);
 		ckp->coinbase_valid = true;
 		LOGWARNING("Mining solo to any incoming valid BTC address username");
-		if (ckp->donrate)
-			LOGWARNING("%d percent donation to %s", ckp->donrate, ckp->donaddress);
+		if (ckp->donation)
+			LOGWARNING("%.1f percent donation to %s", ckp->donation, ckp->donaddress);
 	}
 
 	/* Set this just for node compatibility, though it's unused */
@@ -1042,7 +1043,8 @@ static void add_base(ckpool_t *ckp, sdata_t *sdata, workbase_t *wb, bool *new_bl
 	/* Stats network_diff is not protected by lock but is not a critical
 	 * value */
 	wb->network_diff = diff_from_nbits(wb->headerbin + 72);
-	if (wb->network_diff < 1)
+	/* Allow sub-1.0 network diff only when explicitly enabled (for regtest testing) */
+	if (!ckp->allow_low_diff && wb->network_diff < 1)
 		wb->network_diff = 1;
 	stats->network_diff = wb->network_diff;
 	if (stats->network_diff != old_diff)
@@ -1333,6 +1335,17 @@ static txntable_t *wb_merkle_bin_txns(ckpool_t *ckp, sdata_t *sdata, workbase_t 
 	txntable_t *txns = NULL;
 	json_t *arr_val;
 	uchar *hashbin;
+	char *fname;
+	FILE *fp;
+
+	ASPRINTF(&fname, "%s/pool/pool.txns", ckp->logdir);
+	fp = fopen(fname, "we");
+	if (unlikely(!fp)) {
+		LOGERR("Failed to fopen %s", fname);
+		dealloc(fname);
+		return txns;
+	}
+	dealloc(fname);
 
 	wb->txns = json_array_size(txn_array);
 	wb->merkles = 0;
@@ -1373,6 +1386,7 @@ static txntable_t *wb_merkle_bin_txns(ckpool_t *ckp, sdata_t *sdata, workbase_t 
 				LOGERR("Missing txid for transaction in wb_merkle_bins");
 				goto out;
 			}
+			fprintf(fp, "%s\n", txid);
 			txn = json_string_value(json_object_get(arr_val, "data"));
 			add_txn(ckp, sdata, &txns, hash, txn, local);
 			len = strlen(txn);
@@ -1411,6 +1425,7 @@ static txntable_t *wb_merkle_bin_txns(ckpool_t *ckp, sdata_t *sdata, workbase_t 
 	LOGNOTICE("Stored %s workbase with %d transactions", local ? "local" : "remote",
 		  wb->txns);
 out:
+	fclose(fp);
 	return txns;
 }
 
@@ -3375,7 +3390,11 @@ static stratum_instance_t *__stratum_add_instance(ckpool_t *ckp, int64_t id, con
 	client = __recruit_stratum_instance(sdata);
 	ck_wunlock(&sdata->instance_lock);
 
-	client->start_time = time(NULL);
+	/* Fake a share time at startup to prevent client being dropped for
+	 * being idle. */
+	client->start_time = client->last_share.tv_sec = time(NULL);
+	client->last_share.tv_usec = 0;
+
 	client->id = id;
 	client->session_id = ++sdata->session_id;
 	strcpy(client->address, address);
@@ -3568,7 +3587,13 @@ static void drop_client(ckpool_t *ckp, sdata_t *sdata, const int64_t id)
 
 	ck_wlock(&sdata->instance_lock);
 	client = __instance_by_id(sdata, id);
-	if (client && !client->dropped) {
+	/* Process client if it exists and either:
+	 * 1. Not already marked as dropped (normal case), OR
+	 * 2. Already dropped but ref=0 (cleanup case - all references released)
+	 * 
+	 * This prevents concurrent reprocessing when ref>0 but allows cleanup
+	 * when all references are gone, matching official ckpool behavior. */
+	if (client && (!client->dropped || !client->ref)) {
 		__disconnect_session(sdata, client);
 		/* If the client is still holding a reference, don't drop them
 		 * now but wait till the reference is dropped */
@@ -4940,17 +4965,18 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 		buf = json_string_value(json_array_get(params_val, 0));
 		if (buf && strlen(buf)) {
 			client->useragent = strdup(buf);
-			// Only allowed user agents may subscribe. If any configured
-			// entry is exactly "*" it means allow all user agents; otherwise
-			// existing behavior remains (prefix match using safencmp).
+		} else
+			client->useragent = ckzalloc(1); // Set to ""
+		
+		// Whitelist check: only enabled if configured. When enabled, user agents
+		// must match an entry in the whitelist, otherwise reject. Empty user agent
+		// does not match any pattern. If whitelist is not configured (missing or
+		// empty array), all user agents are allowed.
+		if (ckp->useragents > 0) {
 			for (int i = 0; i < ckp->useragents; i++) {
 				const char *pat = ckp->useragent[i];
 				if (!pat)
 					continue;
-				if (pat[0] == '*' && pat[1] == '\0') {
-					ua_ret = true;
-					break;
-				}
 				if (!safencmp(client->useragent, pat, strlen(pat))) {
 					ua_ret = true;
 					break;
@@ -4961,6 +4987,7 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 				return json_string("Only allowed user agents may subscribe");
 			}
 		}
+		
 		if (arr_size > 1) {
 			/* This would be the session id for reconnect, it will
 			 * not work for clients on a proxied connection. */
@@ -4979,9 +5006,25 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 			}
 		}
 	} else {
-		// Block empty useragent as well
-		stratum_send_message(ckp_sdata, client, "Empty useragent not allowed");
-		return json_string("Empty useragent not allowed");
+		client->useragent = ckzalloc(1);
+		// Whitelist check for empty params array: if whitelist is configured,
+		// empty user agent must match an entry (empty does not match any pattern),
+		// otherwise reject. If whitelist is not configured, all user agents allowed.
+		if (ckp->useragents > 0) {
+			for (int i = 0; i < ckp->useragents; i++) {
+				const char *pat = ckp->useragent[i];
+				if (!pat)
+					continue;
+				if (!safencmp(client->useragent, pat, strlen(pat))) {
+					ua_ret = true;
+					break;
+				}
+			}
+			if (!ua_ret) {
+				stratum_send_message(ckp_sdata, client, "Only allowed user agents may subscribe");
+				return json_string("Only allowed user agents may subscribe");
+			}
+		}
 	}
 	/* We got what we needed */
 	if (ckp->node)
@@ -5508,7 +5551,7 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 		*err_val = json_string("params missing array entries");
 		goto out;
 	}
-	if (unlikely(!client->useragent)) {
+	if (unlikely(!client->subscribed)) {
 		*err_val = json_string("Failed subscription");
 		goto out;
 	}
@@ -6217,19 +6260,19 @@ out_nowb:
 		suffix_string(wdiff, wdiffsuffix, 16, 0);
 		if (sdiff >= diff) {
 			if (new_share(sdata, hash, id)) {
-				LOGINFO("Accepted client %s share diff %.10f/%.0f/%s: %s",
+				LOGINFO("Accepted client %s share diff %.10f/%.10f/%s: %s",
 					client->identity, sdiff, diff, wdiffsuffix, hexhash);
 				result = true;
 			} else {
 				err = SE_DUPE;
 				json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
-				LOGINFO("Rejected client %s dupe diff %.1f/%.0f/%s: %s",
+				LOGINFO("Rejected client %s dupe diff %.1f/%.10f/%s: %s",
 					client->identity, sdiff, diff, wdiffsuffix, hexhash);
 				submit = false;
 			}
 		} else {
 			err = SE_HIGH_DIFF;
-			LOGINFO("Rejected client %s high diff %.1f/%.0f/%s: %s",
+			LOGINFO("Rejected client %s high diff %.1f/%.10f/%s: %s",
 				client->identity, sdiff, diff, wdiffsuffix, hexhash);
 			json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
 			submit = false;
@@ -6271,7 +6314,7 @@ out_nowb:
 	json_set_string(val, "workername", client->workername);
 	json_set_string(val, "username", user->username);
         json_set_string(val, "address", client->address);
-        json_set_string(val, "agent", client->useragent);
+        json_set_string(val, "agent", client->useragent ? client->useragent : "");
 
 	if (ckp->logshares) {
 		fp = fopen(fname, "ae");
@@ -6526,8 +6569,34 @@ static void init_client(const stratum_instance_t *client, const int64_t client_i
 	sdata_t *sdata = client->sdata;
 
 	stratum_send_diff(sdata, client);
+	/* In solo mode, work is sent after authorization via update_solo_client().
+	 * In pool mode, send work immediately after subscription. */
 	if (!client->ckp->btcsolo)
 		stratum_send_update(sdata, client_id, true);
+	else if (client->authorised && client->user_instance) {
+		/* In solo mode, if client is already authorized, send work immediately */
+		workbase_t *wb;
+		user_instance_t *user = client->user_instance;
+
+		ck_rlock(&sdata->workbase_lock);
+		wb = sdata->current_workbase;
+		if (wb) {
+			wb->readcount++;
+			ck_runlock(&sdata->workbase_lock);
+
+			ck_wlock(&sdata->instance_lock);
+			__generate_userwb(sdata, wb, user);
+			ck_wunlock(&sdata->instance_lock);
+
+			update_solo_client(sdata, wb, client_id, user);
+
+			ck_wlock(&sdata->workbase_lock);
+			wb->readcount--;
+			ck_wunlock(&sdata->workbase_lock);
+		} else {
+			ck_runlock(&sdata->workbase_lock);
+		}
+	}
 }
 
 /* When a node first connects it has no transactions so we have to send all
@@ -7932,6 +8001,12 @@ static worker_instance_t *next_worker(sdata_t *sdata, user_instance_t *user, wor
 	return worker;
 }
 
+static void lazy_drop_client(ckpool_t *ckp, stratum_instance_t *client)
+{
+	client->dropped = true;
+	connector_drop_client(ckp, client->id);
+}
+
 static void *statsupdate(void *arg)
 {
 	ckpool_t *ckp = (ckpool_t *)arg;
@@ -7974,11 +8049,11 @@ static void *statsupdate(void *arg)
 
 		while (client) {
 			tv_time(&now);
-			/* Look for clients that may have been dropped which the
-			 * stratifier has not been informed about and ask the
-			 * connector if they still exist */
+			/* Look for clients that have been dropped which the
+			 * connector may not have been informed about and should
+			 * disconnect. */
 			if (client->dropped)
-				connector_test_client(ckp, client->id);
+				connector_drop_client(ckp, client->id);
 			else if (remote_server(client)) {
 				/* Do nothing to these */
 			} else if (!client->authorised) {
@@ -7995,10 +8070,16 @@ static void *statsupdate(void *arg)
 					/* No shares for over a minute, decay to 0 */
 					decay_client(client, 0, &now);
 					idle_workers++;
-					if (per_tdiff > 600)
+					if (ckp->dropidle && per_tdiff > ckp->dropidle) {
+						/* Drop clients idle for longer than
+						 * ckp->dropidle in seconds if set */
+						LOGINFO("Dropping client %"PRId64" due to being idle", client->id);
+						lazy_drop_client(ckp, client);
+					} else if (per_tdiff > 600) {
 						client->idle = true;
-					/* Test idle clients are still connected */
-					connector_test_client(ckp, client->id);
+						/* Test idle clients are still connected */
+						connector_test_client(ckp, client->id);
+					}
 				}
 			}
 
@@ -8019,7 +8100,6 @@ static void *statsupdate(void *arg)
 		while ((user = next_user(sdata, user)) != NULL) {
 			worker_instance_t *worker;
 			json_t *user_array;
-			bool idle = false;
 
 			if (!user->authorised)
 				continue;
@@ -8028,15 +8108,18 @@ static void *statsupdate(void *arg)
 
 			/* Decay times per user */
 			per_tdiff = tvdiff(&now, &user->last_share);
-			if (per_tdiff > 60) {
-				/* Drop storage of users idle for 1 week */
-				if (per_tdiff > 600000) {
-					LOGDEBUG("Skipping user %s", user->username);
-					continue;
-				}
-				decay_user(user, 0, &now);
-				idle = true;
+			/* Drop storage of users with no shares */
+			if (!user->last_share.tv_sec) {
+				LOGDEBUG("Skipping inactive user %s", user->username);
+				continue;
 			}
+			/* Cleanup users idle longer than user_cleanup_days (if configured) */
+			if (ckp->user_cleanup_days > 0 && per_tdiff > (ckp->user_cleanup_days * 86400)) {
+				LOGDEBUG("Skipping user %s (idle for %d days)", user->username, ckp->user_cleanup_days);
+				continue;
+			}
+			if (per_tdiff > 60)
+				decay_user(user, 0, &now);
 
 			ghs = user->dsps1440 * nonces;
 			suffix_string(ghs, suffix1440, 16, 0);
@@ -8076,12 +8159,10 @@ static void *statsupdate(void *arg)
 					remote_users++;
 			}
 
-			if (!idle) {
-				s = json_dumps(val, JSON_NO_UTF8 | JSON_PRESERVE_ORDER | JSON_COMPACT);
-				ASPRINTF(&sp, "User %s:%s", user->username, s);
-				dealloc(s);
-				add_msg_entry(&char_list, &sp);
-			}
+			s = json_dumps(val, JSON_NO_UTF8 | JSON_PRESERVE_ORDER | JSON_COMPACT);
+			ASPRINTF(&sp, "User %s:%s", user->username, s);
+			dealloc(s);
+			add_msg_entry(&char_list, &sp);
 			user_array = json_array();
 			worker = NULL;
 
@@ -8091,13 +8172,17 @@ static void *statsupdate(void *arg)
 
 				per_tdiff = tvdiff(&now, &worker->last_share);
 				if (per_tdiff > 60) {
-					/* Drop storage of workers idle for 1 week */
-					if (per_tdiff > 600000) {
-						LOGDEBUG("Skipping worker %s", worker->workername);
-						continue;
-					}
 					decay_worker(worker, 0, &now);
 					worker->idle = true;
+					/* Drop storage of workers idle for longer than user_cleanup_days (if configured) */
+					if (ckp->user_cleanup_days > 0 && per_tdiff > (ckp->user_cleanup_days * 86400)) {
+						LOGDEBUG("Skipping inactive worker %s (idle for %d days)", worker->workername, ckp->user_cleanup_days);
+						continue;
+					}
+				} else if (ckp->user_cleanup_days > 0 && per_tdiff > (ckp->user_cleanup_days * 86400)) {
+					/* Also check cleanup threshold for workers that haven't been idle long enough to decay */
+					LOGDEBUG("Skipping inactive worker %s (idle for %d days)", worker->workername, ckp->user_cleanup_days);
+					continue;
 				}
 
 				ghs = worker->dsps1440 * nonces;

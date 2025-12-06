@@ -433,6 +433,10 @@ retry:
 		LOGWARNING("Listener received reject message, rejecting clients");
 		send_proc(ckp->connector, "reject");
 		send_unix_msg(sockd, "rejecting");
+	} else if (cmdmatch(buf, "dropall")) {
+		LOGWARNING("Listener received dropall message, disconnecting all clients");
+		send_proc(ckp->stratifier, buf);
+		send_unix_msg(sockd, "dropping all");
 	} else if (cmdmatch(buf, "reconnect")) {
 		LOGWARNING("Listener received request to send reconnect to clients");
 		send_proc(ckp->stratifier, buf);
@@ -1310,7 +1314,7 @@ static bool parse_useragents(ckpool_t *ckp, const json_t *arr_val)
 	}
 	arr_size = json_array_size(arr_val);
 	if (!arr_size) {
-		LOGWARNING("Useragent array empty");
+		/* Empty array means no whitelist - allow all user agents */
 		goto out;
 	}
 	ckp->useragents = arr_size;
@@ -1476,7 +1480,7 @@ static void parse_config(ckpool_t *ckp)
 	}
 	json_get_string(&ckp->btcaddress, json_conf, "btcaddress");
 	json_get_string(&ckp->donaddress, json_conf, "donaddress");
-	json_get_int(&ckp->donrate, json_conf, "donrate");
+	json_get_double(&ckp->donation, json_conf, "donation");
 	json_get_string(&ckp->btcsig, json_conf, "btcsig");
 	if (ckp->btcsig && strlen(ckp->btcsig) > 38) {
 		LOGWARNING("Signature %s too long, truncating to 38 bytes", ckp->btcsig);
@@ -1491,20 +1495,15 @@ static void parse_config(ckpool_t *ckp)
 		sscanf(vmask, "%x", &ckp->version_mask);
 	else
 		ckp->version_mask = 0x1fffe000;
+	/* Default don't drop idle clients */
+	json_get_int(&ckp->dropidle, json_conf, "dropidle");
+	/* Default never cleanup user data (0 = never, matches official behavior) */
+	json_get_int(&ckp->user_cleanup_days, json_conf, "user_cleanup_days");
 	/* Look for an array first and then a single entry */
 	arr_val = json_object_get(json_conf, "useragent");
 	if (!parse_useragents(ckp, arr_val)) {
-		if (json_get_string(&user_agent, json_conf, "useragent")) {
-			ckp->useragent = ckalloc(sizeof(char *));
-			ckp->useragent[0] = user_agent;
-			ckp->useragents = 1;
-		}
-		/* If no user agent has been set, use "NerdMinerV2" as default */
-		else {
-			ckp->useragent = ckalloc(sizeof(char *));
-			ckp->useragent[0] = strdup("NerdMinerV2");
-			ckp->useragents = 1;
-		}
+		/* If useragent is not configured, ckp->useragents remains 0, allowing all.
+		 * No default user agent is set. */
 	}
 	/* Look for an array first and then a single entry */
 	arr_val = json_object_get(json_conf, "serverurl");
@@ -1524,6 +1523,7 @@ static void parse_config(ckpool_t *ckp)
 	json_get_double(&ckp->startdiff, json_conf, "startdiff");
 	json_get_int64(&ckp->highdiff, json_conf, "highdiff");
 	json_get_int64(&ckp->maxdiff, json_conf, "maxdiff");
+	json_get_bool(&ckp->allow_low_diff, json_conf, "allow_low_diff");
 	json_get_string(&ckp->logdir, json_conf, "logdir");
 	json_get_int(&ckp->maxclients, json_conf, "maxclients");
 	arr_val = json_object_get(json_conf, "proxy");
@@ -1797,9 +1797,14 @@ int main(int argc, char **argv)
 			ckp.btcdpass[i] = strdup("pass");
 	}
 	if (!ckp.donaddress)
-		ckp.donaddress = "1PKN98VN2z5gwSGZvGKS2bj8aADZBkyhkZ";
-	if (ckp.donrate < 0 || ckp.donrate > 10)
-		quit(0, "Invalid donation rate %d specified, must be 0~10", ckp.donrate);
+		ckp.donaddress = "bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5";
+	if (ckp.donation < 0.1)
+		ckp.donation = 0;
+	else if (ckp.donation > 99.9)
+		ckp.donation = 99.9;
+	/* Default never cleanup user data (0 = never, matches official behavior) */
+	if (ckp.user_cleanup_days < 0)
+		ckp.user_cleanup_days = 0;
 
 	/* Donations on testnet are meaningless but required for complete
 	 * testing. Testnet and regtest addresses */
@@ -1844,12 +1849,6 @@ int main(int argc, char **argv)
 	ret = mkdir(ckp.logdir, 0750);
 	if (ret && errno != EEXIST)
 		quit(1, "Failed to make log directory %s", ckp.logdir);
-
-	/* Create the workers logdir */
-	sprintf(buf, "%s/workers", ckp.logdir);
-	ret = mkdir(buf, 0750);
-	if (ret && errno != EEXIST)
-		quit(1, "Failed to make workers log directory %s", buf);
 
 	/* Create the user logdir */
 	sprintf(buf, "%s/users", ckp.logdir);

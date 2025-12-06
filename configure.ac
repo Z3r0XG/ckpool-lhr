@@ -1,4 +1,4 @@
-AC_INIT([ckpool],[0.9.9],[kernel@kolivas.org])
+AC_INIT([ckpool],[0.9.9],[https://github.com/Z3r0XG/ckpool-lhr/issues])
 
 AC_CANONICAL_TARGET
 AC_CONFIG_MACRO_DIR([m4])
@@ -15,6 +15,14 @@ AC_CANONICAL_HOST
 dnl Make sure anyone changing configure.ac/Makefile.am has a clue
 AM_MAINTAINER_MODE
 
+AC_MSG_CHECKING([whether to set default CFLAGS])
+if test -z "$CFLAGS"; then
+    CFLAGS="-O2 -Wall -march=native"
+    AC_MSG_RESULT([yes, setting default CFLAGS to $CFLAGS])
+else
+    AC_MSG_RESULT([no, using user-provided CFLAGS])
+fi
+
 dnl Checks for programs
 AC_PROG_CC
 # gl_EARLY - maybe later
@@ -30,6 +38,14 @@ AC_FUNC_ALLOCA
 
 PKG_PROG_PKG_CONFIG()
 
+# Check for CMocka (optional, for testing - disabled for now to use simple framework)
+# PKG_CHECK_MODULES([CMOCKA], [cmocka >= 1.0.0], [HAVE_CMOCKA=yes], [HAVE_CMOCKA=no])
+HAVE_CMOCKA=no
+AM_CONDITIONAL([HAVE_CMOCKA], [test x$HAVE_CMOCKA = xyes])
+# if test x$HAVE_CMOCKA = xyes; then
+#	AC_DEFINE([HAVE_CMOCKA], [1], [Have CMocka testing framework])
+# fi
+
 AC_CHECK_HEADERS(stdio.h stdlib.h fcntl.h sys/time.h unistd.h dirent.h)
 AC_CHECK_HEADERS(ctype.h errno.h byteswap.h string.h time.h fenv.h)
 AC_CHECK_HEADERS(endian.h sys/endian.h arpa/inet.h sys/poll.h syslog.h)
@@ -44,21 +60,37 @@ AC_CHECK_HEADERS(zmq.h)
 AC_CHECK_PROG(YASM, yasm, yes)
 AM_CONDITIONAL([HAVE_YASM], [test x$YASM = xyes])
 
+x86_shani=
 rorx=
 avx1=
 sse4=
-if test x$YASM = xyes; then
-	rorx=`cat /proc/cpuinfo | grep -o -m 1 avx2`
-	if [test x$rorx != xavx2]; then
-		avx1=`cat /proc/cpuinfo | grep -o -m 1 avx`
-		if [test x$avx1 != xavx]; then
-			sse4=`cat /proc/cpuinfo | grep -o -m 1 sse4_1`
-		fi
+sha2=
+if test $host_cpu = 'x86_64' && test x$YASM = xyes; then
+	cpuinfo=$(cat /proc/cpuinfo)
+
+	if [[[ $cpuinfo =~ sha_ni ]]]; then
+		 CFLAGS="$CFLAGS -msse4.1 -msha"
+        	x86_shani="sha_ni"
+	elif [[[ $cpuinfo =~ avx2 ]]]; then
+		rorx="avx2"
+	elif [[[ $cpuinfo =~ avx ]]]; then
+		avx1="avx"
+	elif [[[ $cpuinfo =~ sse4_1 ]]]; then
+		sse4="sse4_1"
 	fi
 fi
+if test $host_cpu = 'aarch64'; then
+	CFLAGS="$CFLAGS -march=armv8-a+crypto"
+	sha2=`cat /proc/cpuinfo | grep -o -m 1 sha2`
+		fi
+AM_CONDITIONAL([HAVE_X86_SHANI], [test x$x86_shani = xsha_ni])
 AM_CONDITIONAL([HAVE_AVX2], [test x$rorx = xavx2])
 AM_CONDITIONAL([HAVE_AVX1], [test x$avx1 = xavx])
 AM_CONDITIONAL([HAVE_SSE4], [test x$sse4 = xsse4_1])
+AM_CONDITIONAL([HAVE_ARM_SHA2], [test x$sha2 = xsha2])
+if test x$x86_shani = xsha_ni; then
+        AC_DEFINE([USE_X86_SHANI], [1], [Use x86 SHA-NI assembly instructions for sha256])
+fi
 if test x$rorx = xavx2; then
 	AC_DEFINE([USE_AVX2], [1], [Use avx2 assembly instructions for sha256])
 fi
@@ -67,6 +99,9 @@ if test x$avx1 = xavx; then
 fi
 if test x$sse4 = xsse4_1; then
 	AC_DEFINE([USE_SSE4], [1], [Use sse4 assembly instructions for sha256])
+fi
+if test x$sha2 = xsha2; then
+	AC_DEFINE([USE_ARM_SHA2], [1], [Use ARMv8 instructions for sha256])
 fi
 
 AC_CONFIG_SUBDIRS([src/jansson-2.14])
@@ -79,7 +114,7 @@ AC_SEARCH_LIBS(exp, m, , echo "Error: Required library math not found." && exit 
 AC_SEARCH_LIBS(pthread_mutex_trylock, pthread, , echo "Error: Required library pthreads not found." && exit 1)
 AC_SEARCH_LIBS(zmq_socket, zmq, ZMQ=yes, ZMQ=no)
 
-AC_CONFIG_FILES([Makefile src/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile])
 AC_OUTPUT
 
 LDFLAGS="${LDFLAGS} -Wl,--as-needed"
@@ -92,6 +127,7 @@ echo "  CPPFLAGS.............: $CPPFLAGS"
 echo "  CFLAGS...............: $CFLAGS"
 echo "  LDFLAGS..............: $LDFLAGS"
 echo "  LDADD................: $LIBS $JANSSON_LIBS"
+echo "  ARCHITECTURE.........: $host_cpu $x86_shani$rorx$avx1$sse4$sha2"
 echo
 echo "Installation...........: make install (as root if needed, with 'su' or 'sudo')"
 echo "  prefix...............: $prefix"

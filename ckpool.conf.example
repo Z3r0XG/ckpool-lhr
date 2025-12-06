@@ -1,0 +1,12 @@
+{
+"btcd" : [
+	{
+		"url" : "localhost:8332",
+		"auth" : "user",
+		"pass" : "pass",
+		"notify" : true
+	}
+],
+"startdiff" : 10000,
+"logdir" : "logs"
+}

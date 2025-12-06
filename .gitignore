@@ -78,4 +78,16 @@ ckpool-local.conf
 # Local runtime logs and transient state
 logs/
 
+# Integration/regression tests are environment-specific, keep local only
+tests/integration/
+
+# Local planning/analysis documents (not part of repo)
+tests/TESTING_STATUS.md
+MERGE_ANALYSIS.md
+TESTING_STRATEGY.md
+
+# Test artifacts
+test-suite.log
+*.trs
+
 

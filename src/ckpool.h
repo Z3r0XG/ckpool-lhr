@@ -164,6 +164,10 @@ struct ckpool_instance {
 	bool handover;
 	/* How many clients maximum to accept before rejecting further */
 	int maxclients;
+	/* Drop clients that have been idle for this many seconds, 0 to disable */
+	int dropidle;
+	/* Clean up user/worker data after this many days of inactivity, 0 to never cleanup */
+	int user_cleanup_days;
 
 	/* API message queue */
 	ckmsgq_t *ckpapi;
@@ -237,6 +241,7 @@ struct ckpool_instance {
 	double startdiff; // Default 42.0
 	int64_t highdiff; // Default 1000000
 	int64_t maxdiff; // No default
+	bool allow_low_diff; // Allow network diff below 1.0 (for regtest testing)
 
 	/* Coinbase data */
 	char *btcaddress; // Address to mine to
@@ -246,7 +251,7 @@ struct ckpool_instance {
 	char *donaddress; // Donation address
 	char *tndonaddress; // Testnet donation address
 	char *rtdonaddress; // Regtest donation address
-	int donrate; // Donation rate
+	double donation; // Donation rate (0.0-99.9)
 	bool donscript; // Donation is a script
 	bool donsegwit; // Donation is segwit
 	bool donvalid; // Donation address works on this network
