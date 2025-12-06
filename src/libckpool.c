@@ -1692,7 +1692,7 @@ bool cmdmatch(const char *buf, const char *cmd)
 {
 	int cmdlen, buflen;
 
-	if (!buf)
+	if (!buf || !cmd)
 		return false;
 	buflen = strlen(buf);
 	if (!buflen)
