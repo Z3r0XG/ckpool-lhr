@@ -6260,19 +6260,19 @@ out_nowb:
 		suffix_string(wdiff, wdiffsuffix, 16, 0);
 		if (sdiff >= diff) {
 			if (new_share(sdata, hash, id)) {
-				LOGINFO("Accepted client %s share diff %.10f/%.0f/%s: %s",
+				LOGINFO("Accepted client %s share diff %.10f/%.10f/%s: %s",
 					client->identity, sdiff, diff, wdiffsuffix, hexhash);
 				result = true;
 			} else {
 				err = SE_DUPE;
 				json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
-				LOGINFO("Rejected client %s dupe diff %.1f/%.0f/%s: %s",
+				LOGINFO("Rejected client %s dupe diff %.1f/%.10f/%s: %s",
 					client->identity, sdiff, diff, wdiffsuffix, hexhash);
 				submit = false;
 			}
 		} else {
 			err = SE_HIGH_DIFF;
-			LOGINFO("Rejected client %s high diff %.1f/%.0f/%s: %s",
+			LOGINFO("Rejected client %s high diff %.1f/%.10f/%s: %s",
 				client->identity, sdiff, diff, wdiffsuffix, hexhash);
 			json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
 			submit = false;
