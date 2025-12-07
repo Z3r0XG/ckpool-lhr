@@ -59,4 +59,6 @@ devices and other embedded systems).
 **Behavior**:
 - Password field supports comma-separated parameter format (e.g., `x, diff=200, f=9`)
 - Supported variables:
-  - `diff`: Suggest difficulty. Format: `diff=X` where X is a number (e.g., `diff=0.001`). Applied after successful authorization. Supports values between pool minimum (`mindiff`) and maximum (`maxdiff`) difficulty settings
+  - `diff`: Suggest difficulty. Format: `diff=X` where X is a number (e.g., `diff=0.001`).  
+    Applied after successful authorization. Supports values between pool minimum (`mindiff`)  
+    and maximum (`maxdiff`) difficulty settings
