@@ -12,6 +12,14 @@
 #include "../test_common.h"
 #include "sha2.h"
 
+/* gen_hash: Double SHA-256 (Bitcoin standard) */
+static void gen_hash(const unsigned char *data, unsigned char *hash, unsigned int len)
+{
+	unsigned char first_hash[32];
+	sha256(data, len, first_hash);
+	sha256(first_hash, 32, hash);
+}
+
 /* Known test vectors from NIST and Bitcoin */
 static const struct {
     const char *input;
