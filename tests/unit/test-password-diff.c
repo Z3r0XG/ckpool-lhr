@@ -28,7 +28,7 @@ static double parse_password_diff(const char *password, double mindiff, int64_t 
 	/* Search for "diff=" anywhere in the password string */
 	diff_ptr = strstr(pass_str, "diff=");
 	if (diff_ptr) {
-		const char *value_start = diff_ptr + 5;
+		const char *value_start = diff_ptr + strlen("diff=");
 		
 		/* Reject if there's a space immediately after "diff=" */
 		if (*value_start == ' ' || *value_start == '\t') {
