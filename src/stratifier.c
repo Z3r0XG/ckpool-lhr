@@ -5608,7 +5608,7 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 	if (!ckp->remote || ckp->btcsolo)
 		client_auth(ckp, client, user, ret);
 	
-	/* Parse password for difficulty suggestion (e.g., "diff=0.001", "x, diff=200, f=9", or "0.001") */
+	/* Parse password for difficulty suggestion (e.g., "diff=0.001" or "x, diff=200, f=9") */
 	if (ret && client->password && strlen(client->password) && client->authorised) {
 		double pass_diff = 0;
 		char *endptr;
@@ -5641,23 +5641,20 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 					}
 				}
 			}
-		} else {
-			/* No "diff=" found - try parsing entire string as plain number */
-			pass_diff = strtod(pass_str, &endptr);
-			/* For plain number, must be entire string (endptr at end or whitespace) */
-			if (endptr != pass_str && *endptr != '\0' && 
-			    *endptr != ' ' && *endptr != '\t') {
-				pass_diff = 0;
-			}
 		}
 		
 		/* If we got a valid positive number, apply it as difficulty suggestion */
 		if (pass_diff > 0) {
+			sdata_t *sdata = ckp->sdata;
 			double sdiff = pass_diff;
 			
 			/* Respect mindiff - clamp to pool minimum */
 			if (sdiff < ckp->mindiff)
 				sdiff = ckp->mindiff;
+			
+			/* Respect maxdiff - clamp to pool maximum if set */
+			if (ckp->maxdiff && sdiff > ckp->maxdiff)
+				sdiff = ckp->maxdiff;
 			
 			/* Only apply if different from current */
 			if (sdiff != client->diff) {

@@ -27,7 +27,8 @@ check_PROGRAMS = \
 	unit/test-vardiff \
 	unit/test-share-params \
 	unit/test-config \
-	unit/test-low-diff
+	unit/test-low-diff \
+	unit/test-password-diff
 
 TESTS = $(check_PROGRAMS)
 
@@ -106,6 +107,10 @@ unit_test_config_SOURCES = \
 # Low diff (allow_low_diff) feature tests
 unit_test_low_diff_SOURCES = \
 	unit/test-low-diff.c
+
+# Password difficulty suggestion tests
+unit_test_password_diff_SOURCES = \
+	unit/test-password-diff.c
 
 # All tests depend on libckpool
 $(check_PROGRAMS): $(top_builddir)/src/libckpool.a

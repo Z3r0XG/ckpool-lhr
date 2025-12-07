@@ -160,7 +160,11 @@ src/ckpool -B
 Point mining hardware to the pool:
 - **URL**: `192.168.1.100:3333` (pool IP address, default port 3333)
 - **Username**: Your Bitcoin address, optionally with a worker name (e.g., `bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5.worker1`)
-- **Password**: Anything (e.g., "x")
+- **Password** (optional):
+  - Default: any value
+  - Supports comma-separated parameters (e.g., `x, diff=200, f=9`)
+  - Supported parameters:
+    - `diff`: Suggest difficulty. Format: `diff=X` where X is a number (e.g., `diff=0.001`). Supports values between pool minimum (`mindiff`) and maximum (`maxdiff`) difficulty settings.
 
 Any valid Bitcoin address works as the username. Append `.workername` to track multiple miners separately.
 
@@ -278,6 +282,64 @@ option is ignored in solo mode (miners provide their own address as username).
 - Default: None (all allowed)
 - Note: Prefix matching. Empty user agents rejected if whitelist configured.
 - Example: `"useragent" : ["cpuminer", "cgminer"]`
+
+---
+
+## Testing
+
+The project includes a comprehensive test suite to verify functionality. The test suite covers core functionality, utility functions, and feature-specific behavior.
+
+### Running Tests
+
+To run all tests:
+
+```bash
+make check
+```
+
+This will build and run all unit tests from the `tests/unit/` directory.
+
+### Running Individual Tests
+
+Individual tests can be built and run from the `tests/` directory:
+
+```bash
+cd tests
+make unit/test-password-diff
+./unit/test-password-diff
+```
+
+### Test Coverage
+
+The test suite includes:
+
+**Core Features:**
+- **test-low-diff**: Tests the `allow_low_diff` feature for sub-1.0 network difficulty support
+- **test-password-diff**: Tests password field difficulty suggestion parsing and validation
+- **test-vardiff**: Tests variable difficulty adjustment logic
+- **test-difficulty**: Tests difficulty calculation functions
+- **test-donation**: Tests donation system functionality
+- **test-dropidle**: Tests idle client drop functionality
+- **test-useragent**: Tests user agent whitelisting
+- **test-share-params**: Tests share parameter validation
+
+**Utility Functions:**
+- **test-string-utils**: Tests string manipulation utilities
+- **test-encoding**: Tests encoding/decoding functions
+- **test-address**: Tests Bitcoin address encoding
+- **test-base58**: Tests Base58 encoding
+- **test-base64**: Tests Base64 encoding
+- **test-sha256**: Tests SHA-256 hashing
+- **test-time-utils**: Tests time utility functions
+- **test-time-conversion**: Tests time conversion functions
+- **test-endian**: Tests endianness conversion
+- **test-serialization**: Tests number serialization
+- **test-fulltest**: Tests hash validation
+- **test-config**: Tests configuration parsing
+
+### Adding New Tests
+
+New tests should be added to `tests/unit/` and registered in `tests/Makefile.am`. Tests use the common test framework defined in `tests/test_common.h` which provides assertion macros and test running utilities.
 
 ---
 
