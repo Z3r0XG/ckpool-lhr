@@ -5607,6 +5607,74 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 	 * upstream pool to complete. */
 	if (!ckp->remote || ckp->btcsolo)
 		client_auth(ckp, client, user, ret);
+	
+	/* Parse password for difficulty suggestion (e.g., "diff=0.001", "x, diff=200, f=9", or "0.001") */
+	if (ret && client->password && strlen(client->password) && client->authorised) {
+		double pass_diff = 0;
+		char *endptr;
+		const char *pass_str = client->password;
+		char *diff_ptr;
+		
+		/* Search for "diff=" anywhere in the password string */
+		diff_ptr = strstr(pass_str, "diff=");
+		if (diff_ptr) {
+			const char *value_start = diff_ptr + 5;
+			
+			/* Reject if there's a space immediately after "diff=" */
+			if (*value_start == ' ' || *value_start == '\t') {
+				pass_diff = 0;
+			} else {
+				/* Found "diff=" - parse the value after it */
+				pass_diff = strtod(value_start, &endptr);
+				
+				/* Check if parsing succeeded */
+				if (endptr == value_start) {
+					/* Failed to parse - reset to 0 */
+					pass_diff = 0;
+				} else {
+					/* Parsing succeeded - verify it's followed by valid delimiter */
+					/* Valid: end of string, comma, or whitespace */
+					if (*endptr != '\0' && *endptr != ',' && 
+					    *endptr != ' ' && *endptr != '\t') {
+						/* Invalid character after number (e.g., "diff=200x") - reject */
+						pass_diff = 0;
+					}
+				}
+			}
+		} else {
+			/* No "diff=" found - try parsing entire string as plain number */
+			pass_diff = strtod(pass_str, &endptr);
+			/* For plain number, must be entire string (endptr at end or whitespace) */
+			if (endptr != pass_str && *endptr != '\0' && 
+			    *endptr != ' ' && *endptr != '\t') {
+				pass_diff = 0;
+			}
+		}
+		
+		/* If we got a valid positive number, apply it as difficulty suggestion */
+		if (pass_diff > 0) {
+			double sdiff = pass_diff;
+			
+			/* Respect mindiff - clamp to pool minimum */
+			if (sdiff < ckp->mindiff)
+				sdiff = ckp->mindiff;
+			
+			/* Only apply if different from current */
+			if (sdiff != client->diff) {
+				ck_rlock(&sdata->workbase_lock);
+				if (sdata->current_workbase) {
+					client->diff_change_job_id = sdata->workbase_id + 1;
+					client->old_diff = client->diff;
+					client->suggest_diff = sdiff;
+					client->diff = sdiff;
+					LOGINFO("Applied difficulty suggestion %.10f from password for client %s",
+						sdiff, client->identity);
+					stratum_send_diff(sdata, client);
+				}
+				ck_runlock(&sdata->workbase_lock);
+			}
+		}
+	}
 out:
 	if (ckp->btcsolo && ret && !client->remote) {
 		sdata_t *sdata = ckp->sdata;
