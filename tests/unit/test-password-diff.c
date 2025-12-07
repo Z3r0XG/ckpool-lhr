@@ -19,14 +19,13 @@ static double parse_password_diff(const char *password, double mindiff, int64_t 
 {
 	double pass_diff = 0;
 	char *endptr;
-	const char *pass_str = password;
 	char *diff_ptr;
 	
 	if (!password || !strlen(password))
 		return 0;
 	
 	/* Search for "diff=" anywhere in the password string */
-	diff_ptr = strstr(pass_str, "diff=");
+	diff_ptr = strstr(password, "diff=");
 	if (diff_ptr) {
 		const char *value_start = diff_ptr + strlen("diff=");
 		
