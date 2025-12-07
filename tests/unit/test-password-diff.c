@@ -37,9 +37,9 @@ static double parse_password_diff(const char *password, double mindiff, int64_t 
 			/* Found "diff=" - parse the value after it */
 			pass_diff = strtod(value_start, &endptr);
 			
-			/* Check if parsing succeeded */
-			if (endptr == value_start) {
-				/* Failed to parse - reset to 0 */
+			/* Check if parsing succeeded and result is finite */
+			if (endptr == value_start || !isfinite(pass_diff)) {
+				/* Failed to parse or invalid value (inf/nan) - reset to 0 */
 				pass_diff = 0;
 			} else {
 				/* Parsing succeeded - verify it's followed by valid delimiter */
@@ -221,6 +221,74 @@ static void test_null_empty_password(void)
 	assert_double_equal(result, 0.0, EPSILON_DIFF);
 }
 
+/* Test: Reject negative values */
+static void test_reject_negative_values(void)
+{
+	double result;
+	
+	result = parse_password_diff("diff=-100", 1.0, 0);
+	assert_double_equal(result, 0.0, EPSILON_DIFF);
+	
+	result = parse_password_diff("diff=-0.001", 1.0, 0);
+	assert_double_equal(result, 0.0, EPSILON_DIFF);
+	
+	result = parse_password_diff("diff=-1", 1.0, 0);
+	assert_double_equal(result, 0.0, EPSILON_DIFF);
+}
+
+/* Test: Reject zero value */
+static void test_reject_zero_value(void)
+{
+	double result;
+	
+	result = parse_password_diff("diff=0", 1.0, 0);
+	assert_double_equal(result, 0.0, EPSILON_DIFF);
+	
+	result = parse_password_diff("diff=0.0", 1.0, 0);
+	assert_double_equal(result, 0.0, EPSILON_DIFF);
+	
+	result = parse_password_diff("diff=0.000", 1.0, 0);
+	assert_double_equal(result, 0.0, EPSILON_DIFF);
+}
+
+/* Test: Reject special floating point values (inf, nan) */
+static void test_reject_special_fp_values(void)
+{
+	double result;
+	
+	result = parse_password_diff("diff=inf", 1.0, 0);
+	assert_double_equal(result, 0.0, EPSILON_DIFF);
+	
+	result = parse_password_diff("diff=infinity", 1.0, 0);
+	assert_double_equal(result, 0.0, EPSILON_DIFF);
+	
+	result = parse_password_diff("diff=-inf", 1.0, 0);
+	assert_double_equal(result, 0.0, EPSILON_DIFF);
+	
+	result = parse_password_diff("diff=nan", 1.0, 0);
+	assert_double_equal(result, 0.0, EPSILON_DIFF);
+}
+
+/* Test: Scientific notation support */
+static void test_scientific_notation(void)
+{
+	double result;
+	
+	/* Scientific notation should be parsed correctly */
+	result = parse_password_diff("diff=1e-3", 0.0001, 0);
+	assert_double_equal(result, 0.001, EPSILON_DIFF);
+	
+	result = parse_password_diff("diff=2e2", 1.0, 0);
+	assert_double_equal(result, 200.0, EPSILON_DIFF);
+	
+	result = parse_password_diff("diff=1.5e-1", 0.01, 0);
+	assert_double_equal(result, 0.15, EPSILON_DIFF);
+	
+	/* Scientific notation with clamping */
+	result = parse_password_diff("diff=1e-5", 0.001, 0);
+	assert_double_equal(result, 0.001, EPSILON_DIFF); /* Clamped to mindiff */
+}
+
 int main(void)
 {
 	printf("Running password difficulty parsing tests...\n\n");
@@ -235,6 +303,10 @@ int main(void)
 	run_test(test_clamp_both_limits);
 	run_test(test_no_diff_returns_zero);
 	run_test(test_null_empty_password);
+	run_test(test_reject_negative_values);
+	run_test(test_reject_zero_value);
+	run_test(test_reject_special_fp_values);
+	run_test(test_scientific_notation);
 	
 	printf("\nAll password difficulty parsing tests passed!\n");
 	return 0;

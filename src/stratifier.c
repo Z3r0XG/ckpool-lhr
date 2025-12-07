@@ -5609,16 +5609,17 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 		client_auth(ckp, client, user, ret);
 	
 	/* Parse password for difficulty suggestion (e.g., "diff=0.001" or "x, diff=200, f=9") */
-	if (ret && client->password && strlen(client->password) && client->authorised) {
+	/* Needs to be entered with client holding a ref count (same as suggest_diff) */
+	bool password_diff_sent = false;
+	if (ret && client->password && client->authorised) {
 		double pass_diff = 0;
 		char *endptr;
-		const char *pass_str = client->password;
 		char *diff_ptr;
 		
 		/* Search for "diff=" anywhere in the password string */
-		diff_ptr = strstr(pass_str, "diff=");
+		diff_ptr = strstr(client->password, "diff=");
 		if (diff_ptr) {
-			const char *value_start = diff_ptr + 5;
+			const char *value_start = diff_ptr + strlen("diff=");
 			
 			/* Reject if there's a space immediately after "diff=" */
 			if (*value_start == ' ' || *value_start == '\t') {
@@ -5627,9 +5628,9 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 				/* Found "diff=" - parse the value after it */
 				pass_diff = strtod(value_start, &endptr);
 				
-				/* Check if parsing succeeded */
-				if (endptr == value_start) {
-					/* Failed to parse - reset to 0 */
+				/* Check if parsing succeeded and result is finite */
+				if (endptr == value_start || !isfinite(pass_diff)) {
+					/* Failed to parse or invalid value (inf/nan) - reset to 0 */
 					pass_diff = 0;
 				} else {
 					/* Parsing succeeded - verify it's followed by valid delimiter */
@@ -5645,7 +5646,6 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 		
 		/* If we got a valid positive number, apply it as difficulty suggestion */
 		if (pass_diff > 0) {
-			sdata_t *sdata = ckp->sdata;
 			double sdiff = pass_diff;
 			
 			/* Respect mindiff - clamp to pool minimum */
@@ -5656,22 +5656,22 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 			if (ckp->maxdiff && sdiff > ckp->maxdiff)
 				sdiff = ckp->maxdiff;
 			
-			/* Only apply if different from current */
-			if (sdiff != client->diff) {
-				ck_rlock(&sdata->workbase_lock);
-				if (sdata->current_workbase) {
-					client->diff_change_job_id = sdata->workbase_id + 1;
-					client->old_diff = client->diff;
-					client->suggest_diff = sdiff;
-					client->diff = sdiff;
-					LOGINFO("Applied difficulty suggestion %.10f from password for client %s",
-						sdiff, client->identity);
-					stratum_send_diff(sdata, client);
-				}
-				ck_runlock(&sdata->workbase_lock);
-			}
+			/* Only apply if different from current (follow suggest_diff pattern) */
+			if (sdiff == client->suggest_diff)
+				goto skip_password_diff;
+			client->suggest_diff = sdiff;
+			if (client->diff == sdiff)
+				goto skip_password_diff;
+			client->diff_change_job_id = client->sdata->workbase_id + 1;
+			client->old_diff = client->diff;
+			client->diff = sdiff;
+			LOGINFO("Applied difficulty suggestion %.10f from password for client %s",
+				sdiff, client->identity);
+			stratum_send_diff(ckp->sdata, client);
+			password_diff_sent = true;
 		}
 	}
+skip_password_diff:
 out:
 	if (ckp->btcsolo && ret && !client->remote) {
 		sdata_t *sdata = ckp->sdata;
@@ -5693,7 +5693,9 @@ out:
 		wb->readcount--;
 		ck_wunlock(&sdata->workbase_lock);
 
-		stratum_send_diff(sdata, client);
+		/* Only send diff if we didn't already send it from password parsing */
+		if (!password_diff_sent)
+			stratum_send_diff(sdata, client);
 	}
 	return json_boolean(ret);
 }
