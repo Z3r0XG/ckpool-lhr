@@ -46,7 +46,9 @@ static void test_optimal_diff_calculation_fractional(void)
 		double multiplier = test_cases[i].multiplier;
 		double expected = test_cases[i].expected;
 		
-		/* This is what vardiff now does (no lround) */
+		/* Vardiff computes optimal as dsps * multiplier; fractional values
+		 * are preserved (no integer rounding applied).
+		 */
 		double optimal = dsps * multiplier;
 		
 		assert_double_equal(optimal, expected, EPSILON_DIFF);
@@ -56,8 +58,9 @@ static void test_optimal_diff_calculation_fractional(void)
 /* Test that lround truncation is gone */
 static void test_lround_elimination(void)
 {
-	/* Old code used lround(dsps * multiplier) which truncated fractional results
-	 * New code should preserve fractional results
+	/* Legacy behavior: previous algorithm rounded optimal difficulty using
+	 * lround(dsps * multiplier) which could truncate or change fractional
+	 * results. This test asserts that fractional diffs are preserved.
 	 */
 	
 	struct {
@@ -75,7 +78,7 @@ static void test_lround_elimination(void)
 		double dsps = test_cases[i].dsps;
 		double mult = test_cases[i].multiplier;
 		
-		/* Old way (with lround) */
+		/* Legacy rounding approach (lround) for comparison */
 		long old_optimal = lround(dsps * mult);
 		
 		/* New way (direct double) */

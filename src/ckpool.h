@@ -398,7 +398,8 @@ static inline bool validate_mindiff(double *mindiff)
 		return false;
 	if (*mindiff < 0.0)
 		return false;
-	if (!*mindiff)
+	/* Apply default minimum difficulty when zero is specified */
+	if (*mindiff == 0.0)
 		*mindiff = 1.0;
 	return true;
 }
@@ -410,7 +411,8 @@ static inline bool validate_startdiff(double *startdiff)
 	/* Reject negative values but allow zero so we can apply default */
 	if (*startdiff < 0.0)
 		return false;
-	if (!*startdiff)
+	/* Apply default starting difficulty when zero is specified */
+	if (*startdiff == 0.0)
 		*startdiff = 42.0;
 	return true;
 }
@@ -421,7 +423,8 @@ static inline bool validate_highdiff(double *highdiff)
 		return false;
 	if (*highdiff < 0.0)
 		return false;
-	if (!*highdiff)
+	/* Apply default high difficulty when zero is specified */
+	if (*highdiff == 0.0)
 		*highdiff = 1000000.0;
 	return true;
 }

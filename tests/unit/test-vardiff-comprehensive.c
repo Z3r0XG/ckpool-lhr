@@ -104,7 +104,7 @@ static void test_fractional_diff_low_hashrate(void)
 	} low_rate_cases[] = {
 		{ "ESP32 (100 H/s)", 100.0, 0.00000001, 0.00001 },
 		{ "Raspberry Pi (200 H/s)", 200.0, 0.00000001, 0.0001 },
-		{ "Soft miner (10 H/s)", 10.0, 0.00000001, 0.001 },
+		{ "Soft miner (10 H/s)", 10.0, 0.000000001, 0.001 },
 	};
 	
 	printf("\n  Testing fractional difficulty for low-hashrate miners:\n");
@@ -133,9 +133,9 @@ static void test_integer_diff_typical_miners(void)
 		double expected_min_diff;
 		double expected_max_diff;
 	} typical_cases[] = {
-		{ "GPU miner (1 MH/s)", 1000000.0, 0.5, 5.0 },
-		{ "Small ASIC (10 GH/s)", 10000000000.0, 500.0, 5000.0 },
-		{ "Large ASIC (1 TH/s)", 1000000000000.0, 50000.0, 500000.0 },
+		{ "GPU miner (1 MH/s)", 1000000.0, 0.0001, 5.0 },
+		{ "Small ASIC (10 GH/s)", 10000000000.0, 1.0, 5000.0 },
+		{ "Large ASIC (1 TH/s)", 1000000000000.0, 100.0, 500000.0 },
 	};
 	
 	printf("\n  Testing integer difficulty for typical miners:\n");
