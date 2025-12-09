@@ -5780,7 +5780,8 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	if (unlikely(optimal <= 0.0))
 		return;
 
-	if (client->diff == optimal)
+	/* Use epsilon comparison for floating-point equality to handle rounding errors */
+	if (fabs(client->diff - optimal) < 1e-6)
 		return;
 
 	/* If this is the first share in a change, reset the last diff change
@@ -6555,10 +6556,10 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 	/* Clamp suggest diff to global pool mindiff */
 	if (sdiff < ckp->mindiff)
 		sdiff = ckp->mindiff;
-	if (sdiff == client->suggest_diff)
+	if (fabs(sdiff - client->suggest_diff) < 1e-6)
 		return;
 	client->suggest_diff = sdiff;
-	if (client->diff == sdiff)
+	if (fabs(client->diff - sdiff) < 1e-6)
 		return;
 	client->diff_change_job_id = client->sdata->workbase_id + 1;
 	client->old_diff = client->diff;

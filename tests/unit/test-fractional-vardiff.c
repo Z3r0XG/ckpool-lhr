@@ -103,7 +103,7 @@ static void test_vardiff_below_1(void)
 	} test_cases[] = {
 		{ 0.05, 0.001, 0.001, 0.2 },    /* Very low: 0.05 * 3.33 = 0.166 */
 		{ 0.1,  0.01,  0.01,  0.5 },    /* Low: 0.1 * 3.33 = 0.333 */
-		{ 0.3,  0.1,   0.1,   1.0 },    /* Medium: 0.3 * 3.33 = 0.999, clamped to mindiff=0.1 */
+		{ 0.3,  0.1,   0.1,   1.0 },    /* Medium: 0.3 * 3.33 = 0.999, within valid range */
 	};
 	
 	int num_tests = sizeof(test_cases) / sizeof(test_cases[0]);

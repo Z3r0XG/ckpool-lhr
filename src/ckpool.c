@@ -1845,6 +1845,7 @@ int main(int argc, char **argv)
 	if (ckp.startdiff < 0.001) {
 		LOGWARNING("startdiff %.6f is below recommended minimum of 0.001", ckp.startdiff);
 		LOGWARNING("This may cause pool performance issues with high share submission rates");
+		LOGWARNING("Proceeding anyway as configured...");
 	}
 	if (!ckp.highdiff)
 		ckp.highdiff = 1000000;
