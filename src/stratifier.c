@@ -149,7 +149,7 @@ struct user_instance {
 
 	double shares;
 
-	int64_t uadiff; /* Shares not yet accounted for in hashmeter */
+	double uadiff; /* Shares not yet accounted for in hashmeter */
 
 	double dsps1; /* Diff shares per second, 1 minute rolling average */
 	double dsps5; /* ... 5 minute ... */
@@ -181,7 +181,7 @@ struct worker_instance {
 
 	double shares;
 
-	int64_t uadiff; /* Shares not yet accounted for in hashmeter */
+	double uadiff; /* Shares not yet accounted for in hashmeter */
 
 	double dsps1;
 	double dsps5;
@@ -243,7 +243,7 @@ struct stratum_instance {
 	double old_diff; /* Previous diff */
 	int64_t diff_change_job_id; /* Last job_id we changed diff */
 
-	int64_t uadiff; /* Shares not yet accounted for in hashmeter */
+	double uadiff; /* Shares not yet accounted for in hashmeter */
 
 	double dsps1; /* Diff shares per second, 1 minute rolling average */
 	double dsps5; /* ... 5 minute ... */
@@ -5680,15 +5680,15 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	mutex_lock(&ckp_sdata->uastats_lock);
 	if (valid) {
 		ckp_sdata->stats.unaccounted_shares++;
-		ckp_sdata->stats.unaccounted_diff_shares += MAX(1, diff);
+		ckp_sdata->stats.unaccounted_diff_shares += diff;
 	} else
-		ckp_sdata->stats.unaccounted_rejects += MAX(1, diff);
+		ckp_sdata->stats.unaccounted_rejects += diff;
 	mutex_unlock(&ckp_sdata->uastats_lock);
 
 	/* Count only accepted and stale rejects in diff calculation. */
 	if (valid) {
-		worker->shares += MAX(1, diff);
-		user->shares += MAX(1, diff);
+		worker->shares += diff;
+		user->shares += diff;
 	} else if (!submit)
 		return;
 
@@ -7004,11 +7004,11 @@ static void parse_remote_share(ckpool_t *ckp, sdata_t *sdata, json_t *val, const
 
 	mutex_lock(&sdata->uastats_lock);
 	sdata->stats.unaccounted_shares++;
-	sdata->stats.unaccounted_diff_shares += MAX(1, diff);
+	sdata->stats.unaccounted_diff_shares += diff;
 	mutex_unlock(&sdata->uastats_lock);
 
-	worker->shares += MAX(1, diff);
-	user->shares += MAX(1, diff);
+	worker->shares += diff;
+	user->shares += diff;
 	tv_time(&now_t);
 
 	decay_worker(worker, diff, &now_t);
@@ -8238,25 +8238,25 @@ static void *statsupdate(void *arg)
 		dump_log_entries(&log_entries);
 		notice_msg_entries(&char_list);
 
-		ghs1 = (stats->dsps1 * ckp->mindiff) * nonces;
+		ghs1 = stats->dsps1 * nonces;
 		suffix_string(ghs1, suffix1, 16, 0);
 
-		ghs5 = (stats->dsps5 * ckp->mindiff) * nonces;
+		ghs5 = stats->dsps5 * nonces;
 		suffix_string(ghs5, suffix5, 16, 0);
 
-		ghs15 = (stats->dsps15 * ckp->mindiff) * nonces;
+		ghs15 = stats->dsps15 * nonces;
 		suffix_string(ghs15, suffix15, 16, 0);
 
-		ghs60 = (stats->dsps60 * ckp->mindiff) * nonces;
+		ghs60 = stats->dsps60 * nonces;
 		suffix_string(ghs60, suffix60, 16, 0);
 
-		ghs360 = (stats->dsps360 * ckp->mindiff) * nonces;
+		ghs360 = stats->dsps360 * nonces;
 		suffix_string(ghs360, suffix360, 16, 0);
 
-		ghs1440 = (stats->dsps1440 * ckp->mindiff) * nonces;
+		ghs1440 = stats->dsps1440 * nonces;
 		suffix_string(ghs1440, suffix1440, 16, 0);
 
-		ghs10080 = (stats->dsps10080 * ckp->mindiff) * nonces;
+		ghs10080 = stats->dsps10080 * nonces;
 		suffix_string(ghs10080, suffix10080, 16, 0);
 
 		ASPRINTF(&fname, "%s/pool/pool.status", ckp->logdir);
@@ -8378,8 +8378,8 @@ static void *statsupdate(void *arg)
 		 * displaying status every minute. */
 		for (i = 0; i < 32; i++) {
 			int64_t unaccounted_shares,
-				unaccounted_diff_shares,
 				unaccounted_rejects;
+			double unaccounted_diff_shares;
 
 			ts_to_tv(&diff, &stats->last_update);
 			cksleep_ms_r(&stats->last_update, 1875);
