@@ -86,6 +86,9 @@ tests/TESTING_STATUS.md
 MERGE_ANALYSIS.md
 TESTING_STRATEGY.md
 
+# VS Code workspace settings
+.vscode/
+
 # Test artifacts
 test-suite.log
 *.trs
