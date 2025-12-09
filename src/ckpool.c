@@ -1827,20 +1827,18 @@ int main(int argc, char **argv)
 		quit(0, "Invalid nonce2length %d specified, must be 2~8", ckp.nonce2length);
 	if (!ckp.update_interval)
 		ckp.update_interval = 30;
-	if (!ckp.mindiff)
-		ckp.mindiff = 1.0;
+
 	/* Validate mindiff is sane */
-	if (ckp.mindiff <= 0.0)
+	if (!validate_mindiff(&ckp.mindiff))
 		quit(0, "mindiff must be greater than 0");
 	if (ckp.mindiff < 0.001) {
 		LOGWARNING("mindiff %.6f is below recommended minimum of 0.001", ckp.mindiff);
 		LOGWARNING("This may cause pool performance issues with high share submission rates");
 		LOGWARNING("Proceeding anyway as configured...");
 	}
-	if (!ckp.startdiff)
-		ckp.startdiff = 42.0;
-	/* Validate startdiff is sane */
-	if (ckp.startdiff <= 0.0)
+
+	/* Validate startdiff is sane before setting default */
+	if (!validate_startdiff(&ckp.startdiff))
 		quit(0, "startdiff must be greater than 0");
 	if (ckp.startdiff < 0.001) {
 		LOGWARNING("startdiff %.6f is below recommended minimum of 0.001", ckp.startdiff);

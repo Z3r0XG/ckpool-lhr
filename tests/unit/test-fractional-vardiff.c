@@ -101,7 +101,7 @@ static void test_vardiff_below_1(void)
 		double expected_min;
 		double expected_max;
 	} test_cases[] = {
-		{ 0.05, 0.001, 0.001, 0.2 },    /* Very low: 0.05 * 3.33 = 0.166 */
+		{ 0.05, 0.001, 0.001, 0.2 },    /* Very low: 0.05 * 3.33 = 0.1665 */
 		{ 0.1,  0.01,  0.01,  0.5 },    /* Low: 0.1 * 3.33 = 0.333 */
 		{ 0.3,  0.1,   0.1,   1.0 },    /* Medium: 0.3 * 3.33 = 0.999, within valid range */
 	};
@@ -134,9 +134,9 @@ static void test_vardiff_above_1_fractional(void)
 		double dsps;
 		double expected_approx;
 	} test_cases[] = {
-		{ 1.5, 5.0 },    /* 1.5 * 3.33 ≈ 5.0 */
-		{ 2.5, 8.3 },    /* 2.5 * 3.33 ≈ 8.3 */
-		{ 10.5, 35.0 },  /* 10.5 * 3.33 ≈ 35.0 */
+		{ 1.5, 4.995 },    /* 1.5 * 3.33 = 4.995 */
+		{ 2.5, 8.325 },    /* 2.5 * 3.33 = 8.325 */
+		{ 10.5, 34.965 },  /* 10.5 * 3.33 = 34.965 */
 	};
 	
 	int num_tests = sizeof(test_cases) / sizeof(test_cases[0]);
@@ -246,8 +246,8 @@ static void test_vardiff_adjustment_sequence(void)
 		double dsps;
 		double expected_direction;  /* > 1.0 if diff should increase, < 1.0 if decrease */
 	} adjustments[] = {
-		{ 0.5, 1.65 },    /* Very low dsps, diff should drop to ~1.65 */
-		{ 1.5, 5.0 },     /* Medium dsps, diff should go to ~5 */
+		{ 0.5, 1.665 },    /* Very low dsps, diff should drop to ~1.665 */
+		{ 1.5, 4.995 },     /* Medium dsps, diff should go to ~4.995 */
 		{ 10.0, 33.3 },   /* High dsps, diff should go to ~33.3 */
 		{ 5.0, 16.65 },   /* Back down, diff should go to ~16.65 */
 	};

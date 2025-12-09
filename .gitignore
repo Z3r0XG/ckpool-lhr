@@ -93,4 +93,8 @@ TESTING_STRATEGY.md
 test-suite.log
 *.trs
 
+# Unit test binaries (keep sources)
+/tests/unit/test-*
+!/tests/unit/test-*.c
+
 

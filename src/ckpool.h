@@ -391,6 +391,44 @@ bool json_get_bool(bool *store, const json_t *val, const char *res);
 bool json_getdel_int(int *store, json_t *val, const char *res);
 bool json_getdel_int64(int64_t *store, json_t *val, const char *res);
 
+/* Validation helpers reused in tests */
+static inline bool validate_mindiff(double *mindiff)
+{
+	if (!mindiff)
+		return false;
+	if (!*mindiff)
+		*mindiff = 1.0;
+	if (*mindiff <= 0.0)
+		return false;
+	return true;
+}
+
+static inline bool validate_startdiff(double *startdiff)
+{
+	if (!startdiff)
+		return false;
+	/* Reject negative values but allow zero so we can apply default */
+	if (*startdiff < 0.0)
+		return false;
+	if (!*startdiff)
+		*startdiff = 42.0;
+	/* Reject zero or negative after default would have been set */
+	if (*startdiff <= 0.0)
+		return false;
+	return true;
+}
+
+/* Test/support helper: validate both diffs without exiting. Returns 0 on success,
+ * non-zero on invalid inputs. Used by tests to assert fatal paths without calling quit(). */
+static inline int validate_diff_config(double *mindiff, double *startdiff)
+{
+	if (!validate_mindiff(mindiff))
+		return 1;
+	if (!validate_startdiff(startdiff))
+		return 2;
+	return 0;
+}
+
 
 /* API Placeholders for future API implementation */
 typedef struct apimsg apimsg_t;
