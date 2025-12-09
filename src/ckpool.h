@@ -396,10 +396,10 @@ static inline bool validate_mindiff(double *mindiff)
 {
 	if (!mindiff)
 		return false;
+	if (*mindiff < 0.0)
+		return false;
 	if (!*mindiff)
 		*mindiff = 1.0;
-	if (*mindiff <= 0.0)
-		return false;
 	return true;
 }
 
@@ -412,9 +412,6 @@ static inline bool validate_startdiff(double *startdiff)
 		return false;
 	if (!*startdiff)
 		*startdiff = 42.0;
-	/* Reject zero or negative after default would have been set */
-	if (*startdiff <= 0.0)
-		return false;
 	return true;
 }
 

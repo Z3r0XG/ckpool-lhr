@@ -6601,7 +6601,7 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 	}
 	/* Parse suggest difficulty as double to support fractional values */
 	if (arr_val && json_is_number(arr_val))
-		sdiff = json_real_value(arr_val);
+		sdiff = json_number_value(arr_val);
 	else if (sscanf(method, "mining.suggest_difficulty(%lf", &sdiff) != 1) {
 		LOGINFO("Failed to parse suggest_difficulty for client %s", client->identity);
 		return;
