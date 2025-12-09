@@ -239,8 +239,8 @@ struct ckpool_instance {
 	/* Difficulty settings */
 	double mindiff; // Default 1.0
 	double startdiff; // Default 42.0
-	int64_t highdiff; // Default 1000000
-	int64_t maxdiff; // No default
+	double highdiff; // Default 1000000
+	double maxdiff; // No default
 	bool allow_low_diff; // Allow network diff below 1.0 (for regtest testing)
 
 	/* Coinbase data */

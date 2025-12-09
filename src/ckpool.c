@@ -1521,8 +1521,8 @@ static void parse_config(ckpool_t *ckp)
 	json_get_string(&ckp->upstream, json_conf, "upstream");
 	json_get_double(&ckp->mindiff, json_conf, "mindiff");
 	json_get_double(&ckp->startdiff, json_conf, "startdiff");
-	json_get_int64(&ckp->highdiff, json_conf, "highdiff");
-	json_get_int64(&ckp->maxdiff, json_conf, "maxdiff");
+	json_get_double(&ckp->highdiff, json_conf, "highdiff");
+	json_get_double(&ckp->maxdiff, json_conf, "maxdiff");
 	json_get_bool(&ckp->allow_low_diff, json_conf, "allow_low_diff");
 	json_get_string(&ckp->logdir, json_conf, "logdir");
 	json_get_int(&ckp->maxclients, json_conf, "maxclients");
@@ -1829,8 +1829,23 @@ int main(int argc, char **argv)
 		ckp.update_interval = 30;
 	if (!ckp.mindiff)
 		ckp.mindiff = 1.0;
+	/* Validate mindiff is sane */
+	if (ckp.mindiff <= 0.0)
+		quit(0, "mindiff must be greater than 0");
+	if (ckp.mindiff < 0.001) {
+		LOGWARNING("mindiff %.6f is below recommended minimum of 0.001", ckp.mindiff);
+		LOGWARNING("This may cause pool performance issues with high share submission rates");
+		LOGWARNING("Proceeding anyway as configured...");
+	}
 	if (!ckp.startdiff)
 		ckp.startdiff = 42.0;
+	/* Validate startdiff is sane */
+	if (ckp.startdiff <= 0.0)
+		quit(0, "startdiff must be greater than 0");
+	if (ckp.startdiff < 0.001) {
+		LOGWARNING("startdiff %.6f is below recommended minimum of 0.001", ckp.startdiff);
+		LOGWARNING("This may cause pool performance issues with high share submission rates");
+	}
 	if (!ckp.highdiff)
 		ckp.highdiff = 1000000;
 	if (!ckp.logdir)

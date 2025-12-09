@@ -27,7 +27,9 @@ check_PROGRAMS = \
 	unit/test-vardiff \
 	unit/test-share-params \
 	unit/test-config \
-	unit/test-low-diff
+	unit/test-low-diff \
+	unit/test-fractional-stats \
+	unit/test-fractional-vardiff
 
 TESTS = $(check_PROGRAMS)
 
@@ -106,6 +108,14 @@ unit_test_config_SOURCES = \
 # Low diff (allow_low_diff) feature tests
 unit_test_low_diff_SOURCES = \
 	unit/test-low-diff.c
+
+# Fractional statistics accumulation tests
+unit_test_fractional_stats_SOURCES = \
+	unit/test-fractional-stats.c
+
+# Fractional variable difficulty tests
+unit_test_fractional_vardiff_SOURCES = \
+	unit/test-fractional-vardiff.c
 
 # All tests depend on libckpool
 $(check_PROGRAMS): $(top_builddir)/src/libckpool.a

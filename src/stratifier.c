@@ -194,7 +194,7 @@ struct worker_instance {
 
 	double best_diff; /* Best share found by this worker */
 	double best_ever; /* Best share ever found by this worker */
-	int mindiff; /* User chosen mindiff */
+	double mindiff; /* User chosen mindiff */
 
 	bool idle;
 	bool notified_idle;
@@ -5674,7 +5674,8 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	worker_instance_t *worker = client->worker_instance;
 	double tdiff, bdiff, dsps, drr, network_diff, bias, optimal;
 	user_instance_t *user = client->user_instance;
-	int64_t next_blockid, mindiff;
+	int64_t next_blockid;
+	double mindiff;
 	tv_t now_t;
 
 	mutex_lock(&ckp_sdata->uastats_lock);
@@ -5755,9 +5756,9 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	if (mindiff) {
 		if (drr < 0.5)
 			return;
-		optimal = lround(dsps * 2.4);
+		optimal = dsps * 2.4;
 	} else
-		optimal = lround(dsps * 3.33);
+		optimal = dsps * 3.33;
 
 	/* Clamp to mindiff ~ network_diff */
 
@@ -5774,7 +5775,9 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	/* Set to lower of optimal and network_diff */
 	optimal = MIN(optimal, network_diff);
 
-	if (unlikely(optimal < 1))
+	/* Sanity check: optimal should never be <= 0 due to clamping above,
+	 * but guard against pathological cases */
+	if (unlikely(optimal <= 0.0))
 		return;
 
 	if (client->diff == optimal)
@@ -7776,7 +7779,8 @@ static void sauth_process(ckpool_t *ckp, json_params_t *jp)
 	json_t *result_val, *err_val = NULL;
 	sdata_t *sdata = ckp->sdata;
 	stratum_instance_t *client;
-	int64_t mindiff, client_id;
+	double mindiff;
+	int64_t client_id;
 	bool ret;
 
 	client_id = jp->client_id;
