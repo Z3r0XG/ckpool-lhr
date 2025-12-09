@@ -13,13 +13,21 @@
 #include "../test_common.h"
 #include "libckpool.h"
 #include "ckpool.h"
+#include <jansson.h>
 
 /* Test validate_startdiff helper matches production behavior */
 static void test_validate_startdiff_helper(void)
 {
-	/* Negative rejected */
+	/* Negative rejected - CRITICAL: must fail before default applied */
 	double startdiff = -1.5;
 	assert_false(validate_startdiff(&startdiff));
+	/* Value should remain unchanged after failed validation */
+	assert_double_equal(startdiff, -1.5, EPSILON_DIFF);
+
+	/* Another negative case */
+	startdiff = -0.001;
+	assert_false(validate_startdiff(&startdiff));
+	assert_double_equal(startdiff, -0.001, EPSILON_DIFF);
 
 	/* Zero defaults to 42 */
 	startdiff = 0.0;
@@ -47,9 +55,16 @@ static void test_validate_startdiff_helper(void)
 /* Test validate_mindiff helper matches production behavior */
 static void test_validate_mindiff_helper(void)
 {
-	/* Negative rejected */
+	/* Negative rejected - CRITICAL: must fail before default applied */
 	double mindiff = -0.5;
 	assert_false(validate_mindiff(&mindiff));
+	/* Value should remain unchanged after failed validation */
+	assert_double_equal(mindiff, -0.5, EPSILON_DIFF);
+
+	/* Another negative case */
+	mindiff = -10.0;
+	assert_false(validate_mindiff(&mindiff));
+	assert_double_equal(mindiff, -10.0, EPSILON_DIFF);
 
 	/* Zero defaults to 1.0 */
 	mindiff = 0.0;
@@ -121,6 +136,29 @@ static void test_suggest_diff_fractional_parsing(void)
 			assert_false(1);  /* Should have parsed successfully */
 		}
 	}
+}
+
+/* Test json_number_value handles both integers and floats correctly */
+static void test_json_number_value_vs_real_value(void)
+{
+	json_t *int_val = json_integer(42);
+	json_t *float_val = json_real(0.5);
+	json_t *float_int_val = json_real(10.0);
+	
+	/* CRITICAL: json_real_value() returns 0.0 for integers (BUG) */
+	assert_double_equal(json_real_value(int_val), 0.0, EPSILON_DIFF);
+	
+	/* json_number_value() correctly handles both types */
+	assert_double_equal(json_number_value(int_val), 42.0, EPSILON_DIFF);
+	assert_double_equal(json_number_value(float_val), 0.5, EPSILON_DIFF);
+	assert_double_equal(json_number_value(float_int_val), 10.0, EPSILON_DIFF);
+	
+	/* Both work for actual floats */
+	assert_double_equal(json_real_value(float_val), 0.5, EPSILON_DIFF);
+	
+	json_decref(int_val);
+	json_decref(float_val);
+	json_decref(float_int_val);
 }
 
 /* Test that old int64_t parsing would fail with fractional values */
@@ -360,6 +398,7 @@ int main(void)
 	run_test(test_validate_mindiff_helper);
 	run_test(test_validate_diff_config_combined);
 	run_test(test_suggest_diff_fractional_parsing);
+	run_test(test_json_number_value_vs_real_value);
 	run_test(test_suggest_diff_old_int64_fails_fractional);
 	run_test(test_mindiff_validation_consistency);
 	run_test(test_suggest_diff_double_comparison);
