@@ -125,10 +125,10 @@ static void test_decay_time_with_fractional_diffs(void)
 		double window_seconds;
 		double expected_dsps_approx;  /* diff_shares_per_second */
 	} test_cases[] = {
-		{ 0.001, 60, 0.0000167 },   /* 1 share in 60s = 0.0167 shares/sec */
-		{ 0.1, 60, 0.00167 },       /* 100 shares in 60s = 1.67 shares/sec */
-		{ 1.0, 60, 0.0167 },        /* 1000 shares in 60s = 16.7 shares/sec */
-		{ 10.0, 60, 0.167 },        /* 10000 shares in 60s = 167 shares/sec */
+		{ 0.001, 60, 0.0000167 },   /* 0.001 accumulated diff over 60s = 0.0000167 shares/sec */
+		{ 0.1, 60, 0.00167 },       /* 0.1 accumulated diff over 60s = 0.00167 shares/sec */
+		{ 1.0, 60, 0.0167 },        /* 1.0 accumulated diff over 60s = 0.0167 shares/sec */
+		{ 10.0, 60, 0.167 },        /* 10.0 accumulated diff over 60s = 0.167 shares/sec */
 	};
 	
 	int num_tests = sizeof(test_cases) / sizeof(test_cases[0]);
