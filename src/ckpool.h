@@ -415,6 +415,27 @@ static inline bool validate_startdiff(double *startdiff)
 	return true;
 }
 
+static inline bool validate_highdiff(double *highdiff)
+{
+	if (!highdiff)
+		return false;
+	if (*highdiff < 0.0)
+		return false;
+	if (!*highdiff)
+		*highdiff = 1000000.0;
+	return true;
+}
+
+static inline bool validate_maxdiff(double *maxdiff)
+{
+	if (!maxdiff)
+		return false;
+	/* Reject negative values; zero means "no maximum" (disabled) */
+	if (*maxdiff < 0.0)
+		return false;
+	return true;
+}
+
 /* Test/support helper: validate both diffs without exiting. Returns 0 on success,
  * non-zero on invalid inputs. Used by tests to assert fatal paths without calling quit(). */
 static inline int validate_diff_config(double *mindiff, double *startdiff)

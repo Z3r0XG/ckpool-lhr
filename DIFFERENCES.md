@@ -10,15 +10,20 @@ along with other enhancements and changes.
 
 ## Core Changes
 
-### 1. Sub-"1" Difficulty Support (LHR Feature)
+### 1. Fractional Difficulty Support (LHR Feature)
 
-**Purpose**: Enable difficulty values below 1.0 for low hash rate miners (ESP32
+**Purpose**: Enable fractional difficulty values (including sub-1.0) for low hash rate miners (ESP32
 devices and other embedded systems).
 
 **Behavior**:
-- `mindiff` and `startdiff` configuration options accept decimal values below 1.0 (e.g., 0.0005, 0.001)
-- Manually configured sub-"1" difficulty values are accepted and applied to miners
-- Automatic vardiff adjustment will not reduce difficulty below 1.0 (manual configuration required for sub-"1" values)
+- All difficulty settings (`mindiff`, `startdiff`, `highdiff`, `maxdiff`) changed from integer to double precision floating point
+- Configuration options accept fractional values below 1.0 (e.g., 0.0005, 0.001)
+- Vardiff algorithm performs smooth adjustments using floating-point calculations (e.g., optimal = DSPS × 3.33)
+- Configuration validation:
+  - Negative values are rejected (pool exits with error)
+  - Zero values apply sensible defaults (mindiff=1.0, startdiff=42.0, highdiff=1000000.0)
+  - Values below 0.001 trigger performance warnings (but are accepted)
+- Automatic vardiff adjustment can now reduce difficulty below 1.0 based on hashrate
 
 ### 2. User Agent Whitelisting
 

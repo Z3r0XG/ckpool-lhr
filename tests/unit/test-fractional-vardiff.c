@@ -244,7 +244,7 @@ static void test_vardiff_adjustment_sequence(void)
 	double current_diff = 10.0;
 	struct {
 		double dsps;
-		double expected_direction;  /* > 1.0 if diff should increase, < 1.0 if decrease */
+		double expected_optimal;  /* Absolute optimal difficulty values (not multipliers) */
 	} adjustments[] = {
 		{ 0.5, 1.665 },    /* Very low dsps, diff should drop to ~1.665 */
 		{ 1.5, 4.995 },     /* Medium dsps, diff should go to ~4.995 */
@@ -255,7 +255,7 @@ static void test_vardiff_adjustment_sequence(void)
 	int num_tests = sizeof(adjustments) / sizeof(adjustments[0]);
 	for (int i = 0; i < num_tests; i++) {
 		double dsps = adjustments[i].dsps;
-		double expected_new = adjustments[i].expected_direction;
+		double expected_new = adjustments[i].expected_optimal;
 		
 		/* Calculate new optimal */
 		double optimal = dsps * 3.33;

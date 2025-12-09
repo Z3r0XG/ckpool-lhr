@@ -32,6 +32,8 @@
 #include "stratifier.h"
 #include "connector.h"
 
+#define RECOMMENDED_MIN_DIFF 0.001
+
 ckpool_t *global_ckp;
 
 static bool open_logfile(ckpool_t *ckp)
@@ -1830,23 +1832,28 @@ int main(int argc, char **argv)
 
 	/* Validate mindiff is sane */
 	if (!validate_mindiff(&ckp.mindiff))
-		quit(0, "mindiff must be greater than 0");
-	if (ckp.mindiff < 0.001) {
-		LOGWARNING("mindiff %.6f is below recommended minimum of 0.001", ckp.mindiff);
+		quit(0, "mindiff must not be negative");
+	if (ckp.mindiff < RECOMMENDED_MIN_DIFF) {
+		LOGWARNING("mindiff %.6f is below recommended minimum of %.6f", ckp.mindiff, RECOMMENDED_MIN_DIFF);
 		LOGWARNING("This may cause pool performance issues with high share submission rates");
 		LOGWARNING("Proceeding anyway as configured...");
 	}
 
 	/* Validate startdiff is sane before setting default */
 	if (!validate_startdiff(&ckp.startdiff))
-		quit(0, "startdiff must be greater than 0");
-	if (ckp.startdiff < 0.001) {
-		LOGWARNING("startdiff %.6f is below recommended minimum of 0.001", ckp.startdiff);
+		quit(0, "startdiff must not be negative");
+	if (ckp.startdiff < RECOMMENDED_MIN_DIFF) {
+		LOGWARNING("startdiff %.6f is below recommended minimum of %.6f", ckp.startdiff, RECOMMENDED_MIN_DIFF);
 		LOGWARNING("This may cause pool performance issues with high share submission rates");
 		LOGWARNING("Proceeding anyway as configured...");
 	}
-	if (!ckp.highdiff)
-		ckp.highdiff = 1000000;
+
+	/* Validate highdiff and maxdiff */
+	if (!validate_highdiff(&ckp.highdiff))
+		quit(0, "highdiff must not be negative");
+	if (!validate_maxdiff(&ckp.maxdiff))
+		quit(0, "maxdiff must not be negative");
+
 	if (!ckp.logdir)
 		ckp.logdir = strdup("logs");
 	if (!ckp.serverurls)

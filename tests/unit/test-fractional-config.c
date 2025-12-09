@@ -88,6 +88,79 @@ static void test_validate_mindiff_helper(void)
 	}
 }
 
+/* Test validate_highdiff helper */
+static void test_validate_highdiff_helper(void)
+{
+	/* Negative rejected */
+	double highdiff = -100.0;
+	assert_false(validate_highdiff(&highdiff));
+	assert_double_equal(highdiff, -100.0, EPSILON_DIFF);
+
+	/* Another negative case */
+	highdiff = -0.5;
+	assert_false(validate_highdiff(&highdiff));
+	assert_double_equal(highdiff, -0.5, EPSILON_DIFF);
+
+	/* Zero defaults to 1000000 */
+	highdiff = 0.0;
+	assert_true(validate_highdiff(&highdiff));
+	assert_double_equal(highdiff, 1000000.0, EPSILON_DIFF);
+
+	/* Valid positives accepted */
+	struct {
+		double in;
+		double expected;
+	} cases[] = {
+		{ 0.001, 0.001 },      /* Fractional allowed */
+		{ 1.0, 1.0 },
+		{ 1000.0, 1000.0 },
+		{ 1000000.0, 1000000.0 },
+		{ 5000000.0, 5000000.0 },
+	};
+
+	for (int i = 0; i < (int)(sizeof(cases)/sizeof(cases[0])); i++) {
+		highdiff = cases[i].in;
+		assert_true(validate_highdiff(&highdiff));
+		assert_double_equal(highdiff, cases[i].expected, EPSILON_DIFF);
+	}
+}
+
+/* Test validate_maxdiff helper */
+static void test_validate_maxdiff_helper(void)
+{
+	/* Negative rejected */
+	double maxdiff = -500.0;
+	assert_false(validate_maxdiff(&maxdiff));
+	assert_double_equal(maxdiff, -500.0, EPSILON_DIFF);
+
+	/* Another negative case */
+	maxdiff = -0.001;
+	assert_false(validate_maxdiff(&maxdiff));
+	assert_double_equal(maxdiff, -0.001, EPSILON_DIFF);
+
+	/* Zero is valid (means "no maximum") */
+	maxdiff = 0.0;
+	assert_true(validate_maxdiff(&maxdiff));
+	assert_double_equal(maxdiff, 0.0, EPSILON_DIFF);
+
+	/* Valid positives accepted */
+	struct {
+		double in;
+		double expected;
+	} cases[] = {
+		{ 0.1, 0.1 },          /* Fractional allowed */
+		{ 1.0, 1.0 },
+		{ 10000.0, 10000.0 },
+		{ 100000000.0, 100000000.0 },
+	};
+
+	for (int i = 0; i < (int)(sizeof(cases)/sizeof(cases[0])); i++) {
+		maxdiff = cases[i].in;
+		assert_true(validate_maxdiff(&maxdiff));
+		assert_double_equal(maxdiff, cases[i].expected, EPSILON_DIFF);
+	}
+}
+
 /* Test combined validation helper returns failure codes instead of exiting */
 static void test_validate_diff_config_combined(void)
 {
@@ -283,7 +356,7 @@ static void test_suggest_diff_clamp_and_noop(void)
 		{ 0.3000000004, 0.3, 0.3, 0.3, 0 },
 		/* Real change -> update */
 		{ 0.5, 0.3, 0.3, 0.5, 1 },
-		/* Suggest_diff matches diff but different suggest_diff -> no-op */
+		/* Requested equals current diff (no-op) even if suggest_diff differs */
 		{ 0.3, 0.3, 0.25, 0.3, 0 },
 	};
 
@@ -396,6 +469,8 @@ int main(void)
 	
 	run_test(test_validate_startdiff_helper);
 	run_test(test_validate_mindiff_helper);
+	run_test(test_validate_highdiff_helper);
+	run_test(test_validate_maxdiff_helper);
 	run_test(test_validate_diff_config_combined);
 	run_test(test_suggest_diff_fractional_parsing);
 	run_test(test_json_number_value_vs_real_value);
