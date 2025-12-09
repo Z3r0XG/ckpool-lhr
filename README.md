@@ -213,9 +213,18 @@ option is ignored in solo mode (miners provide their own address as username).
 - Example: `"startdiff" : 0.0005`
 
 **"maxdiff"** : Maximum difficulty for vardiff. **OPTIONAL**
-- Type: Integer64
-- Values: Positive integer, or 0 for no maximum
+- Type: Double
+- Values: Any positive number, or 0 for no maximum
 - Default: 0 (no maximum)
+- Note: Caps vardiff adjustments to prevent difficulty from growing too high.
+- Example: `"maxdiff" : 10000000.0`
+
+**"highdiff"** : Starting difficulty for high-hashrate server ports. **OPTIONAL**
+- Type: Double
+- Values: Any positive number
+- Default: 1000000.0
+- Note: Used when specific server ports are designated as "highdiff" ports.
+- Example: `"highdiff" : 100000.0`
 
 **"allow_low_diff"** : Remove minimum network difficulty floor (for regtest). **OPTIONAL**
 - Type: Boolean

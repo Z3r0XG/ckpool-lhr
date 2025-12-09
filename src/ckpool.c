@@ -32,6 +32,8 @@
 #include "stratifier.h"
 #include "connector.h"
 
+#define RECOMMENDED_MIN_DIFF 0.001
+
 ckpool_t *global_ckp;
 
 static bool open_logfile(ckpool_t *ckp)
@@ -1521,8 +1523,8 @@ static void parse_config(ckpool_t *ckp)
 	json_get_string(&ckp->upstream, json_conf, "upstream");
 	json_get_double(&ckp->mindiff, json_conf, "mindiff");
 	json_get_double(&ckp->startdiff, json_conf, "startdiff");
-	json_get_int64(&ckp->highdiff, json_conf, "highdiff");
-	json_get_int64(&ckp->maxdiff, json_conf, "maxdiff");
+	json_get_double(&ckp->highdiff, json_conf, "highdiff");
+	json_get_double(&ckp->maxdiff, json_conf, "maxdiff");
 	json_get_bool(&ckp->allow_low_diff, json_conf, "allow_low_diff");
 	json_get_string(&ckp->logdir, json_conf, "logdir");
 	json_get_int(&ckp->maxclients, json_conf, "maxclients");
@@ -1827,12 +1829,31 @@ int main(int argc, char **argv)
 		quit(0, "Invalid nonce2length %d specified, must be 2~8", ckp.nonce2length);
 	if (!ckp.update_interval)
 		ckp.update_interval = 30;
-	if (!ckp.mindiff)
-		ckp.mindiff = 1.0;
-	if (!ckp.startdiff)
-		ckp.startdiff = 42.0;
-	if (!ckp.highdiff)
-		ckp.highdiff = 1000000;
+
+	/* Validate mindiff is sane */
+	if (!validate_mindiff(&ckp.mindiff))
+		quit(0, "mindiff must not be negative");
+	if (ckp.mindiff < RECOMMENDED_MIN_DIFF) {
+		LOGWARNING("mindiff %.6f is below recommended minimum of %.6f", ckp.mindiff, RECOMMENDED_MIN_DIFF);
+		LOGWARNING("This may cause pool performance issues with high share submission rates");
+		LOGWARNING("Proceeding anyway as configured...");
+	}
+
+	/* Validate startdiff is sane before setting default */
+	if (!validate_startdiff(&ckp.startdiff))
+		quit(0, "startdiff must not be negative");
+	if (ckp.startdiff < RECOMMENDED_MIN_DIFF) {
+		LOGWARNING("startdiff %.6f is below recommended minimum of %.6f", ckp.startdiff, RECOMMENDED_MIN_DIFF);
+		LOGWARNING("This may cause pool performance issues with high share submission rates");
+		LOGWARNING("Proceeding anyway as configured...");
+	}
+
+	/* Validate highdiff and maxdiff */
+	if (!validate_highdiff(&ckp.highdiff))
+		quit(0, "highdiff must not be negative");
+	if (!validate_maxdiff(&ckp.maxdiff))
+		quit(0, "maxdiff must not be negative");
+
 	if (!ckp.logdir)
 		ckp.logdir = strdup("logs");
 	if (!ckp.serverurls)

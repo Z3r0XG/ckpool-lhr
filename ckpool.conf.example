@@ -7,6 +7,5 @@
 		"notify" : true
 	}
 ],
-"startdiff" : 10000,
 "logdir" : "logs"
 }

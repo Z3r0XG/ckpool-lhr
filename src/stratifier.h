@@ -99,4 +99,10 @@ void _stratifier_add_recv(ckpool_t *ckp, json_t *val, const char *file, const ch
 #define stratifier_add_recv(ckp, val) _stratifier_add_recv(ckp, val, __FILE__, __func__, __LINE__)
 void *stratifier(void *arg);
 
+/* Test helper: apply suggest_diff logic without network side effects */
+bool suggest_diff_apply_for_test(double mindiff, double requested, double current_diff,
+				 double current_suggest, int64_t workbase_id, double epsilon,
+				 double *out_diff, double *out_suggest, int64_t *out_job_id,
+				 double *out_old_diff);
+
 #endif /* STRATIFIER_H */

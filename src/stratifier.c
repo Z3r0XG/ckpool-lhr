@@ -194,7 +194,7 @@ struct worker_instance {
 
 	double best_diff; /* Best share found by this worker */
 	double best_ever; /* Best share ever found by this worker */
-	int mindiff; /* User chosen mindiff */
+	double mindiff; /* User chosen mindiff */
 
 	bool idle;
 	bool notified_idle;
@@ -5674,7 +5674,8 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	worker_instance_t *worker = client->worker_instance;
 	double tdiff, bdiff, dsps, drr, network_diff, bias, optimal;
 	user_instance_t *user = client->user_instance;
-	int64_t next_blockid, mindiff;
+	int64_t next_blockid;
+	double mindiff;
 	tv_t now_t;
 
 	mutex_lock(&ckp_sdata->uastats_lock);
@@ -5755,9 +5756,9 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	if (mindiff) {
 		if (drr < 0.5)
 			return;
-		optimal = lround(dsps * 2.4);
+		optimal = dsps * 2.4;
 	} else
-		optimal = lround(dsps * 3.33);
+		optimal = dsps * 3.33;
 
 	/* Clamp to mindiff ~ network_diff */
 
@@ -5774,10 +5775,13 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	/* Set to lower of optimal and network_diff */
 	optimal = MIN(optimal, network_diff);
 
-	if (unlikely(optimal < 1))
+	/* Sanity check: optimal should never be <= 0 due to clamping above,
+	 * but guard against pathological cases */
+	if (unlikely(optimal <= 0.0))
 		return;
 
-	if (client->diff == optimal)
+	/* Use epsilon comparison for floating-point equality to handle rounding errors */
+	if (fabs(client->diff - optimal) < 1e-6)
 		return;
 
 	/* If this is the first share in a change, reset the last diff change
@@ -6517,6 +6521,58 @@ static void update_client(const stratum_instance_t *client, const int64_t client
 	stratum_send_diff(sdata, client);
 }
 
+/* Core diff application logic factored for testability (no I/O side effects). */
+static bool apply_suggest_diff(ckpool_t *ckp, stratum_instance_t *client, double requested, double epsilon)
+{
+	double sdiff = requested;
+
+	if (sdiff < ckp->mindiff)
+		sdiff = ckp->mindiff;
+	/* No-op if suggested diff unchanged */
+	if (fabs(sdiff - client->suggest_diff) < epsilon)
+		return false;
+	client->suggest_diff = sdiff;
+	/* No-op if current diff already matches */
+	if (fabs(client->diff - sdiff) < epsilon)
+		return false;
+
+	client->diff_change_job_id = client->sdata->workbase_id + 1;
+	client->old_diff = client->diff;
+	client->diff = sdiff;
+	return true;
+}
+
+/* Lightweight test helper that exercises apply_suggest_diff without sending messages. */
+bool suggest_diff_apply_for_test(double mindiff, double requested, double current_diff,
+				 double current_suggest, int64_t workbase_id, double epsilon,
+				 double *out_diff, double *out_suggest, int64_t *out_job_id,
+				 double *out_old_diff)
+{
+	ckpool_t ckp = {0};
+	struct stratifier_data sdata = {0};
+	stratum_instance_t client = {0};
+
+	ckp.mindiff = mindiff;
+	sdata.workbase_id = workbase_id;
+	client.ckp = &ckp;
+	client.sdata = &sdata;
+	client.diff = current_diff;
+	client.suggest_diff = current_suggest;
+
+	bool changed = apply_suggest_diff(&ckp, &client, requested, epsilon);
+
+	if (out_diff)
+		*out_diff = client.diff;
+	if (out_suggest)
+		*out_suggest = client.suggest_diff;
+	if (out_job_id)
+		*out_job_id = client.diff_change_job_id;
+	if (out_old_diff)
+		*out_old_diff = client.old_diff;
+
+	return changed;
+}
+
 static json_params_t
 *create_json_params(const int64_t client_id, const json_t *method, const json_t *params,
 		    const json_t *id_val)
@@ -6537,29 +6593,21 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 			 const json_t *params_val)
 {
 	json_t *arr_val = json_array_get(params_val, 0);
-	int64_t sdiff;
+	double sdiff;
 
 	if (unlikely(!client_active(client))) {
 		LOGNOTICE("Attempted to suggest diff on unauthorised client %s", client->identity);
 		return;
 	}
-	if (arr_val && json_is_integer(arr_val))
-		sdiff = json_integer_value(arr_val);
-	else if (sscanf(method, "mining.suggest_difficulty(%"PRId64, &sdiff) != 1) {
+	/* Parse suggest difficulty as double to support fractional values */
+	if (arr_val && json_is_number(arr_val))
+		sdiff = json_number_value(arr_val);
+	else if (sscanf(method, "mining.suggest_difficulty(%lf", &sdiff) != 1) {
 		LOGINFO("Failed to parse suggest_difficulty for client %s", client->identity);
 		return;
 	}
-	/* Clamp suggest diff to global pool mindiff */
-	if (sdiff < ckp->mindiff)
-		sdiff = ckp->mindiff;
-	if (sdiff == client->suggest_diff)
+	if (!apply_suggest_diff(ckp, client, sdiff, 1e-6))
 		return;
-	client->suggest_diff = sdiff;
-	if (client->diff == sdiff)
-		return;
-	client->diff_change_job_id = client->sdata->workbase_id + 1;
-	client->old_diff = client->diff;
-	client->diff = sdiff;
 	stratum_send_diff(ckp->sdata, client);
 }
 
@@ -7776,7 +7824,8 @@ static void sauth_process(ckpool_t *ckp, json_params_t *jp)
 	json_t *result_val, *err_val = NULL;
 	sdata_t *sdata = ckp->sdata;
 	stratum_instance_t *client;
-	int64_t mindiff, client_id;
+	double mindiff;
+	int64_t client_id;
 	bool ret;
 
 	client_id = jp->client_id;

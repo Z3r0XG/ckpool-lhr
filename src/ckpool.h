@@ -239,8 +239,8 @@ struct ckpool_instance {
 	/* Difficulty settings */
 	double mindiff; // Default 1.0
 	double startdiff; // Default 42.0
-	int64_t highdiff; // Default 1000000
-	int64_t maxdiff; // No default
+	double highdiff; // Default 1000000
+	double maxdiff; // No default
 	bool allow_low_diff; // Allow network diff below 1.0 (for regtest testing)
 
 	/* Coinbase data */
@@ -390,6 +390,65 @@ bool json_get_uint32(uint32_t *store, const json_t *val, const char *res);
 bool json_get_bool(bool *store, const json_t *val, const char *res);
 bool json_getdel_int(int *store, json_t *val, const char *res);
 bool json_getdel_int64(int64_t *store, json_t *val, const char *res);
+
+/* Validation helpers reused in tests */
+static inline bool validate_mindiff(double *mindiff)
+{
+	if (!mindiff)
+		return false;
+	if (*mindiff < 0.0)
+		return false;
+	/* Apply default minimum difficulty when zero is specified */
+	if (*mindiff == 0.0)
+		*mindiff = 1.0;
+	return true;
+}
+
+static inline bool validate_startdiff(double *startdiff)
+{
+	if (!startdiff)
+		return false;
+	/* Reject negative values but allow zero so we can apply default */
+	if (*startdiff < 0.0)
+		return false;
+	/* Apply default starting difficulty when zero is specified */
+	if (*startdiff == 0.0)
+		*startdiff = 42.0;
+	return true;
+}
+
+static inline bool validate_highdiff(double *highdiff)
+{
+	if (!highdiff)
+		return false;
+	if (*highdiff < 0.0)
+		return false;
+	/* Apply default high difficulty when zero is specified */
+	if (*highdiff == 0.0)
+		*highdiff = 1000000.0;
+	return true;
+}
+
+static inline bool validate_maxdiff(double *maxdiff)
+{
+	if (!maxdiff)
+		return false;
+	/* Reject negative values; zero means "no maximum" (disabled) */
+	if (*maxdiff < 0.0)
+		return false;
+	return true;
+}
+
+/* Test/support helper: validate both diffs without exiting. Returns 0 on success,
+ * non-zero on invalid inputs. Used by tests to assert fatal paths without calling quit(). */
+static inline int validate_diff_config(double *mindiff, double *startdiff)
+{
+	if (!validate_mindiff(mindiff))
+		return 1;
+	if (!validate_startdiff(startdiff))
+		return 2;
+	return 0;
+}
 
 
 /* API Placeholders for future API implementation */

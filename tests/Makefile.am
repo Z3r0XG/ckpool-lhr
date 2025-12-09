@@ -5,7 +5,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/jansson-2.14/src \
 
 # Link against libckpool and jansson
 # JANSSON_LIBS is relative to src/, so we need to prepend src/ path
-LDADD = $(top_builddir)/src/libckpool.a $(top_builddir)/src/@JANSSON_LIBS@ @LIBS@
+LDADD = $(top_builddir)/src/libckpool.a $(top_builddir)/src/@JANSSON_LIBS@ @LIBS@ -lm
 
 # Unit tests
 check_PROGRAMS = \
@@ -27,7 +27,15 @@ check_PROGRAMS = \
 	unit/test-vardiff \
 	unit/test-share-params \
 	unit/test-config \
-	unit/test-low-diff
+	unit/test-low-diff \
+	unit/test-fractional-stats \
+	unit/test-fractional-vardiff \
+	unit/test-fractional-config \
+	unit/test-vardiff-comprehensive \
+	unit/test-share-orphan-prevention \
+	unit/test-adjustment-hysteresis \
+	unit/test-network-diff-interactions \
+	unit/test-backwards-compatibility
 
 TESTS = $(check_PROGRAMS)
 
@@ -106,6 +114,38 @@ unit_test_config_SOURCES = \
 # Low diff (allow_low_diff) feature tests
 unit_test_low_diff_SOURCES = \
 	unit/test-low-diff.c
+
+# Fractional statistics accumulation tests
+unit_test_fractional_stats_SOURCES = \
+	unit/test-fractional-stats.c
+
+# Fractional variable difficulty tests
+unit_test_fractional_vardiff_SOURCES = \
+	unit/test-fractional-vardiff.c
+
+# Fractional configuration validation tests
+unit_test_fractional_config_SOURCES = \
+	unit/test-fractional-config.c
+
+# Comprehensive vardiff algorithm tests (real-world scenarios)
+unit_test_vardiff_comprehensive_SOURCES = \
+	unit/test-vardiff-comprehensive.c
+
+# Share orphan prevention tests
+unit_test_share_orphan_prevention_SOURCES = \
+	unit/test-share-orphan-prevention.c
+
+# Adjustment hysteresis tests
+unit_test_adjustment_hysteresis_SOURCES = \
+	unit/test-adjustment-hysteresis.c
+
+# Network difficulty interaction tests
+unit_test_network_diff_interactions_SOURCES = \
+	unit/test-network-diff-interactions.c
+
+# Backwards compatibility tests
+unit_test_backwards_compatibility_SOURCES = \
+	unit/test-backwards-compatibility.c
 
 # All tests depend on libckpool
 $(check_PROGRAMS): $(top_builddir)/src/libckpool.a
