@@ -1,6 +1,6 @@
 # CKPOOL-LHR
 
-A fork of CKPOOL featuring sub-"1" difficulty support for low hash rate miners
+A fork of CKPool featuring sub-"1" difficulty support for low hash rate miners
 (ESP32 devices and others), along with additional enhancements for solo mining.
 
 Ultra low overhead, scalable, multi-process, multi-threaded Bitcoin mining
@@ -16,7 +16,7 @@ pool software in C for Linux.
 
 ## Acknowledgment
 
-This software is a fork of CKPOOL by Con Kolivas. The original project is
+This software is a fork of CKPool by Con Kolivas. The original project is
 provided free of charge under the GPLv3 license. We honor and acknowledge
 Con Kolivas's foundational work that made this fork possible.
 
