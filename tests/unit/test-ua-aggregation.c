@@ -20,7 +20,6 @@ static void test_normalize_basic()
 static void test_normalize_truncate()
 {
     char out[33];
-    /* 32-byte buffer, ensure truncation does not overflow and is null-terminated */
     normalize_ua_buf("averyveryveryverylonguseragentstring/1.0", out, sizeof(out));
     assert(out[sizeof(out)-1] == '\0');
 }

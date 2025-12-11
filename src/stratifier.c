@@ -8197,6 +8197,10 @@ static void *statsupdate(void *arg)
 					} else {
 						ua_item_t *ua_new = ckalloc(sizeof(ua_item_t));
 						ua_new->ua = strdup(norm);
+						if (!ua_new->ua) {
+							dealloc(ua_new);
+							continue;
+						}
 						ua_new->count = 1;
 						ua_new->dsps5 = client->dsps5;
 						ua_new->best_diff = client->best_diff;

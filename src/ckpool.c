@@ -1493,6 +1493,10 @@ static void parse_config(ckpool_t *ckp)
 	json_get_int(&ckp->nonce2length, json_conf, "nonce2length");
 	json_get_int(&ckp->update_interval, json_conf, "update_interval");
 	json_get_int(&ckp->max_pool_useragents, json_conf, "max_pool_useragents");
+	if (ckp->max_pool_useragents < 0) {
+		LOGWARNING("Invalid negative value for max_pool_useragents (%d), setting to 0", ckp->max_pool_useragents);
+		ckp->max_pool_useragents = 0;
+	}
 	json_get_string(&vmask, json_conf, "version_mask");
 	if (vmask && strlen(vmask) && validhex(vmask))
 		sscanf(vmask, "%x", &ckp->version_mask);
