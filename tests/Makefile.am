@@ -35,9 +35,13 @@ check_PROGRAMS = \
 	unit/test-share-orphan-prevention \
 	unit/test-adjustment-hysteresis \
 	unit/test-network-diff-interactions \
-	unit/test-backwards-compatibility
+	unit/test-backwards-compatibility \
+	unit/test-ua-aggregation
 
 TESTS = $(check_PROGRAMS)
+# UA normalization/aggregation tests
+unit_test_ua_aggregation_SOURCES = \
+	unit/test-ua-aggregation.c
 
 # Difficulty calculation tests
 unit_test_difficulty_SOURCES = \

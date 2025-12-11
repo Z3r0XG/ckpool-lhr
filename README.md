@@ -187,9 +187,11 @@ option is ignored in solo mode (miners provide their own address as username).
 
 **"btcsig"** : Signature to include in coinbase of mined blocks. **OPTIONAL**
 - Type: String
-- Values: Up to 38 characters
+- Values: Up to 38 bytes
 - Default: None
 - Example: `"btcsig" : "/solo mined/"`
+- Note: Truncated to 38 bytes at load time (bytes, not characters); multibyte UTF-8 uses multiple bytes. If truncated, a warning is logged.
+- To check: `echo -n "<sig>" | wc -c` (bytes)
 
 **"serverurl"** : Server bindings for miner connections. **OPTIONAL**
 - Type: Array of strings
@@ -287,6 +289,11 @@ option is ignored in solo mode (miners provide their own address as username).
 - Default: None (all allowed)
 - Note: Prefix matching. Empty user agents rejected if whitelist configured.
 - Example: `"useragent" : ["cpuminer", "cgminer"]`
+
+**"max_pool_useragents"** : Maximum distinct normalized useragents to include in pool.status. **OPTIONAL**
+- Type: Integer
+- Default: 100
+- Note: Controls how many UA entries are included in `pool/pool.status` JSON; 0 disables the array.
 
 ---
 
