@@ -911,7 +911,6 @@ static void upstream_msgtype(ckpool_t *ckp, const json_t *val, const int msg_typ
 static void send_node_workinfo(ckpool_t *ckp, sdata_t *sdata, const workbase_t *wb)
 {
 	stratum_instance_t *client;
-	/* Not used here */
 	ckmsg_t *bulk_send = NULL;
 	int messages = 0;
 	json_t *wb_val;
@@ -8142,9 +8141,9 @@ static void *statsupdate(void *arg)
 					connector_drop_client(ckp, client->id);
 				}
 			} else {
-				/* Previously we collected UA per client, but this double-counts when
-				 * a worker has multiple stratum instances. We'll aggregate per worker
-				 * instead inside the worker loop below to produce stable "devices" counts.
+				/* UA aggregation iterates connected clients but groups by worker-level
+				 * normalized UA to avoid double-counting devices when a worker has
+				 * multiple stratum instances. See UA aggregation block below.
 				 */
 
 				per_tdiff = tvdiff(&now, &client->last_share);
@@ -8185,14 +8184,9 @@ static void *statsupdate(void *arg)
 				if (!client->authorised || !client->worker_instance || !client->useragent || !client->useragent[0])
 					continue;
 				worker_instance_t *w = client->worker_instance;
-				/* Use cached normalized UA from worker if available */
+				/* Use cached normalized UA from worker (should already be set when UA was assigned) */
 				char *norm = w->norm_useragent[0] ? w->norm_useragent : NULL;
-				if (!norm || !norm[0]) {
-					/* Fallback: normalize and cache */
-					normalize_ua_buf(client->useragent, w->norm_useragent, sizeof(w->norm_useragent));
-					norm = w->norm_useragent;
-				}
-				if (norm[0]) {
+				if (norm && norm[0]) {
 					ua_item_t *ua_it_find = NULL;
 					HASH_FIND_STR(ua_map, norm, ua_it_find);
 					if (ua_it_find) {
@@ -8395,7 +8389,7 @@ static void *statsupdate(void *arg)
 			int ua_total = HASH_COUNT(ua_map);
 			if (ua_total > 0) {
 				int cap = ckp->max_pool_useragents;
-				if (cap <= 0 || cap > ua_total)
+				if (cap > ua_total)
 					cap = ua_total;
 				/* Collect items into array for sorting */
 				ua_item_t **ua_arr = ckalloc(sizeof(ua_item_t *) * ua_total);
