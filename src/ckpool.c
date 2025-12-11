@@ -1492,6 +1492,7 @@ static void parse_config(ckpool_t *ckp)
 	json_get_int(&ckp->nonce1length, json_conf, "nonce1length");
 	json_get_int(&ckp->nonce2length, json_conf, "nonce2length");
 	json_get_int(&ckp->update_interval, json_conf, "update_interval");
+	json_get_int(&ckp->max_pool_useragents, json_conf, "max_pool_useragents");
 	json_get_string(&vmask, json_conf, "version_mask");
 	if (vmask && strlen(vmask) && validhex(vmask))
 		sscanf(vmask, "%x", &ckp->version_mask);
@@ -1634,6 +1635,9 @@ int main(int argc, char **argv)
 
 	global_ckp = &ckp;
 	memset(&ckp, 0, sizeof(ckp));
+	/* Defaults for pool UA reporting */
+	ckp.max_pool_useragents = 100; /* 0 disables */
+	/* Normalization/truncation are hardcoded; see constants in stratifier.c */
 	ckp.starttime = time(NULL);
 	ckp.startpid = getpid();
 	ckp.loglevel = LOG_NOTICE;
