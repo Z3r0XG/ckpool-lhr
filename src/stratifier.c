@@ -13,6 +13,8 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <ctype.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -29,10 +31,31 @@
 #include "bitcoin.h"
 #include "sha2.h"
 #include "stratifier.h"
+#include "ua_utils.h"
 #include "uthash.h"
 #include "utlist.h"
 #include "connector.h"
 #include "generator.h"
+
+/* Hardcoded UA truncation length; keep normalized tokens short and safe */
+#define UA_TRUNCATE_LEN 64
+
+/* normalize_ua_buf is provided by ua_utils.c */
+
+typedef struct ua_item {
+	UT_hash_handle hh;
+	char *ua;
+	int count;          /* devices (sum of instance_count for connected workers) */
+	double dsps5;       /* sum of client->dsps5 across connected clients for this UA (5m snapshot) */
+	double best_diff;   /* max best_diff across connected workers for this UA */
+} ua_item_t;
+
+static int ua_sort_cmp(const void *a, const void *b)
+{
+	const ua_item_t *ia = *(const ua_item_t **)a;
+	const ua_item_t *ib = *(const ua_item_t **)b;
+	return ib->count - ia->count;
+}
 
 /* Consistent across all pool instances */
 static const char *workpadding = "000000800000000000000000000000000000000000000000000000000000000000000000000000000000000080020000";
@@ -172,6 +195,7 @@ struct worker_instance {
 	char *workername;
 	/* last-seen user agent string for this worker (persisted in user JSON) */
 	char *useragent;
+	char norm_useragent[UA_TRUNCATE_LEN + 1];
 
 	/* Number of stratum instances attached as this one worker */
 	int instance_count;
@@ -887,6 +911,7 @@ static void upstream_msgtype(ckpool_t *ckp, const json_t *val, const int msg_typ
 static void send_node_workinfo(ckpool_t *ckp, sdata_t *sdata, const workbase_t *wb)
 {
 	stratum_instance_t *client;
+	/* Not used here */
 	ckmsg_t *bulk_send = NULL;
 	int messages = 0;
 	json_t *wb_val;
@@ -4106,6 +4131,7 @@ static void workerclients(sdata_t *sdata, const char *buf, int *sockd)
 	json_t *val = NULL, *res = NULL, *client_arr;
 	char *tmp, *username, *workername = NULL;
 	stratum_instance_t *client;
+	ua_item_t *ua_map = NULL, *ua_it, *ua_tmp;
 	user_instance_t *user;
 	json_error_t err_val;
 
@@ -5305,6 +5331,7 @@ static void read_userstats(ckpool_t *ckp, sdata_t *sdata, int tvsec_diff)
 				const char *ua = json_string_value(json_object_get(arr_val, "useragent"));
 				if (ua && strlen(ua)) {
 					worker->useragent = strdup(ua);
+					normalize_ua_buf(worker->useragent, worker->norm_useragent, sizeof(worker->norm_useragent));
 				} else {
 					worker->useragent = NULL;
 				}
@@ -5445,6 +5472,7 @@ static user_instance_t *generate_user(ckpool_t *ckp, stratum_instance_t *client,
 		if (worker->useragent)
 			free(worker->useragent);
 		worker->useragent = strdup(client->useragent);
+		normalize_ua_buf(worker->useragent, worker->norm_useragent, sizeof(worker->norm_useragent));
 	}
 	DL_APPEND2(user->clients, client, user_prev, user_next);
 	__inc_worker(sdata,user, worker);
@@ -8077,7 +8105,8 @@ static void *statsupdate(void *arg)
 		int remote_users = 0, remote_workers = 0, idle_workers = 0;
 		log_entry_t *log_entries = NULL;
 		char_entry_t *char_list = NULL;
-		stratum_instance_t *client;
+		ua_item_t *ua_map = NULL, *ua_it, *ua_tmp;
+		stratum_instance_t *client, *tmp;
 		user_instance_t *user;
 		char *fname, *s, *sp;
 		tv_t now, diff;
@@ -8113,6 +8142,11 @@ static void *statsupdate(void *arg)
 					connector_drop_client(ckp, client->id);
 				}
 			} else {
+				/* Previously we collected UA per client, but this double-counts when
+				 * a worker has multiple stratum instances. We'll aggregate per worker
+				 * instead inside the worker loop below to produce stable "devices" counts.
+				 */
+
 				per_tdiff = tvdiff(&now, &client->last_share);
 				/* Decay times per connected instance */
 				if (per_tdiff > 60) {
@@ -8142,6 +8176,41 @@ static void *statsupdate(void *arg)
 			if (likely(client))
 				__inc_instance_ref(client);
 			ck_wunlock(&sdata->instance_lock);
+		}
+
+		/* Build UA aggregation from connected clients (for snapshot semantics) */
+		if (ckp->max_pool_useragents != 0) {
+			ck_rlock(&sdata->instance_lock);
+			HASH_ITER(hh, sdata->stratum_instances, client, tmp) {
+				if (!client->authorised || !client->worker_instance || !client->useragent || !client->useragent[0])
+					continue;
+				worker_instance_t *w = client->worker_instance;
+				/* Use cached normalized UA from worker if available */
+				char *norm = w->norm_useragent[0] ? w->norm_useragent : NULL;
+				if (!norm || !norm[0]) {
+					/* Fallback: normalize and cache */
+					normalize_ua_buf(client->useragent, w->norm_useragent, sizeof(w->norm_useragent));
+					norm = w->norm_useragent;
+				}
+				if (norm[0]) {
+					ua_item_t *ua_it_find = NULL;
+					HASH_FIND_STR(ua_map, norm, ua_it_find);
+					if (ua_it_find) {
+						ua_it_find->count++;
+						ua_it_find->dsps5 += client->dsps5;
+						if (client->best_diff > ua_it_find->best_diff)
+							ua_it_find->best_diff = client->best_diff;
+					} else {
+						ua_item_t *ua_new = ckalloc(sizeof(ua_item_t));
+						ua_new->ua = strdup(norm);
+						ua_new->count = 1;
+						ua_new->dsps5 = client->dsps5;
+						ua_new->best_diff = client->best_diff;
+						HASH_ADD_STR(ua_map, ua, ua_new);
+					}
+				}
+			}
+			ck_runlock(&sdata->instance_lock);
 		}
 
 		user = NULL;
@@ -8321,11 +8390,54 @@ static void *statsupdate(void *arg)
 				"Workers", stats->workers + stats->remote_workers,
 				"Idle", idle_workers,
 				"Disconnected", stats->disconnected);
+		/* Build transient UserAgents array limited by ckp->max_pool_useragents */
+		if (ua_map && ckp->max_pool_useragents != 0) {
+			int ua_total = HASH_COUNT(ua_map);
+			if (ua_total > 0) {
+				int cap = ckp->max_pool_useragents;
+				if (cap <= 0 || cap > ua_total)
+					cap = ua_total;
+				/* Collect items into array for sorting */
+				ua_item_t **ua_arr = ckalloc(sizeof(ua_item_t *) * ua_total);
+				int ua_i = 0;
+				ua_it = NULL;
+				HASH_ITER(hh, ua_map, ua_it, ua_tmp) {
+					ua_arr[ua_i++] = ua_it;
+				}
+				qsort(ua_arr, ua_total, sizeof(ua_item_t *), ua_sort_cmp);
+				json_t *ua_json = json_array();
+				int j;
+				for (j = 0; j < cap; j++) {
+					json_t *obj = json_object();
+					char suffix[16];
+					double ghs = ua_arr[j]->dsps5 * nonces;
+					suffix_string(ghs, suffix, 16, 0);
+					json_object_set_new(obj, "ua", json_string(ua_arr[j]->ua));
+					json_object_set_new(obj, "devices", json_integer(ua_arr[j]->count));
+					json_object_set_new(obj, "hashrate5m", json_string(suffix));
+					json_object_set_new(obj, "bestshare", json_real(ua_arr[j]->best_diff));
+					json_array_append_new(ua_json, obj);
+				}
+				json_object_set_new(val, "UserAgents", ua_json);
+				dealloc(ua_arr);
+			}
+		}
 		s = json_dumps(val, JSON_NO_UTF8 | JSON_PRESERVE_ORDER);
 		json_decref(val);
 		LOGNOTICE("Pool:%s", s);
 		fprintf(fp, "%s\n", s);
 		dealloc(s);
+
+		/* Cleanup transient UA map */
+		if (ua_map) {
+			ua_it = NULL;
+			HASH_ITER(hh, ua_map, ua_it, ua_tmp) {
+				HASH_DEL(ua_map, ua_it);
+				free(ua_it->ua);
+				dealloc(ua_it);
+			}
+			ua_map = NULL;
+		}
 
 		JSON_CPACK(val, "{ss,ss,ss,ss,ss,ss,ss}",
 				"hashrate1m", suffix1,

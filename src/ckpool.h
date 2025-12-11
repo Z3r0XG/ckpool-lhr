@@ -275,6 +275,11 @@ struct ckpool_instance {
 	char **useragent; // Array of allowed user agents
 	int useragents; // Number of user agent entries
 
+	/* Pool useragent reporting options */
+	int max_pool_useragents; /* How many distinct UAs to output in pool.status (0=disabled) */
+	/* ua_truncate_len and normalization are hardcoded in the stats aggregation
+	 * to avoid small config surface. Use `max_pool_useragents` to control output. */
+
 	/* Proxy options */
 	int proxies;
 	char **proxyurl;
