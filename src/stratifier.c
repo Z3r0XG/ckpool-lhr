@@ -5655,6 +5655,8 @@ out:
 		wb->readcount--;
 		ck_wunlock(&sdata->workbase_lock);
 
+		LOGINFO(">>> Sending auth diff client=%s diff=%lf btcsolo=%d remote=%d", 
+			client->identity, client->diff, ckp->btcsolo, client->remote);
 		stratum_send_diff(sdata, client);
 	}
 	return json_boolean(ret);
@@ -6623,18 +6625,23 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 	double sdiff;
 
 	if (unlikely(!client_active(client))) {
-		LOGNOTICE("Attempted to suggest diff on unauthorised client %s", client->identity);
+		LOGNOTICE("[DIAG] Attempted to suggest diff on unauthorised client %s (client->authorised=%d, client->dropped=%d)", 
+			client->identity, client->authorised, client->dropped);
 		return;
 	}
 	/* Parse suggest difficulty as double to support fractional values */
 	if (arr_val && json_is_number(arr_val))
 		sdiff = json_number_value(arr_val);
 	else if (sscanf(method, "mining.suggest_difficulty(%lf", &sdiff) != 1) {
-		LOGINFO("Failed to parse suggest_difficulty for client %s", client->identity);
+		LOGINFO("[DIAG] Failed to parse suggest_difficulty for client %s", client->identity);
 		return;
 	}
+	LOGINFO("[DIAG] Client %s requesting suggest_difficulty %lf (old suggest_diff=%lf, old client->diff=%lf)",
+		client->identity, sdiff, client->suggest_diff, client->diff);
 	if (!apply_suggest_diff(ckp, client, sdiff, 1e-6))
 		return;
+	LOGINFO("[DIAG] Applied suggest_diff to client %s, new suggest_diff=%lf, new client->diff=%lf",
+		client->identity, client->suggest_diff, client->diff);
 	stratum_send_diff(ckp->sdata, client);
 }
 
@@ -6900,12 +6907,14 @@ static void parse_method(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t *clie
 
 	/* We should only accept authorised requests from here on */
 	if (!client->authorised) {
-		LOGINFO("Dropping %s from unauthorised client %s %s", method,
-			client->identity, client->address);
+		LOGINFO("[DIAG] Dropping %s from unauthorised client %s %s (authorised=%d, dropped=%d, method=%s)", 
+			method, client->identity, client->address, client->authorised, client->dropped, method);
 		return;
 	}
 
 	if (cmdmatch(method, "mining.suggest")) {
+		LOGINFO("[DIAG] Processing mining.suggest request from client %s (authorised=%d)", 
+			client->identity, client->authorised);
 		suggest_diff(ckp, client, method, params_val);
 		return;
 	}
@@ -7892,12 +7901,23 @@ static void sauth_process(ckpool_t *ckp, json_params_t *jp)
 		mindiff = client->suggest_diff;
 	else
 		mindiff = client->worker_instance->mindiff;
+	LOGINFO("[DIAG] Auth complete for client %s: suggest_diff=%lf, worker->mindiff=%lf, selected mindiff=%lf, current client->diff=%lf",
+		client->identity, client->suggest_diff, client->worker_instance->mindiff, mindiff, client->diff);
 	if (mindiff) {
 		mindiff = MAX(ckp->mindiff, mindiff);
+		LOGINFO("[DIAG] Mindiff is set: final mindiff=%lf (after clamping to pool mindiff=%lf)",
+			mindiff, ckp->mindiff);
 		if (mindiff != client->diff) {
+			LOGINFO("[DIAG] Updating client %s diff from %lf to %lf and sending",
+				client->identity, client->diff, mindiff);
 			client->diff = mindiff;
 			stratum_send_diff(sdata, client);
+		} else {
+			LOGINFO("[DIAG] Client %s diff already matches mindiff %lf, no change needed",
+				client->identity, mindiff);
 		}
+	} else {
+		LOGINFO("[DIAG] Mindiff is 0 or false, no diff update for client %s", client->identity);
 	}
 
 out:
