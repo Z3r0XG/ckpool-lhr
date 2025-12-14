@@ -6907,6 +6907,25 @@ static void parse_method(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t *clie
 
 	/* We should only accept authorised requests from here on */
 	if (!client->authorised) {
+		/* Accept early suggest_difficulty and queue it to apply after auth. */
+		if (cmdmatch(method, "mining.suggest")) {
+			double sdiff;
+			json_t *arr_val = json_array_get(params_val, 0);
+
+			if (arr_val && json_is_number(arr_val))
+				sdiff = json_number_value(arr_val);
+			else if (sscanf(method, "mining.suggest_difficulty(%lf", &sdiff) != 1) {
+				LOGINFO("[DIAG] Failed to parse early suggest_difficulty from unauthorised client %s", client->identity);
+				return;
+			}
+			LOGINFO("[DIAG] Queuing early suggest_difficulty %lf for unauthorised client %s (current suggest_diff=%lf, diff=%lf)",
+				sdiff, client->identity, client->suggest_diff, client->diff);
+			if (!apply_suggest_diff(ckp, client, sdiff, 1e-6)) {
+				LOGINFO("[DIAG] Early suggest_difficulty no-op for client %s (unchanged)", client->identity);
+			}
+			return;
+		}
+
 		LOGINFO("[DIAG] Dropping %s from unauthorised client %s %s (authorised=%d, dropped=%d, method=%s)", 
 			method, client->identity, client->address, client->authorised, client->dropped, method);
 		return;
