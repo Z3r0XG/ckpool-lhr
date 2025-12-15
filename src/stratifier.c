@@ -7909,23 +7909,12 @@ static void sauth_process(ckpool_t *ckp, json_params_t *jp)
 		mindiff = client->suggest_diff;
 	else
 		mindiff = client->worker_instance->mindiff;
-	LOGINFO("[DIAG] Auth complete for client %s: suggest_diff=%lf, worker->mindiff=%lf, selected mindiff=%lf, current client->diff=%lf",
-		client->identity, client->suggest_diff, client->worker_instance->mindiff, mindiff, client->diff);
 	if (mindiff) {
 		mindiff = MAX(ckp->mindiff, mindiff);
-		LOGINFO("[DIAG] Mindiff is set: final mindiff=%lf (after clamping to pool mindiff=%lf)",
-			mindiff, ckp->mindiff);
 		if (mindiff != client->diff) {
-			LOGINFO("[DIAG] Updating client %s diff from %lf to %lf and sending",
-				client->identity, client->diff, mindiff);
 			client->diff = mindiff;
 			stratum_send_diff(sdata, client);
-		} else {
-			LOGINFO("[DIAG] Client %s diff already matches mindiff %lf, no change needed",
-				client->identity, mindiff);
 		}
-	} else {
-		LOGINFO("[DIAG] Mindiff is 0 or false, no diff update for client %s", client->identity);
 	}
 
 out:
