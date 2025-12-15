@@ -5655,6 +5655,8 @@ out:
 		wb->readcount--;
 		ck_wunlock(&sdata->workbase_lock);
 
+		LOGINFO(">>> Sending auth diff client=%s diff=%lf btcsolo=%d remote=%d", 
+			client->identity, client->diff, ckp->btcsolo, client->remote);
 		stratum_send_diff(sdata, client);
 	}
 	return json_boolean(ret);
@@ -6900,6 +6902,21 @@ static void parse_method(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t *clie
 
 	/* We should only accept authorised requests from here on */
 	if (!client->authorised) {
+		/* Accept early suggest_difficulty and queue it to apply after auth. */
+		if (cmdmatch(method, "mining.suggest")) {
+			double sdiff;
+			json_t *arr_val = json_array_get(params_val, 0);
+
+			if (arr_val && json_is_number(arr_val))
+				sdiff = json_number_value(arr_val);
+			else if (sscanf(method, "mining.suggest_difficulty(%lf", &sdiff) != 1) {
+				LOGINFO("Failed to parse early suggest_difficulty from unauthorised client %s", client->identity);
+				return;
+			}
+			apply_suggest_diff(ckp, client, sdiff, 1e-6);
+			return;
+		}
+
 		LOGINFO("Dropping %s from unauthorised client %s %s", method,
 			client->identity, client->address);
 		return;
