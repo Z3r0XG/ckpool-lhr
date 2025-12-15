@@ -6625,23 +6625,18 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 	double sdiff;
 
 	if (unlikely(!client_active(client))) {
-		LOGNOTICE("[DIAG] Attempted to suggest diff on unauthorised client %s (client->authorised=%d, client->dropped=%d)", 
-			client->identity, client->authorised, client->dropped);
+		LOGNOTICE("Attempted to suggest diff on unauthorised client %s", client->identity);
 		return;
 	}
 	/* Parse suggest difficulty as double to support fractional values */
 	if (arr_val && json_is_number(arr_val))
 		sdiff = json_number_value(arr_val);
 	else if (sscanf(method, "mining.suggest_difficulty(%lf", &sdiff) != 1) {
-		LOGINFO("[DIAG] Failed to parse suggest_difficulty for client %s", client->identity);
+		LOGINFO("Failed to parse suggest_difficulty for client %s", client->identity);
 		return;
 	}
-	LOGINFO("[DIAG] Client %s requesting suggest_difficulty %lf (old suggest_diff=%lf, old client->diff=%lf)",
-		client->identity, sdiff, client->suggest_diff, client->diff);
 	if (!apply_suggest_diff(ckp, client, sdiff, 1e-6))
 		return;
-	LOGINFO("[DIAG] Applied suggest_diff to client %s, new suggest_diff=%lf, new client->diff=%lf",
-		client->identity, client->suggest_diff, client->diff);
 	stratum_send_diff(ckp->sdata, client);
 }
 
@@ -6915,25 +6910,19 @@ static void parse_method(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t *clie
 			if (arr_val && json_is_number(arr_val))
 				sdiff = json_number_value(arr_val);
 			else if (sscanf(method, "mining.suggest_difficulty(%lf", &sdiff) != 1) {
-				LOGINFO("[DIAG] Failed to parse early suggest_difficulty from unauthorised client %s", client->identity);
+				LOGINFO("Failed to parse early suggest_difficulty from unauthorised client %s", client->identity);
 				return;
 			}
-			LOGINFO("[DIAG] Queuing early suggest_difficulty %lf for unauthorised client %s (current suggest_diff=%lf, diff=%lf)",
-				sdiff, client->identity, client->suggest_diff, client->diff);
-			if (!apply_suggest_diff(ckp, client, sdiff, 1e-6)) {
-				LOGINFO("[DIAG] Early suggest_difficulty no-op for client %s (unchanged)", client->identity);
-			}
+			apply_suggest_diff(ckp, client, sdiff, 1e-6);
 			return;
 		}
 
-		LOGINFO("[DIAG] Dropping %s from unauthorised client %s %s (authorised=%d, dropped=%d, method=%s)", 
-			method, client->identity, client->address, client->authorised, client->dropped, method);
+		LOGINFO("Dropping %s from unauthorised client %s %s", method,
+			client->identity, client->address);
 		return;
 	}
 
 	if (cmdmatch(method, "mining.suggest")) {
-		LOGINFO("[DIAG] Processing mining.suggest request from client %s (authorised=%d)", 
-			client->identity, client->authorised);
 		suggest_diff(ckp, client, method, params_val);
 		return;
 	}
