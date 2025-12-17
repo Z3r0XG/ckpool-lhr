@@ -4067,6 +4067,8 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	int64_t block_p50_delta = (int64_t)block_p50 - (int64_t)sdata->metrics.prev_block_latency_p50;
 	int64_t block_p95_delta = (int64_t)block_p95 - (int64_t)sdata->metrics.prev_block_latency_p95;
 	int64_t block_p99_delta = (int64_t)block_p99 - (int64_t)sdata->metrics.prev_block_latency_p99;
+	int64_t submit_samples_delta = (int64_t)sdata->metrics.submit_latency_samples - (int64_t)sdata->metrics.prev_submit_latency_samples;
+	int64_t block_samples_delta = (int64_t)sdata->metrics.block_fetch_latency_samples - (int64_t)sdata->metrics.prev_block_fetch_latency_samples;
 
 	/* Initialize update times on first dump (when they're 0) */
 	if (sdata->metrics.submit_latency_p50_update_time == 0)
@@ -4175,7 +4177,10 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	json_set_string(submit, "minimum", buf);
 	format_seconds_from_us(buf, sizeof(buf), sdata->metrics.submit_latency_usec_max);
 	json_set_string(submit, "maximum", buf);
-	json_set_int64(submit, "sample_count", sdata->metrics.submit_latency_samples);
+	json_t *submit_samples_obj = json_object();
+	json_set_int64(submit_samples_obj, "count", sdata->metrics.submit_latency_samples);
+	json_set_int64(submit_samples_obj, "delta", submit_samples_delta);
+	json_set_object(submit, "samples", submit_samples_obj);
 
 	json_t *submit_p50_obj = json_object();
 	format_seconds_from_us(buf, sizeof(buf), submit_p50);
@@ -4215,7 +4220,10 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	json_set_string(block, "minimum", buf);
 	format_seconds_from_us(buf, sizeof(buf), sdata->metrics.block_fetch_latency_usec_max);
 	json_set_string(block, "maximum", buf);
-	json_set_int64(block, "sample_count", sdata->metrics.block_fetch_latency_samples);
+	json_t *block_samples_obj = json_object();
+	json_set_int64(block_samples_obj, "count", sdata->metrics.block_fetch_latency_samples);
+	json_set_int64(block_samples_obj, "delta", block_samples_delta);
+	json_set_object(block, "samples", block_samples_obj);
 
 	json_t *block_p50_obj = json_object();
 	format_seconds_from_us(buf, sizeof(buf), block_p50);
@@ -4281,6 +4289,8 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	sdata->metrics.prev_block_latency_p50 = block_p50;
 	sdata->metrics.prev_block_latency_p95 = block_p95;
 	sdata->metrics.prev_block_latency_p99 = block_p99;
+	sdata->metrics.prev_submit_latency_samples = sdata->metrics.submit_latency_samples;
+	sdata->metrics.prev_block_fetch_latency_samples = sdata->metrics.block_fetch_latency_samples;
 
 	fclose(fp);
 

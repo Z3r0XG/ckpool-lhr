@@ -131,6 +131,7 @@ struct stratifier_metrics {
 	uint64_t submit_latency_usec_max;
 	uint64_t submit_latency_usec_sum;
 	uint64_t submit_latency_samples;
+	uint64_t prev_submit_latency_samples;
 	/* Rolling array of recent samples for percentile calculation (keep last 100) */
 	uint64_t submit_latency_samples_window[100];
 	int submit_latency_window_idx;
@@ -140,6 +141,7 @@ struct stratifier_metrics {
 	uint64_t block_fetch_latency_usec_max;
 	uint64_t block_fetch_latency_usec_sum;
 	uint64_t block_fetch_latency_samples;
+	uint64_t prev_block_fetch_latency_samples;
 	/* Rolling array of recent samples for percentile calculation (keep last 100) */
 	uint64_t block_fetch_latency_samples_window[100];
 	int block_fetch_latency_window_idx;
