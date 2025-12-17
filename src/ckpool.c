@@ -1193,11 +1193,11 @@ bool json_get_double(double *store, const json_t *val, const char *res)
 		LOGDEBUG("Json did not find entry %s", res);
 		goto out;
 	}
-	if (!json_is_real(entry)) {
-		LOGWARNING("Json entry %s is not a double", res);
+	if (!json_is_number(entry)) {
+		LOGWARNING("Json entry %s is not a number", res);
 		goto out;
 	}
-	*store = json_real_value(entry);
+	*store = json_number_value(entry);
 	LOGDEBUG("Json found entry %s: %f", res, *store);
 	ret = true;
 out:

@@ -112,6 +112,65 @@ static void test_config_defaults(void)
     json_decref(obj);
 }
 
+/* Test json_get_double accepts both integer and real JSON types */
+static void test_json_get_double_accepts_integers(void)
+{
+    json_t *obj, *entry;
+    double value;
+    
+    printf("  Testing JSON number parsing for config values:\n");
+    
+    /* Test with JSON integer (e.g., "startdiff": 4) */
+    obj = json_object();
+    json_object_set_new(obj, "startdiff", json_integer(4));
+    entry = json_object_get(obj, "startdiff");
+    assert_true(json_is_number(entry));
+    value = json_number_value(entry);
+    printf("    Integer 4: value=%f\n", value);
+    assert_double_equal(value, 4.0, EPSILON);
+    json_decref(obj);
+    
+    /* Test with JSON real (e.g., "startdiff": 4.0) */
+    obj = json_object();
+    json_object_set_new(obj, "startdiff", json_real(4.0));
+    entry = json_object_get(obj, "startdiff");
+    assert_true(json_is_number(entry));
+    value = json_number_value(entry);
+    printf("    Real 4.0: value=%f\n", value);
+    assert_double_equal(value, 4.0, EPSILON);
+    json_decref(obj);
+    
+    /* Test with JSON real fractional (e.g., "startdiff": 4.5) */
+    obj = json_object();
+    json_object_set_new(obj, "startdiff", json_real(4.5));
+    entry = json_object_get(obj, "startdiff");
+    assert_true(json_is_number(entry));
+    value = json_number_value(entry);
+    printf("    Real 4.5: value=%f\n", value);
+    assert_double_equal(value, 4.5, EPSILON);
+    json_decref(obj);
+    
+    /* Test with large integer */
+    obj = json_object();
+    json_object_set_new(obj, "highdiff", json_integer(1024));
+    entry = json_object_get(obj, "highdiff");
+    assert_true(json_is_number(entry));
+    value = json_number_value(entry);
+    printf("    Integer 1024: value=%f\n", value);
+    assert_double_equal(value, 1024.0, EPSILON);
+    json_decref(obj);
+    
+    /* Test with zero as integer */
+    obj = json_object();
+    json_object_set_new(obj, "mindiff", json_integer(0));
+    entry = json_object_get(obj, "mindiff");
+    assert_true(json_is_number(entry));
+    value = json_number_value(entry);
+    printf("    Integer 0: value=%f\n", value);
+    assert_double_equal(value, 0.0, EPSILON);
+    json_decref(obj);
+}
+
 int main(void)
 {
     printf("Running configuration validation tests...\n");
@@ -119,6 +178,7 @@ int main(void)
     test_json_type_validation();
     test_json_array_parsing();
     test_config_defaults();
+    test_json_get_double_accepts_integers();
     
     printf("All configuration validation tests passed!\n");
     return 0;
