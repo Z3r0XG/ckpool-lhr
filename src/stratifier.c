@@ -4100,6 +4100,10 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	 *  - smaller: m/u/n suffix meaning milli/micro/nano seconds
 	 */
 	auto void format_seconds_from_us(char *buf, size_t size, uint64_t usec) {
+		if (usec == 0) {
+			snprintf(buf, size, "0");
+			return;
+		}
 		double s = (double)usec / 1000000.0;
 		if (s >= 1000000000000.0)
 			snprintf(buf, size, "%.1fT", s / 1000000000000.0);
@@ -4119,33 +4123,47 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 			snprintf(buf, size, "%.0fn", s * 1000000000.0);
 	}
 	auto void format_seconds_from_us_signed(char *buf, size_t size, int64_t usec) {
+		if (usec == 0) {
+			snprintf(buf, size, "%+d", 0);
+			return;
+		}
 		double s = (double)usec / 1000000.0;
-		if (s >= 1000000000000.0)
-			snprintf(buf, size, "+%.1fT", s / 1000000000000.0);
-		else if (s >= 1000000000.0)
-			snprintf(buf, size, "+%.1fG", s / 1000000000.0);
-		else if (s >= 1000000.0)
-			snprintf(buf, size, "+%.1fM", s / 1000000.0);
-		else if (s >= 1000.0)
-			snprintf(buf, size, "+%.1fk", s / 1000.0);
-		else if (s >= 1.0)
-			snprintf(buf, size, "+%.0f", s);
-		else if (s <= -1000000000000.0)
-			snprintf(buf, size, "%.1fT", s / 1000000000000.0);
-		else if (s <= -1000000000.0)
-			snprintf(buf, size, "%.1fG", s / 1000000000.0);
-		else if (s <= -1000000.0)
-			snprintf(buf, size, "%.1fM", s / 1000000.0);
-		else if (s <= -1000.0)
-			snprintf(buf, size, "%.1fk", s / 1000.0);
-		else if (s <= -1.0)
-			snprintf(buf, size, "%.0f", s);
-		else if (s <= -0.001)
-			snprintf(buf, size, "%+.0fm", s * 1000.0);
-		else if (s <= -0.000001)
-			snprintf(buf, size, "%+.0fu", s * 1000000.0);
-		else
-			snprintf(buf, size, "%+.0fn", s * 1000000000.0);
+		if (s > 0) {
+			if (s >= 1000000000000.0)
+				snprintf(buf, size, "+%.1fT", s / 1000000000000.0);
+			else if (s >= 1000000000.0)
+				snprintf(buf, size, "+%.1fG", s / 1000000000.0);
+			else if (s >= 1000000.0)
+				snprintf(buf, size, "+%.1fM", s / 1000000.0);
+			else if (s >= 1000.0)
+				snprintf(buf, size, "+%.1fk", s / 1000.0);
+			else if (s >= 1.0)
+				snprintf(buf, size, "+%.0f", s);
+			else if (s >= 0.001)
+				snprintf(buf, size, "+%.0fm", s * 1000.0);
+			else if (s >= 0.000001)
+				snprintf(buf, size, "+%.0fu", s * 1000000.0);
+			else
+				snprintf(buf, size, "+%.0fn", s * 1000000000.0);
+		} else { /* s < 0 */
+			double a = -s;
+			if (a >= 1000000000000.0)
+				snprintf(buf, size, "-%.1fT", a / 1000000000000.0);
+			else if (a >= 1000000000.0)
+				snprintf(buf, size, "-%.1fG", a / 1000000000.0);
+			else if (a >= 1000000.0)
+				snprintf(buf, size, "-%.1fM", a / 1000000.0);
+			else if (a >= 1000.0)
+				snprintf(buf, size, "-%.1fk", a / 1000.0);
+			else if (a >= 1.0)
+				snprintf(buf, size, "-%.0f", a);
+			else if (a >= 0.001)
+				snprintf(buf, size, "-%.0fm", a * 1000.0);
+			else if (a >= 0.000001)
+				snprintf(buf, size, "-%.0fu", a * 1000000.0);
+			else
+				snprintf(buf, size, "-%.0fn", a * 1000000000.0);
+		}
 	}
 
 	/* Submit latency object */
