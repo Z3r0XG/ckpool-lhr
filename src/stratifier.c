@@ -4068,53 +4068,68 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	int64_t block_p95_delta = (int64_t)block_p95 - (int64_t)sdata->metrics.prev_block_latency_p95;
 	int64_t block_p99_delta = (int64_t)block_p99 - (int64_t)sdata->metrics.prev_block_latency_p99;
 
-	fprintf(fp, "timestamp=%ld\n", now);
-	fprintf(fp, "\n# Share metrics\n");
-	fprintf(fp, "shares_total=%"PRIu64"\n", shares_total);
-	fprintf(fp, "shares_accepted=%"PRIu64" (%.2f%%)\n", sdata->metrics.shares_accepted, accepted_pct);
-	fprintf(fp, "shares_accepted_delta=%"PRIu64"\n", delta_accepted);
-	fprintf(fp, "shares_rejected=%"PRIu64" (%.2f%%)\n", sdata->metrics.shares_rejected, rejected_pct);
-	fprintf(fp, "shares_rejected_delta=%"PRIu64"\n", delta_rejected);
-	fprintf(fp, "shares_invalid=%"PRIu64" (%.2f%%)\n", sdata->metrics.shares_invalid, invalid_pct);
-	fprintf(fp, "shares_invalid_delta=%"PRIu64"\n", delta_invalid);
+	/* Initialize update times on first dump (when they're 0) */
+	if (sdata->metrics.submit_latency_p50_update_time == 0)
+		sdata->metrics.submit_latency_p50_update_time = now;
+	if (sdata->metrics.submit_latency_p95_update_time == 0)
+		sdata->metrics.submit_latency_p95_update_time = now;
+	if (sdata->metrics.submit_latency_p99_update_time == 0)
+		sdata->metrics.submit_latency_p99_update_time = now;
+	if (sdata->metrics.block_latency_p50_update_time == 0)
+		sdata->metrics.block_latency_p50_update_time = now;
+	if (sdata->metrics.block_latency_p95_update_time == 0)
+		sdata->metrics.block_latency_p95_update_time = now;
+	if (sdata->metrics.block_latency_p99_update_time == 0)
+		sdata->metrics.block_latency_p99_update_time = now;
 
-	fprintf(fp, "\n# Error and connection metrics\n");
-	fprintf(fp, "auth_fails=%"PRIu64"\n", sdata->metrics.auth_fails);
-	fprintf(fp, "auth_fails_delta=%"PRIu64"\n", delta_auth_fails);
-	fprintf(fp, "rpc_errors=%"PRIu64"\n", sdata->metrics.rpc_errors);
-	fprintf(fp, "rpc_errors_delta=%"PRIu64"\n", delta_rpc_errors);
-	fprintf(fp, "client_disconnects=%"PRIu64"\n", sdata->metrics.client_disconnects);
-	fprintf(fp, "client_disconnects_delta=%"PRIu64"\n", delta_disconnects);
+	/* Compute age (time since last change) for each percentile */
+	time_t submit_p50_age = now - sdata->metrics.submit_latency_p50_update_time;
+	time_t submit_p95_age = now - sdata->metrics.submit_latency_p95_update_time;
+	time_t submit_p99_age = now - sdata->metrics.submit_latency_p99_update_time;
+	time_t block_p50_age = now - sdata->metrics.block_latency_p50_update_time;
+	time_t block_p95_age = now - sdata->metrics.block_latency_p95_update_time;
+	time_t block_p99_age = now - sdata->metrics.block_latency_p99_update_time;
 
-	fprintf(fp, "\n# Submit latency metrics (microseconds)\n");
-	fprintf(fp, "submit_latency_usec_avg=%"PRIu64"\n", submit_avg);
-	fprintf(fp, "submit_latency_usec_min=%"PRIu64"\n", sdata->metrics.submit_latency_usec_min);
-	fprintf(fp, "submit_latency_usec_max=%"PRIu64"\n", sdata->metrics.submit_latency_usec_max);
-	fprintf(fp, "submit_latency_usec_p50=%"PRIu64"\n", submit_p50);
-	fprintf(fp, "submit_latency_usec_p95=%"PRIu64"\n", submit_p95);
-	fprintf(fp, "submit_latency_usec_p99=%"PRIu64"\n", submit_p99);
-	fprintf(fp, "submit_latency_usec_p50_delta=%+"PRId64"\n", submit_p50_delta);
-	fprintf(fp, "submit_latency_usec_p95_delta=%+"PRId64"\n", submit_p95_delta);
-	fprintf(fp, "submit_latency_usec_p99_delta=%+"PRId64"\n", submit_p99_delta);
-	fprintf(fp, "submit_latency_samples=%"PRIu64"\n", sdata->metrics.submit_latency_samples);
+	/* Output percentiles as JSON objects */
+	fprintf(fp, "submit_latency_p50={\"usec\":%"PRIu64",\"delta\":%+"PRId64",\"age_sec\":%ld}\n", submit_p50, submit_p50_delta, submit_p50_age);
+	fprintf(fp, "submit_latency_p95={\"usec\":%"PRIu64",\"delta\":%+"PRId64",\"age_sec\":%ld}\n", submit_p95, submit_p95_delta, submit_p95_age);
+	fprintf(fp, "submit_latency_p99={\"usec\":%"PRIu64",\"delta\":%+"PRId64",\"age_sec\":%ld}\n", submit_p99, submit_p99_delta, submit_p99_age);
 
 	fprintf(fp, "\n# Block fetch latency metrics (microseconds)\n");
 	fprintf(fp, "block_fetch_latency_usec_avg=%"PRIu64"\n", block_avg);
 	fprintf(fp, "block_fetch_latency_usec_min=%"PRIu64"\n", sdata->metrics.block_fetch_latency_usec_min);
 	fprintf(fp, "block_fetch_latency_usec_max=%"PRIu64"\n", sdata->metrics.block_fetch_latency_usec_max);
-	fprintf(fp, "block_fetch_latency_usec_p50=%"PRIu64"\n", block_p50);
-	fprintf(fp, "block_fetch_latency_usec_p95=%"PRIu64"\n", block_p95);
-	fprintf(fp, "block_fetch_latency_usec_p99=%"PRIu64"\n", block_p99);
-	fprintf(fp, "block_fetch_latency_usec_p50_delta=%+"PRId64"\n", block_p50_delta);
-	fprintf(fp, "block_fetch_latency_usec_p95_delta=%+"PRId64"\n", block_p95_delta);
-	fprintf(fp, "block_fetch_latency_usec_p99_delta=%+"PRId64"\n", block_p99_delta);
 	fprintf(fp, "block_fetch_latency_samples=%"PRIu64"\n", sdata->metrics.block_fetch_latency_samples);
+
+	/* Output block percentiles as JSON objects */
+	fprintf(fp, "block_fetch_latency_p50={\"usec\":%"PRIu64",\"delta\":%+"PRId64",\"age_sec\":%ld}\n", block_p50, block_p50_delta, block_p50_age);
+	fprintf(fp, "block_fetch_latency_p95={\"usec\":%"PRIu64",\"delta\":%+"PRId64",\"age_sec\":%ld}\n", block_p95, block_p95_delta, block_p95_age);
+	fprintf(fp, "block_fetch_latency_p99={\"usec\":%"PRIu64",\"delta\":%+"PRId64",\"age_sec\":%ld}\n", block_p99, block_p99_delta, block_p99_age);
 
 	/* Report computational overhead (excludes file I/O) */
 	fprintf(fp, "\n# Metrics system overhead (computation only)\n");
 	fprintf(fp, "metrics_compute_overhead_usec=%"PRIu64"\n", dump_overhead_usec);
 
-	/* Update previous percentiles for next interval */
+	/* Update previous percentiles for next interval and track when they changed */
+	if (submit_p50 != sdata->metrics.prev_submit_latency_p50) {
+		sdata->metrics.submit_latency_p50_update_time = now;
+	}
+	if (submit_p95 != sdata->metrics.prev_submit_latency_p95) {
+		sdata->metrics.submit_latency_p95_update_time = now;
+	}
+	if (submit_p99 != sdata->metrics.prev_submit_latency_p99) {
+		sdata->metrics.submit_latency_p99_update_time = now;
+	}
+	if (block_p50 != sdata->metrics.prev_block_latency_p50) {
+		sdata->metrics.block_latency_p50_update_time = now;
+	}
+	if (block_p95 != sdata->metrics.prev_block_latency_p95) {
+		sdata->metrics.block_latency_p95_update_time = now;
+	}
+	if (block_p99 != sdata->metrics.prev_block_latency_p99) {
+		sdata->metrics.block_latency_p99_update_time = now;
+	}
+
 	sdata->metrics.prev_submit_latency_p50 = submit_p50;
 	sdata->metrics.prev_submit_latency_p95 = submit_p95;
 	sdata->metrics.prev_submit_latency_p99 = submit_p99;

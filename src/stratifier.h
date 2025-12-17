@@ -118,6 +118,14 @@ struct stratifier_metrics {
 	uint64_t prev_block_latency_p95;
 	uint64_t prev_block_latency_p99;
 
+	/* Track when latency percentiles last changed (for age_sec metric) */
+	time_t submit_latency_p50_update_time;
+	time_t submit_latency_p95_update_time;
+	time_t submit_latency_p99_update_time;
+	time_t block_latency_p50_update_time;
+	time_t block_latency_p95_update_time;
+	time_t block_latency_p99_update_time;
+
 	/* Timing samples (microseconds) for submit latency */
 	uint64_t submit_latency_usec_min;
 	uint64_t submit_latency_usec_max;
