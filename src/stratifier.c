@@ -4252,9 +4252,6 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	json_set_string(compute, "overhead", buf);
 	json_set_object(root, "compute", compute);
 
-	/* Optional comment string for readability */
-	json_set_string(root, "comment", "metrics dump");
-
 	char *out = json_dumps(root, JSON_NO_UTF8 | JSON_PRESERVE_ORDER | JSON_INDENT(2));
 	json_decref(root);
 	fprintf(fp, "%s\n", out);
