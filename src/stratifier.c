@@ -4096,33 +4096,33 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	/* Helper to format value with scale suffix */
 	auto void format_scaled(char *buf, size_t size, uint64_t val) {
 		if (val >= 1000000000000ULL)
-			snprintf(buf, size, "%"PRIu64"T", val / 1000000000000ULL);
+			snprintf(buf, size, "%.1fT", val / 1000000000000.0);
 		else if (val >= 1000000000ULL)
-			snprintf(buf, size, "%"PRIu64"G", val / 1000000000ULL);
+			snprintf(buf, size, "%.1fG", val / 1000000000.0);
 		else if (val >= 1000000ULL)
-			snprintf(buf, size, "%"PRIu64"M", val / 1000000ULL);
+			snprintf(buf, size, "%.1fM", val / 1000000.0);
 		else if (val >= 1000ULL)
-			snprintf(buf, size, "%"PRIu64"k", val / 1000ULL);
+			snprintf(buf, size, "%.1fk", val / 1000.0);
 		else
 			snprintf(buf, size, "%"PRIu64, val);
 	}
 	auto void format_scaled_signed(char *buf, size_t size, int64_t val) {
 		if (val >= 1000000000000LL)
-			snprintf(buf, size, "%+"PRId64"T", val / 1000000000000LL);
+			snprintf(buf, size, "+%.1fT", val / 1000000000000.0);
 		else if (val >= 1000000000LL)
-			snprintf(buf, size, "%+"PRId64"G", val / 1000000000LL);
+			snprintf(buf, size, "+%.1fG", val / 1000000000.0);
 		else if (val >= 1000000LL)
-			snprintf(buf, size, "%+"PRId64"M", val / 1000000LL);
+			snprintf(buf, size, "+%.1fM", val / 1000000.0);
 		else if (val >= 1000LL)
-			snprintf(buf, size, "%+"PRId64"k", val / 1000LL);
+			snprintf(buf, size, "+%.1fk", val / 1000.0);
 		else if (val <= -1000000000000LL)
-			snprintf(buf, size, "%+"PRId64"T", val / 1000000000000LL);
+			snprintf(buf, size, "%.1fT", val / 1000000000000.0);
 		else if (val <= -1000000000LL)
-			snprintf(buf, size, "%+"PRId64"G", val / 1000000000LL);
+			snprintf(buf, size, "%.1fG", val / 1000000000.0);
 		else if (val <= -1000000LL)
-			snprintf(buf, size, "%+"PRId64"M", val / 1000000LL);
+			snprintf(buf, size, "%.1fM", val / 1000000.0);
 		else if (val <= -1000LL)
-			snprintf(buf, size, "%+"PRId64"k", val / 1000LL);
+			snprintf(buf, size, "%.1fk", val / 1000.0);
 		else
 			snprintf(buf, size, "%+"PRId64, val);
 	}
