@@ -4095,26 +4095,26 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 
 	/* Submit latency object */
 	json_t *submit = json_object();
-	json_set_int64(submit, "avg", submit_avg);
-	json_set_int64(submit, "min", sdata->metrics.submit_latency_usec_min);
-	json_set_int64(submit, "max", sdata->metrics.submit_latency_usec_max);
-	json_set_int64(submit, "samples", sdata->metrics.submit_latency_samples);
+	json_set_int64(submit, "average_usec", submit_avg);
+	json_set_int64(submit, "minimum_usec", sdata->metrics.submit_latency_usec_min);
+	json_set_int64(submit, "maximum_usec", sdata->metrics.submit_latency_usec_max);
+	json_set_int64(submit, "sample_count", sdata->metrics.submit_latency_samples);
 
 	json_t *submit_p50_obj = json_object();
-	json_set_int64(submit_p50_obj, "usec", submit_p50);
-	json_set_int64(submit_p50_obj, "delta", submit_p50_delta);
+	json_set_int64(submit_p50_obj, "value_usec", submit_p50);
+	json_set_int64(submit_p50_obj, "delta_usec", submit_p50_delta);
 	json_set_int64(submit_p50_obj, "age_sec", submit_p50_age);
 	json_set_object(submit, "p50", submit_p50_obj);
 
 	json_t *submit_p95_obj = json_object();
-	json_set_int64(submit_p95_obj, "usec", submit_p95);
-	json_set_int64(submit_p95_obj, "delta", submit_p95_delta);
+	json_set_int64(submit_p95_obj, "value_usec", submit_p95);
+	json_set_int64(submit_p95_obj, "delta_usec", submit_p95_delta);
 	json_set_int64(submit_p95_obj, "age_sec", submit_p95_age);
 	json_set_object(submit, "p95", submit_p95_obj);
 
 	json_t *submit_p99_obj = json_object();
-	json_set_int64(submit_p99_obj, "usec", submit_p99);
-	json_set_int64(submit_p99_obj, "delta", submit_p99_delta);
+	json_set_int64(submit_p99_obj, "value_usec", submit_p99);
+	json_set_int64(submit_p99_obj, "delta_usec", submit_p99_delta);
 	json_set_int64(submit_p99_obj, "age_sec", submit_p99_age);
 	json_set_object(submit, "p99", submit_p99_obj);
 
@@ -4122,26 +4122,26 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 
 	/* Block fetch latency object */
 	json_t *block = json_object();
-	json_set_int64(block, "avg", block_avg);
-	json_set_int64(block, "min", sdata->metrics.block_fetch_latency_usec_min);
-	json_set_int64(block, "max", sdata->metrics.block_fetch_latency_usec_max);
-	json_set_int64(block, "samples", sdata->metrics.block_fetch_latency_samples);
+	json_set_int64(block, "average_usec", block_avg);
+	json_set_int64(block, "minimum_usec", sdata->metrics.block_fetch_latency_usec_min);
+	json_set_int64(block, "maximum_usec", sdata->metrics.block_fetch_latency_usec_max);
+	json_set_int64(block, "sample_count", sdata->metrics.block_fetch_latency_samples);
 
 	json_t *block_p50_obj = json_object();
-	json_set_int64(block_p50_obj, "usec", block_p50);
-	json_set_int64(block_p50_obj, "delta", block_p50_delta);
+	json_set_int64(block_p50_obj, "value_usec", block_p50);
+	json_set_int64(block_p50_obj, "delta_usec", block_p50_delta);
 	json_set_int64(block_p50_obj, "age_sec", block_p50_age);
 	json_set_object(block, "p50", block_p50_obj);
 
 	json_t *block_p95_obj = json_object();
-	json_set_int64(block_p95_obj, "usec", block_p95);
-	json_set_int64(block_p95_obj, "delta", block_p95_delta);
+	json_set_int64(block_p95_obj, "value_usec", block_p95);
+	json_set_int64(block_p95_obj, "delta_usec", block_p95_delta);
 	json_set_int64(block_p95_obj, "age_sec", block_p95_age);
 	json_set_object(block, "p95", block_p95_obj);
 
 	json_t *block_p99_obj = json_object();
-	json_set_int64(block_p99_obj, "usec", block_p99);
-	json_set_int64(block_p99_obj, "delta", block_p99_delta);
+	json_set_int64(block_p99_obj, "value_usec", block_p99);
+	json_set_int64(block_p99_obj, "delta_usec", block_p99_delta);
 	json_set_int64(block_p99_obj, "age_sec", block_p99_age);
 	json_set_object(block, "p99", block_p99_obj);
 
@@ -4152,12 +4152,10 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	json_set_int64(compute, "overhead_usec", dump_overhead_usec);
 	json_set_object(root, "compute", compute);
 
-	/* Optional comment object for readability */
-	json_t *comment = json_object();
-	json_set_string(comment, "note", "metrics dump");
-	json_set_object(root, "comment", comment);
+	/* Optional comment string for readability */
+	json_set_string(root, "comment", "metrics dump");
 
-	char *out = json_dumps(root, JSON_NO_UTF8 | JSON_PRESERVE_ORDER | JSON_COMPACT);
+	char *out = json_dumps(root, JSON_NO_UTF8 | JSON_PRESERVE_ORDER | JSON_INDENT(2));
 	json_decref(root);
 	fprintf(fp, "%s\n", out);
 	free(out);
