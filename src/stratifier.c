@@ -4246,11 +4246,9 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 
 	json_set_object(root, "block_fetch_latency", block);
 
-	/* Compute overhead */
-	json_t *compute = json_object();
+	/* Overhead at root */
 	format_seconds_from_us(buf, sizeof(buf), dump_overhead_usec);
-	json_set_string(compute, "overhead", buf);
-	json_set_object(root, "compute", compute);
+	json_set_string(root, "overhead", buf);
 
 	char *out = json_dumps(root, JSON_NO_UTF8 | JSON_PRESERVE_ORDER | JSON_INDENT(2));
 	json_decref(root);
