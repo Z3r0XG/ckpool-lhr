@@ -4124,7 +4124,7 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	}
 	auto void format_seconds_from_us_signed(char *buf, size_t size, int64_t usec) {
 		if (usec == 0) {
-			snprintf(buf, size, "%+d", 0);
+			snprintf(buf, size, "%d", 0);
 			return;
 		}
 		double s = (double)usec / 1000000.0;
