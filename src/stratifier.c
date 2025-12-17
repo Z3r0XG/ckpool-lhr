@@ -4093,75 +4093,97 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	/* Build single nested JSON object for metrics output */
 	json_t *root = json_object();
 
-	/* Helper to format value with scale suffix */
-	auto void format_scaled(char *buf, size_t size, uint64_t val) {
-		if (val >= 1000000000000ULL)
-			snprintf(buf, size, "%.1fT", val / 1000000000000.0);
-		else if (val >= 1000000000ULL)
-			snprintf(buf, size, "%.1fG", val / 1000000000.0);
-		else if (val >= 1000000ULL)
-			snprintf(buf, size, "%.1fM", val / 1000000.0);
-		else if (val >= 1000ULL)
-			snprintf(buf, size, "%.1fk", val / 1000.0);
+	/* Helper to format duration with SI prefixes around base seconds.
+	 * Input is microseconds. Output uses:
+	 *  - seconds: no unit (plain number)
+	 *  - larger: k/M/G/T suffix meaning kilo/mega/giga/tera seconds
+	 *  - smaller: m/u/n suffix meaning milli/micro/nano seconds
+	 */
+	auto void format_seconds_from_us(char *buf, size_t size, uint64_t usec) {
+		double s = (double)usec / 1000000.0;
+		if (s >= 1000000000000.0)
+			snprintf(buf, size, "%.1fT", s / 1000000000000.0);
+		else if (s >= 1000000000.0)
+			snprintf(buf, size, "%.1fG", s / 1000000000.0);
+		else if (s >= 1000000.0)
+			snprintf(buf, size, "%.1fM", s / 1000000.0);
+		else if (s >= 1000.0)
+			snprintf(buf, size, "%.1fk", s / 1000.0);
+		else if (s >= 1.0)
+			snprintf(buf, size, "%.0f", s);
+		else if (s >= 0.001)
+			snprintf(buf, size, "%.0fm", s * 1000.0);
+		else if (s >= 0.000001)
+			snprintf(buf, size, "%.0fu", s * 1000000.0);
 		else
-			snprintf(buf, size, "%"PRIu64, val);
+			snprintf(buf, size, "%.0fn", s * 1000000000.0);
 	}
-	auto void format_scaled_signed(char *buf, size_t size, int64_t val) {
-		if (val >= 1000000000000LL)
-			snprintf(buf, size, "+%.1fT", val / 1000000000000.0);
-		else if (val >= 1000000000LL)
-			snprintf(buf, size, "+%.1fG", val / 1000000000.0);
-		else if (val >= 1000000LL)
-			snprintf(buf, size, "+%.1fM", val / 1000000.0);
-		else if (val >= 1000LL)
-			snprintf(buf, size, "+%.1fk", val / 1000.0);
-		else if (val <= -1000000000000LL)
-			snprintf(buf, size, "%.1fT", val / 1000000000000.0);
-		else if (val <= -1000000000LL)
-			snprintf(buf, size, "%.1fG", val / 1000000000.0);
-		else if (val <= -1000000LL)
-			snprintf(buf, size, "%.1fM", val / 1000000.0);
-		else if (val <= -1000LL)
-			snprintf(buf, size, "%.1fk", val / 1000.0);
+	auto void format_seconds_from_us_signed(char *buf, size_t size, int64_t usec) {
+		double s = (double)usec / 1000000.0;
+		if (s >= 1000000000000.0)
+			snprintf(buf, size, "+%.1fT", s / 1000000000000.0);
+		else if (s >= 1000000000.0)
+			snprintf(buf, size, "+%.1fG", s / 1000000000.0);
+		else if (s >= 1000000.0)
+			snprintf(buf, size, "+%.1fM", s / 1000000.0);
+		else if (s >= 1000.0)
+			snprintf(buf, size, "+%.1fk", s / 1000.0);
+		else if (s >= 1.0)
+			snprintf(buf, size, "+%.0f", s);
+		else if (s <= -1000000000000.0)
+			snprintf(buf, size, "%.1fT", s / 1000000000000.0);
+		else if (s <= -1000000000.0)
+			snprintf(buf, size, "%.1fG", s / 1000000000.0);
+		else if (s <= -1000000.0)
+			snprintf(buf, size, "%.1fM", s / 1000000.0);
+		else if (s <= -1000.0)
+			snprintf(buf, size, "%.1fk", s / 1000.0);
+		else if (s <= -1.0)
+			snprintf(buf, size, "%.0f", s);
+		else if (s <= -0.001)
+			snprintf(buf, size, "%+.0fm", s * 1000.0);
+		else if (s <= -0.000001)
+			snprintf(buf, size, "%+.0fu", s * 1000000.0);
 		else
-			snprintf(buf, size, "%+"PRId64, val);
+			snprintf(buf, size, "%+.0fn", s * 1000000000.0);
 	}
 
 	/* Submit latency object */
 	json_t *submit = json_object();
 	char buf[64];
-	format_scaled(buf, sizeof(buf), submit_avg);
+	format_seconds_from_us(buf, sizeof(buf), submit_avg);
 	json_set_string(submit, "average", buf);
-	format_scaled(buf, sizeof(buf), sdata->metrics.submit_latency_usec_min);
+	format_seconds_from_us(buf, sizeof(buf), sdata->metrics.submit_latency_usec_min);
 	json_set_string(submit, "minimum", buf);
-	format_scaled(buf, sizeof(buf), sdata->metrics.submit_latency_usec_max);
+	format_seconds_from_us(buf, sizeof(buf), sdata->metrics.submit_latency_usec_max);
 	json_set_string(submit, "maximum", buf);
 	json_set_int64(submit, "sample_count", sdata->metrics.submit_latency_samples);
 
 	json_t *submit_p50_obj = json_object();
-	format_scaled(buf, sizeof(buf), submit_p50);
+	format_seconds_from_us(buf, sizeof(buf), submit_p50);
 	json_set_string(submit_p50_obj, "value", buf);
-	format_scaled_signed(buf, sizeof(buf), submit_p50_delta);
+	format_seconds_from_us_signed(buf, sizeof(buf), submit_p50_delta);
 	json_set_string(submit_p50_obj, "delta", buf);
-	format_scaled(buf, sizeof(buf), submit_p50_age);
+	/* age is seconds; convert to microseconds for formatting */
+	format_seconds_from_us(buf, sizeof(buf), (uint64_t)submit_p50_age * 1000000ULL);
 	json_set_string(submit_p50_obj, "age", buf);
 	json_set_object(submit, "p50", submit_p50_obj);
 
 	json_t *submit_p95_obj = json_object();
-	format_scaled(buf, sizeof(buf), submit_p95);
+	format_seconds_from_us(buf, sizeof(buf), submit_p95);
 	json_set_string(submit_p95_obj, "value", buf);
-	format_scaled_signed(buf, sizeof(buf), submit_p95_delta);
+	format_seconds_from_us_signed(buf, sizeof(buf), submit_p95_delta);
 	json_set_string(submit_p95_obj, "delta", buf);
-	format_scaled(buf, sizeof(buf), submit_p95_age);
+	format_seconds_from_us(buf, sizeof(buf), (uint64_t)submit_p95_age * 1000000ULL);
 	json_set_string(submit_p95_obj, "age", buf);
 	json_set_object(submit, "p95", submit_p95_obj);
 
 	json_t *submit_p99_obj = json_object();
-	format_scaled(buf, sizeof(buf), submit_p99);
+	format_seconds_from_us(buf, sizeof(buf), submit_p99);
 	json_set_string(submit_p99_obj, "value", buf);
-	format_scaled_signed(buf, sizeof(buf), submit_p99_delta);
+	format_seconds_from_us_signed(buf, sizeof(buf), submit_p99_delta);
 	json_set_string(submit_p99_obj, "delta", buf);
-	format_scaled(buf, sizeof(buf), submit_p99_age);
+	format_seconds_from_us(buf, sizeof(buf), (uint64_t)submit_p99_age * 1000000ULL);
 	json_set_string(submit_p99_obj, "age", buf);
 	json_set_object(submit, "p99", submit_p99_obj);
 
@@ -4169,38 +4191,38 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 
 	/* Block fetch latency object */
 	json_t *block = json_object();
-	format_scaled(buf, sizeof(buf), block_avg);
+	format_seconds_from_us(buf, sizeof(buf), block_avg);
 	json_set_string(block, "average", buf);
-	format_scaled(buf, sizeof(buf), sdata->metrics.block_fetch_latency_usec_min);
+	format_seconds_from_us(buf, sizeof(buf), sdata->metrics.block_fetch_latency_usec_min);
 	json_set_string(block, "minimum", buf);
-	format_scaled(buf, sizeof(buf), sdata->metrics.block_fetch_latency_usec_max);
+	format_seconds_from_us(buf, sizeof(buf), sdata->metrics.block_fetch_latency_usec_max);
 	json_set_string(block, "maximum", buf);
 	json_set_int64(block, "sample_count", sdata->metrics.block_fetch_latency_samples);
 
 	json_t *block_p50_obj = json_object();
-	format_scaled(buf, sizeof(buf), block_p50);
+	format_seconds_from_us(buf, sizeof(buf), block_p50);
 	json_set_string(block_p50_obj, "value", buf);
-	format_scaled_signed(buf, sizeof(buf), block_p50_delta);
+	format_seconds_from_us_signed(buf, sizeof(buf), block_p50_delta);
 	json_set_string(block_p50_obj, "delta", buf);
-	format_scaled(buf, sizeof(buf), block_p50_age);
+	format_seconds_from_us(buf, sizeof(buf), (uint64_t)block_p50_age * 1000000ULL);
 	json_set_string(block_p50_obj, "age", buf);
 	json_set_object(block, "p50", block_p50_obj);
 
 	json_t *block_p95_obj = json_object();
-	format_scaled(buf, sizeof(buf), block_p95);
+	format_seconds_from_us(buf, sizeof(buf), block_p95);
 	json_set_string(block_p95_obj, "value", buf);
-	format_scaled_signed(buf, sizeof(buf), block_p95_delta);
+	format_seconds_from_us_signed(buf, sizeof(buf), block_p95_delta);
 	json_set_string(block_p95_obj, "delta", buf);
-	format_scaled(buf, sizeof(buf), block_p95_age);
+	format_seconds_from_us(buf, sizeof(buf), (uint64_t)block_p95_age * 1000000ULL);
 	json_set_string(block_p95_obj, "age", buf);
 	json_set_object(block, "p95", block_p95_obj);
 
 	json_t *block_p99_obj = json_object();
-	format_scaled(buf, sizeof(buf), block_p99);
+	format_seconds_from_us(buf, sizeof(buf), block_p99);
 	json_set_string(block_p99_obj, "value", buf);
-	format_scaled_signed(buf, sizeof(buf), block_p99_delta);
+	format_seconds_from_us_signed(buf, sizeof(buf), block_p99_delta);
 	json_set_string(block_p99_obj, "delta", buf);
-	format_scaled(buf, sizeof(buf), block_p99_age);
+	format_seconds_from_us(buf, sizeof(buf), (uint64_t)block_p99_age * 1000000ULL);
 	json_set_string(block_p99_obj, "age", buf);
 	json_set_object(block, "p99", block_p99_obj);
 
@@ -4208,7 +4230,7 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 
 	/* Compute overhead */
 	json_t *compute = json_object();
-	format_scaled(buf, sizeof(buf), dump_overhead_usec);
+	format_seconds_from_us(buf, sizeof(buf), dump_overhead_usec);
 	json_set_string(compute, "overhead", buf);
 	json_set_object(root, "compute", compute);
 
