@@ -57,6 +57,14 @@ static int ua_sort_cmp(const void *a, const void *b)
 	return ib->count - ia->count;
 }
 
+/* Comparator for qsort of uint64_t values */
+static int qsort_uint64_cmp(const uint64_t *a, const uint64_t *b)
+{
+	if (*a < *b) return -1;
+	if (*a > *b) return 1;
+	return 0;
+}
+
 /* Consistent across all pool instances */
 static const char *workpadding = "000000800000000000000000000000000000000000000000000000000000000000000000000000000000000080020000";
 static const char *scriptsig_header = "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff";
@@ -428,6 +436,11 @@ struct stratifier_data {
 	mutex_t stats_lock;
 	/* Protects changes to unaccounted pool stats */
 	mutex_t uastats_lock;
+
+	/* Metrics for observability */
+	stratifier_metrics_t metrics;
+	/* Protects metrics writes */
+	mutex_t metrics_lock;
 
 	bool verbose;
 
@@ -1518,9 +1531,14 @@ static void block_update(ckpool_t *ckp, int *prio)
 	txntable_t *txns;
 	int retries = 0;
 	workbase_t *wb;
+	tv_t tv_start, tv_end;
+	uint64_t latency_usec;
 
 retry:
+	tv_time(&tv_start);
 	wb = generator_getbase(ckp);
+	tv_time(&tv_end);
+	
 	if (unlikely(!wb)) {
 		if (retries++ < 5 || *prio == GEN_PRIORITY) {
 			LOGWARNING("Generator returned failure in update_base, retry #%d", retries);
@@ -1531,6 +1549,21 @@ retry:
 	}
 	if (unlikely(retries))
 		LOGWARNING("Generator succeeded in update_base after retrying");
+
+	/* Record block fetch latency */
+	latency_usec = tvdiff(&tv_end, &tv_start) * 1000; /* tvdiff returns ms, convert to usec */
+	mutex_lock(&sdata->metrics_lock);
+	if (sdata->metrics.block_fetch_latency_samples == 0 || latency_usec < sdata->metrics.block_fetch_latency_usec_min)
+		sdata->metrics.block_fetch_latency_usec_min = latency_usec;
+	if (latency_usec > sdata->metrics.block_fetch_latency_usec_max)
+		sdata->metrics.block_fetch_latency_usec_max = latency_usec;
+	sdata->metrics.block_fetch_latency_usec_sum += latency_usec;
+	sdata->metrics.block_fetch_latency_samples++;
+	/* Add to rolling window for percentile calculation */
+	int idx = sdata->metrics.block_fetch_latency_window_idx % 100;
+	sdata->metrics.block_fetch_latency_samples_window[idx] = latency_usec;
+	sdata->metrics.block_fetch_latency_window_idx++;
+	mutex_unlock(&sdata->metrics_lock);
 
 	wb->ckp = ckp;
 
@@ -2341,6 +2374,10 @@ static void __kill_instance(sdata_t *sdata, stratum_instance_t *client)
 	free(client->useragent);
 	memset(client, 0, sizeof(stratum_instance_t));
 	DL_APPEND2(sdata->recycled_instances, client, recycled_prev, recycled_next);
+	/* Increment disconnect counter for metrics */
+	mutex_lock(&sdata->metrics_lock);
+	sdata->metrics.client_disconnects++;
+	mutex_unlock(&sdata->metrics_lock);
 }
 
 /* Called with instance_lock held. Note stats.users is protected by
@@ -3903,6 +3940,193 @@ static void ckmsgq_stats(ckmsgq_t *ckmsgq, const int size, json_t **val)
 
 	memsize = (sizeof(ckmsg_t) + size) * objects;
 	JSON_CPACK(*val, "{si,si,sI}", "count", objects, "memory", memsize, "generated", generated);
+}
+
+/* Helper: compute percentile from sorted array */
+static uint64_t compute_percentile(uint64_t *samples, int count, int percentile)
+{
+	int idx;
+	if (count == 0)
+		return 0;
+	if (count == 1)
+		return samples[0];
+	
+	/* Simple: idx = ceil((percentile/100) * count) - 1 */
+	idx = ((percentile * count) + 99) / 100 - 1;
+	if (idx < 0) idx = 0;
+	if (idx >= count) idx = count - 1;
+	return samples[idx];
+}
+
+/* Dump pool metrics to a separate file for observability. Atomic write to avoid
+ * partial reads. Called periodically from the stratifier thread. */
+static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
+{
+	char metricspath[512], tmppath[512];
+	FILE *fp;
+	time_t now = time(NULL);
+	tv_t tv_start, tv_end;
+	uint64_t dump_overhead_usec;
+	uint64_t submit_avg = 0, block_avg = 0;
+	uint64_t submit_p50 = 0, submit_p95 = 0, submit_p99 = 0;
+	uint64_t block_p50 = 0, block_p95 = 0, block_p99 = 0;
+	uint64_t shares_total = 0;
+	double accepted_pct = 0, invalid_pct = 0, rejected_pct = 0;
+	uint64_t samples_copy_submit[100], samples_copy_block[100];
+	int submit_copy_len = 0, block_copy_len = 0;
+	/* Delta values since last dump */
+	uint64_t delta_accepted, delta_rejected, delta_invalid;
+	uint64_t delta_auth_fails, delta_disconnects, delta_rpc_errors;
+
+	if (!ckp->logdir)
+		return;
+
+	/* Only dump once per configured interval (or 10s default) */
+	mutex_lock(&sdata->metrics_lock);
+	if (now - sdata->metrics.last_dump_time < 10) {
+		mutex_unlock(&sdata->metrics_lock);
+		return;
+	}
+
+	/* Snapshot metrics and samples for safe computation */
+	shares_total = sdata->metrics.shares_accepted + sdata->metrics.shares_rejected + sdata->metrics.shares_invalid;
+	if (shares_total > 0) {
+		accepted_pct = (double)sdata->metrics.shares_accepted * 100.0 / shares_total;
+		invalid_pct = (double)sdata->metrics.shares_invalid * 100.0 / shares_total;
+		rejected_pct = (double)sdata->metrics.shares_rejected * 100.0 / shares_total;
+	}
+
+	/* Compute deltas since last interval */
+	delta_accepted = sdata->metrics.shares_accepted - sdata->metrics.prev_shares_accepted;
+	delta_rejected = sdata->metrics.shares_rejected - sdata->metrics.prev_shares_rejected;
+	delta_invalid = sdata->metrics.shares_invalid - sdata->metrics.prev_shares_invalid;
+	delta_auth_fails = sdata->metrics.auth_fails - sdata->metrics.prev_auth_fails;
+	delta_disconnects = sdata->metrics.client_disconnects - sdata->metrics.prev_client_disconnects;
+	delta_rpc_errors = sdata->metrics.rpc_errors - sdata->metrics.prev_rpc_errors;
+
+	/* Update previous values for next interval */
+	sdata->metrics.prev_shares_accepted = sdata->metrics.shares_accepted;
+	sdata->metrics.prev_shares_rejected = sdata->metrics.shares_rejected;
+	sdata->metrics.prev_shares_invalid = sdata->metrics.shares_invalid;
+	sdata->metrics.prev_auth_fails = sdata->metrics.auth_fails;
+	sdata->metrics.prev_client_disconnects = sdata->metrics.client_disconnects;
+	sdata->metrics.prev_rpc_errors = sdata->metrics.rpc_errors;
+
+	/* Compute averages safely */
+	if (sdata->metrics.submit_latency_samples > 0)
+		submit_avg = sdata->metrics.submit_latency_usec_sum / sdata->metrics.submit_latency_samples;
+	if (sdata->metrics.block_fetch_latency_samples > 0)
+		block_avg = sdata->metrics.block_fetch_latency_usec_sum / sdata->metrics.block_fetch_latency_samples;
+
+	/* Start compute-only timing (exclude file I/O) */
+	tv_time(&tv_start);
+
+	/* Copy sample windows for percentile computation (and sort) */
+	submit_copy_len = sdata->metrics.submit_latency_window_idx;
+	if (submit_copy_len > 100) submit_copy_len = 100;
+	if (submit_copy_len > 0) {
+		memcpy(samples_copy_submit, sdata->metrics.submit_latency_samples_window, submit_copy_len * sizeof(uint64_t));
+		qsort(samples_copy_submit, submit_copy_len, sizeof(uint64_t), 
+		      (int(*)(const void*, const void*))qsort_uint64_cmp);
+		submit_p50 = compute_percentile(samples_copy_submit, submit_copy_len, 50);
+		submit_p95 = compute_percentile(samples_copy_submit, submit_copy_len, 95);
+		submit_p99 = compute_percentile(samples_copy_submit, submit_copy_len, 99);
+	}
+
+	block_copy_len = sdata->metrics.block_fetch_latency_window_idx;
+	if (block_copy_len > 100) block_copy_len = 100;
+	if (block_copy_len > 0) {
+		memcpy(samples_copy_block, sdata->metrics.block_fetch_latency_samples_window, block_copy_len * sizeof(uint64_t));
+		qsort(samples_copy_block, block_copy_len, sizeof(uint64_t),
+		      (int(*)(const void*, const void*))qsort_uint64_cmp);
+		block_p50 = compute_percentile(samples_copy_block, block_copy_len, 50);
+		block_p95 = compute_percentile(samples_copy_block, block_copy_len, 95);
+		block_p99 = compute_percentile(samples_copy_block, block_copy_len, 99);
+	}
+
+	/* Compute-only overhead (no file I/O yet) */
+	tv_time(&tv_end);
+	dump_overhead_usec = tvdiff(&tv_end, &tv_start) * 1000;
+
+	sdata->metrics.last_dump_time = now;
+	mutex_unlock(&sdata->metrics_lock);
+
+	snprintf(metricspath, sizeof(metricspath), "%s/metrics", ckp->logdir);
+	snprintf(tmppath, sizeof(tmppath), "%s/metrics.tmp", ckp->logdir);
+
+	fp = fopen(tmppath, "w");
+	if (!fp) {
+		LOGERR("Failed to open metrics temp file %s", tmppath);
+		return;
+	}
+
+	/* Compute latency percentile deltas early */
+	int64_t submit_p50_delta = (int64_t)submit_p50 - (int64_t)sdata->metrics.prev_submit_latency_p50;
+	int64_t submit_p95_delta = (int64_t)submit_p95 - (int64_t)sdata->metrics.prev_submit_latency_p95;
+	int64_t submit_p99_delta = (int64_t)submit_p99 - (int64_t)sdata->metrics.prev_submit_latency_p99;
+	int64_t block_p50_delta = (int64_t)block_p50 - (int64_t)sdata->metrics.prev_block_latency_p50;
+	int64_t block_p95_delta = (int64_t)block_p95 - (int64_t)sdata->metrics.prev_block_latency_p95;
+	int64_t block_p99_delta = (int64_t)block_p99 - (int64_t)sdata->metrics.prev_block_latency_p99;
+
+	fprintf(fp, "timestamp=%ld\n", now);
+	fprintf(fp, "\n# Share metrics\n");
+	fprintf(fp, "shares_total=%"PRIu64"\n", shares_total);
+	fprintf(fp, "shares_accepted=%"PRIu64" (%.2f%%)\n", sdata->metrics.shares_accepted, accepted_pct);
+	fprintf(fp, "shares_accepted_delta=%"PRIu64"\n", delta_accepted);
+	fprintf(fp, "shares_rejected=%"PRIu64" (%.2f%%)\n", sdata->metrics.shares_rejected, rejected_pct);
+	fprintf(fp, "shares_rejected_delta=%"PRIu64"\n", delta_rejected);
+	fprintf(fp, "shares_invalid=%"PRIu64" (%.2f%%)\n", sdata->metrics.shares_invalid, invalid_pct);
+	fprintf(fp, "shares_invalid_delta=%"PRIu64"\n", delta_invalid);
+
+	fprintf(fp, "\n# Error and connection metrics\n");
+	fprintf(fp, "auth_fails=%"PRIu64"\n", sdata->metrics.auth_fails);
+	fprintf(fp, "auth_fails_delta=%"PRIu64"\n", delta_auth_fails);
+	fprintf(fp, "rpc_errors=%"PRIu64"\n", sdata->metrics.rpc_errors);
+	fprintf(fp, "rpc_errors_delta=%"PRIu64"\n", delta_rpc_errors);
+	fprintf(fp, "client_disconnects=%"PRIu64"\n", sdata->metrics.client_disconnects);
+	fprintf(fp, "client_disconnects_delta=%"PRIu64"\n", delta_disconnects);
+
+	fprintf(fp, "\n# Submit latency metrics (microseconds)\n");
+	fprintf(fp, "submit_latency_usec_avg=%"PRIu64"\n", submit_avg);
+	fprintf(fp, "submit_latency_usec_min=%"PRIu64"\n", sdata->metrics.submit_latency_usec_min);
+	fprintf(fp, "submit_latency_usec_max=%"PRIu64"\n", sdata->metrics.submit_latency_usec_max);
+	fprintf(fp, "submit_latency_usec_p50=%"PRIu64"\n", submit_p50);
+	fprintf(fp, "submit_latency_usec_p95=%"PRIu64"\n", submit_p95);
+	fprintf(fp, "submit_latency_usec_p99=%"PRIu64"\n", submit_p99);
+	fprintf(fp, "submit_latency_usec_p50_delta=%+"PRId64"\n", submit_p50_delta);
+	fprintf(fp, "submit_latency_usec_p95_delta=%+"PRId64"\n", submit_p95_delta);
+	fprintf(fp, "submit_latency_usec_p99_delta=%+"PRId64"\n", submit_p99_delta);
+	fprintf(fp, "submit_latency_samples=%"PRIu64"\n", sdata->metrics.submit_latency_samples);
+
+	fprintf(fp, "\n# Block fetch latency metrics (microseconds)\n");
+	fprintf(fp, "block_fetch_latency_usec_avg=%"PRIu64"\n", block_avg);
+	fprintf(fp, "block_fetch_latency_usec_min=%"PRIu64"\n", sdata->metrics.block_fetch_latency_usec_min);
+	fprintf(fp, "block_fetch_latency_usec_max=%"PRIu64"\n", sdata->metrics.block_fetch_latency_usec_max);
+	fprintf(fp, "block_fetch_latency_usec_p50=%"PRIu64"\n", block_p50);
+	fprintf(fp, "block_fetch_latency_usec_p95=%"PRIu64"\n", block_p95);
+	fprintf(fp, "block_fetch_latency_usec_p99=%"PRIu64"\n", block_p99);
+	fprintf(fp, "block_fetch_latency_usec_p50_delta=%+"PRId64"\n", block_p50_delta);
+	fprintf(fp, "block_fetch_latency_usec_p95_delta=%+"PRId64"\n", block_p95_delta);
+	fprintf(fp, "block_fetch_latency_usec_p99_delta=%+"PRId64"\n", block_p99_delta);
+	fprintf(fp, "block_fetch_latency_samples=%"PRIu64"\n", sdata->metrics.block_fetch_latency_samples);
+
+	/* Report computational overhead (excludes file I/O) */
+	fprintf(fp, "\n# Metrics system overhead (computation only)\n");
+	fprintf(fp, "metrics_compute_overhead_usec=%"PRIu64"\n", dump_overhead_usec);
+
+	/* Update previous percentiles for next interval */
+	sdata->metrics.prev_submit_latency_p50 = submit_p50;
+	sdata->metrics.prev_submit_latency_p95 = submit_p95;
+	sdata->metrics.prev_submit_latency_p99 = submit_p99;
+	sdata->metrics.prev_block_latency_p50 = block_p50;
+	sdata->metrics.prev_block_latency_p95 = block_p95;
+	sdata->metrics.prev_block_latency_p99 = block_p99;
+
+	fclose(fp);
+
+	/* Atomic rename */
+	if (rename(tmppath, metricspath) < 0)
+		LOGERR("Failed to rename metrics file from %s to %s", tmppath, metricspath);
 }
 
 char *stratifier_stats(ckpool_t *ckp, void *data)
@@ -6296,12 +6520,18 @@ out_nowb:
 				LOGINFO("Accepted client %s share diff %.10f/%.10f/%s: %s",
 					client->identity, sdiff, diff, wdiffsuffix, hexhash);
 				result = true;
+				mutex_lock(&sdata->metrics_lock);
+				sdata->metrics.shares_accepted++;
+				mutex_unlock(&sdata->metrics_lock);
 			} else {
 				err = SE_DUPE;
 				json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
 				LOGINFO("Rejected client %s dupe diff %.1f/%.10f/%s: %s",
 					client->identity, sdiff, diff, wdiffsuffix, hexhash);
 				submit = false;
+				mutex_lock(&sdata->metrics_lock);
+				sdata->metrics.shares_invalid++;
+				mutex_unlock(&sdata->metrics_lock);
 			}
 		} else {
 			err = SE_HIGH_DIFF;
@@ -6309,9 +6539,16 @@ out_nowb:
 				client->identity, sdiff, diff, wdiffsuffix, hexhash);
 			json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
 			submit = false;
+			mutex_lock(&sdata->metrics_lock);
+			sdata->metrics.shares_rejected++;
+			mutex_unlock(&sdata->metrics_lock);
 		}
-	}  else
+	}  else {
 		LOGINFO("Rejected client %s invalid share %s", client->identity, SHARE_ERR(err));
+		mutex_lock(&sdata->metrics_lock);
+		sdata->metrics.shares_invalid++;
+		mutex_unlock(&sdata->metrics_lock);
+	}
 
 	/* Submit share to upstream pool in proxy mode. We submit valid and
 	 * stale shares and filter out the rest. */
@@ -7792,6 +8029,10 @@ static void sshare_process(ckpool_t *ckp, json_params_t *jp)
 	stratum_instance_t *client;
 	sdata_t *sdata = ckp->sdata;
 	int64_t client_id;
+	tv_t tv_start, tv_end;
+	uint64_t latency_usec;
+
+	tv_time(&tv_start);
 
 	client_id = jp->client_id;
 
@@ -7810,6 +8051,23 @@ static void sshare_process(ckpool_t *ckp, json_params_t *jp)
 	json_object_set_new_nocheck(json_msg, "error", err_val ? err_val : json_null());
 	steal_json_id(json_msg, jp);
 	stratum_add_send(sdata, json_msg, client_id, SM_SHARERESULT);
+
+	/* Record submit latency */
+	tv_time(&tv_end);
+	latency_usec = tvdiff(&tv_end, &tv_start) * 1000; /* tvdiff returns ms, convert to usec */
+	mutex_lock(&sdata->metrics_lock);
+	if (sdata->metrics.submit_latency_samples == 0 || latency_usec < sdata->metrics.submit_latency_usec_min)
+		sdata->metrics.submit_latency_usec_min = latency_usec;
+	if (latency_usec > sdata->metrics.submit_latency_usec_max)
+		sdata->metrics.submit_latency_usec_max = latency_usec;
+	sdata->metrics.submit_latency_usec_sum += latency_usec;
+	sdata->metrics.submit_latency_samples++;
+	/* Add to rolling window for percentile calculation */
+	int idx = sdata->metrics.submit_latency_window_idx % 100;
+	sdata->metrics.submit_latency_samples_window[idx] = latency_usec;
+	sdata->metrics.submit_latency_window_idx++;
+	mutex_unlock(&sdata->metrics_lock);
+
 out_decref:
 	dec_instance_ref(sdata, client);
 out:
@@ -7890,8 +8148,12 @@ static void sauth_process(ckpool_t *ckp, json_params_t *jp)
 			goto out;
 		}
 		send_auth_success(ckp, sdata, client);
-	} else
+	} else {
 		send_auth_failure(sdata, client);
+		mutex_lock(&sdata->metrics_lock);
+		sdata->metrics.auth_fails++;
+		mutex_unlock(&sdata->metrics_lock);
+	}
 	send_auth_response(sdata, client_id, ret, jp->id_val, err_val);
 	if (!ret)
 		goto out;
@@ -8599,6 +8861,9 @@ static void *statsupdate(void *arg)
 		mutex_lock(&sdata->stats_lock);
 		stats->remote_workers = stats->remote_users = 0;
 		mutex_unlock(&sdata->stats_lock);
+
+		/* Dump metrics to file for observability */
+		dump_metrics(ckp, sdata);
 	}
 
 	return NULL;
@@ -8895,6 +9160,7 @@ void *stratifier(void *arg)
 
 	mutex_init(&sdata->stats_lock);
 	mutex_init(&sdata->uastats_lock);
+	mutex_init(&sdata->metrics_lock);
 	if (!ckp->passthrough || ckp->node)
 		create_pthread(&pth_statsupdate, statsupdate, ckp);
 

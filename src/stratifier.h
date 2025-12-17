@@ -88,6 +88,60 @@ struct genwork {
 	json_t *json; /* getblocktemplate json */
 };
 
+/* Pool-wide metrics for observability */
+struct stratifier_metrics {
+	/* Share counters */
+	uint64_t shares_accepted;
+	uint64_t shares_rejected;
+	uint64_t shares_invalid;  /* Stale, duplicate, etc. */
+	
+	/* Auth and connection counters */
+	uint64_t auth_fails;
+	uint64_t client_disconnects;
+	
+	/* RPC errors */
+	uint64_t rpc_errors;
+
+	/* Previous interval values for delta calculation */
+	uint64_t prev_shares_accepted;
+	uint64_t prev_shares_rejected;
+	uint64_t prev_shares_invalid;
+	uint64_t prev_auth_fails;
+	uint64_t prev_client_disconnects;
+	uint64_t prev_rpc_errors;
+
+	/* Previous interval latency percentiles for delta calculation */
+	uint64_t prev_submit_latency_p50;
+	uint64_t prev_submit_latency_p95;
+	uint64_t prev_submit_latency_p99;
+	uint64_t prev_block_latency_p50;
+	uint64_t prev_block_latency_p95;
+	uint64_t prev_block_latency_p99;
+
+	/* Timing samples (microseconds) for submit latency */
+	uint64_t submit_latency_usec_min;
+	uint64_t submit_latency_usec_max;
+	uint64_t submit_latency_usec_sum;
+	uint64_t submit_latency_samples;
+	/* Rolling array of recent samples for percentile calculation (keep last 100) */
+	uint64_t submit_latency_samples_window[100];
+	int submit_latency_window_idx;
+
+	/* Timing samples (microseconds) for block fetch latency */
+	uint64_t block_fetch_latency_usec_min;
+	uint64_t block_fetch_latency_usec_max;
+	uint64_t block_fetch_latency_usec_sum;
+	uint64_t block_fetch_latency_samples;
+	/* Rolling array of recent samples for percentile calculation (keep last 100) */
+	uint64_t block_fetch_latency_samples_window[100];
+	int block_fetch_latency_window_idx;
+
+	/* Timestamp of last write */
+	time_t last_dump_time;
+};
+
+typedef struct stratifier_metrics stratifier_metrics_t;
+
 void parse_remote_txns(ckpool_t *ckp, const json_t *val);
 #define parse_upstream_txns(ckp, val) parse_remote_txns(ckp, val)
 void parse_upstream_auth(ckpool_t *ckp, json_t *val);
