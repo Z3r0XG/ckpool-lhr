@@ -4095,61 +4095,87 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 
 	/* Submit latency object */
 	json_t *submit = json_object();
-	json_set_int64(submit, "average_usec", submit_avg);
-	json_set_int64(submit, "minimum_usec", sdata->metrics.submit_latency_usec_min);
-	json_set_int64(submit, "maximum_usec", sdata->metrics.submit_latency_usec_max);
+	char buf[64];
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", submit_avg);
+	json_set_string(submit, "average", buf);
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", sdata->metrics.submit_latency_usec_min);
+	json_set_string(submit, "minimum", buf);
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", sdata->metrics.submit_latency_usec_max);
+	json_set_string(submit, "maximum", buf);
 	json_set_int64(submit, "sample_count", sdata->metrics.submit_latency_samples);
 
 	json_t *submit_p50_obj = json_object();
-	json_set_int64(submit_p50_obj, "value_usec", submit_p50);
-	json_set_int64(submit_p50_obj, "delta_usec", submit_p50_delta);
-	json_set_int64(submit_p50_obj, "age_sec", submit_p50_age);
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", submit_p50);
+	json_set_string(submit_p50_obj, "value", buf);
+	snprintf(buf, sizeof(buf), "%+"PRId64"u", submit_p50_delta);
+	json_set_string(submit_p50_obj, "delta", buf);
+	snprintf(buf, sizeof(buf), "%lds", submit_p50_age);
+	json_set_string(submit_p50_obj, "age", buf);
 	json_set_object(submit, "p50", submit_p50_obj);
 
 	json_t *submit_p95_obj = json_object();
-	json_set_int64(submit_p95_obj, "value_usec", submit_p95);
-	json_set_int64(submit_p95_obj, "delta_usec", submit_p95_delta);
-	json_set_int64(submit_p95_obj, "age_sec", submit_p95_age);
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", submit_p95);
+	json_set_string(submit_p95_obj, "value", buf);
+	snprintf(buf, sizeof(buf), "%+"PRId64"u", submit_p95_delta);
+	json_set_string(submit_p95_obj, "delta", buf);
+	snprintf(buf, sizeof(buf), "%lds", submit_p95_age);
+	json_set_string(submit_p95_obj, "age", buf);
 	json_set_object(submit, "p95", submit_p95_obj);
 
 	json_t *submit_p99_obj = json_object();
-	json_set_int64(submit_p99_obj, "value_usec", submit_p99);
-	json_set_int64(submit_p99_obj, "delta_usec", submit_p99_delta);
-	json_set_int64(submit_p99_obj, "age_sec", submit_p99_age);
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", submit_p99);
+	json_set_string(submit_p99_obj, "value", buf);
+	snprintf(buf, sizeof(buf), "%+"PRId64"u", submit_p99_delta);
+	json_set_string(submit_p99_obj, "delta", buf);
+	snprintf(buf, sizeof(buf), "%lds", submit_p99_age);
+	json_set_string(submit_p99_obj, "age", buf);
 	json_set_object(submit, "p99", submit_p99_obj);
 
 	json_set_object(root, "submit_latency", submit);
 
 	/* Block fetch latency object */
 	json_t *block = json_object();
-	json_set_int64(block, "average_usec", block_avg);
-	json_set_int64(block, "minimum_usec", sdata->metrics.block_fetch_latency_usec_min);
-	json_set_int64(block, "maximum_usec", sdata->metrics.block_fetch_latency_usec_max);
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", block_avg);
+	json_set_string(block, "average", buf);
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", sdata->metrics.block_fetch_latency_usec_min);
+	json_set_string(block, "minimum", buf);
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", sdata->metrics.block_fetch_latency_usec_max);
+	json_set_string(block, "maximum", buf);
 	json_set_int64(block, "sample_count", sdata->metrics.block_fetch_latency_samples);
 
 	json_t *block_p50_obj = json_object();
-	json_set_int64(block_p50_obj, "value_usec", block_p50);
-	json_set_int64(block_p50_obj, "delta_usec", block_p50_delta);
-	json_set_int64(block_p50_obj, "age_sec", block_p50_age);
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", block_p50);
+	json_set_string(block_p50_obj, "value", buf);
+	snprintf(buf, sizeof(buf), "%+"PRId64"u", block_p50_delta);
+	json_set_string(block_p50_obj, "delta", buf);
+	snprintf(buf, sizeof(buf), "%lds", block_p50_age);
+	json_set_string(block_p50_obj, "age", buf);
 	json_set_object(block, "p50", block_p50_obj);
 
 	json_t *block_p95_obj = json_object();
-	json_set_int64(block_p95_obj, "value_usec", block_p95);
-	json_set_int64(block_p95_obj, "delta_usec", block_p95_delta);
-	json_set_int64(block_p95_obj, "age_sec", block_p95_age);
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", block_p95);
+	json_set_string(block_p95_obj, "value", buf);
+	snprintf(buf, sizeof(buf), "%+"PRId64"u", block_p95_delta);
+	json_set_string(block_p95_obj, "delta", buf);
+	snprintf(buf, sizeof(buf), "%lds", block_p95_age);
+	json_set_string(block_p95_obj, "age", buf);
 	json_set_object(block, "p95", block_p95_obj);
 
 	json_t *block_p99_obj = json_object();
-	json_set_int64(block_p99_obj, "value_usec", block_p99);
-	json_set_int64(block_p99_obj, "delta_usec", block_p99_delta);
-	json_set_int64(block_p99_obj, "age_sec", block_p99_age);
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", block_p99);
+	json_set_string(block_p99_obj, "value", buf);
+	snprintf(buf, sizeof(buf), "%+"PRId64"u", block_p99_delta);
+	json_set_string(block_p99_obj, "delta", buf);
+	snprintf(buf, sizeof(buf), "%lds", block_p99_age);
+	json_set_string(block_p99_obj, "age", buf);
 	json_set_object(block, "p99", block_p99_obj);
 
 	json_set_object(root, "block_fetch_latency", block);
 
 	/* Compute overhead */
 	json_t *compute = json_object();
-	json_set_int64(compute, "overhead_usec", dump_overhead_usec);
+	snprintf(buf, sizeof(buf), "%"PRIu64"u", dump_overhead_usec);
+	json_set_string(compute, "overhead", buf);
 	json_set_object(root, "compute", compute);
 
 	/* Optional comment string for readability */
