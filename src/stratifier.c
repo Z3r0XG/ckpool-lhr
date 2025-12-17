@@ -4210,7 +4210,7 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	json_set_string(submit_p99_obj, "age", buf);
 	json_set_object(submit, "p99", submit_p99_obj);
 
-	json_set_object(root, "submit_latency", submit);
+	json_set_object(root, "share_process_latency", submit);
 
 	/* Block fetch latency object */
 	json_t *block = json_object();
