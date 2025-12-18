@@ -57,3 +57,17 @@ devices and other embedded systems).
 > [!NOTE]
 > Users who have never submitted a share are not saved to disk regardless of this setting.
 
+### 5. Proxy Protocol v2/v1 Support
+
+**Purpose**: Enable ckpool-lhr to operate behind TCP proxies (Cloudflare Spectrum, HAProxy, NGINX) that inject Proxy Protocol headers.
+
+**Behavior**:
+- Automatically detects and parses Proxy Protocol v2 (binary) and v1 (text) headers
+- Extracts real client IP address and port from the header
+- Updates connection logs to display the real client IP instead of the proxy's IP
+- Safely discards the Proxy Protocol header before parsing Stratum JSON messages
+- **No configuration required** — detection is opportunistic and always enabled
+- Falls back gracefully for connections without Proxy Protocol headers
+- Logs "PPv2/PPv1 parsed: real client IP=..." when a header is detected
+- Prevents "Invalid JSON" errors that would occur if the header were treated as a Stratum message
+
