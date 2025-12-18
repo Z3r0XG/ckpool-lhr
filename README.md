@@ -9,6 +9,7 @@ pool software in C for Linux.
 ## Key Features
 
 - Sub-"1" difficulty support for low hash rate miners
+- Proxy Protocol v2/v1 support (Cloudflare Spectrum, etc.)
 - Bitcoind cookie authentication
 - User agent whitelisting
 - Configurable user data cleanup
