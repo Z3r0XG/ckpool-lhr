@@ -4101,6 +4101,47 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	time_t block_p95_age = now - sdata->metrics.block_latency_p95_update_time;
 	time_t block_p99_age = now - sdata->metrics.block_latency_p99_update_time;
 
+	/* Compute health status */
+	double stale_pct = 0.0, duplicate_pct = 0.0, reject_pct = 0.0;
+	const char *share_validation_status = "healthy";
+	const char *activity_status = "healthy";
+	const char *overall_status = "healthy";
+	time_t last_event_sec = 0;
+	
+	if (shares_total > 0) {
+		stale_pct = ((double)sdata->metrics.shares_stale / shares_total) * 100.0;
+		duplicate_pct = ((double)sdata->metrics.shares_duplicate / shares_total) * 100.0;
+		reject_pct = ((double)sdata->metrics.shares_rejected / shares_total) * 100.0;
+	}
+	
+	/* Determine share validation status */
+	if (stale_pct > 10.0 || duplicate_pct > 5.0 || reject_pct > 10.0)
+		share_validation_status = "critical";
+	else if (stale_pct > 5.0 || duplicate_pct > 2.0 || reject_pct > 5.0)
+		share_validation_status = "degraded";
+	
+	/* Determine activity status based on last event time */
+	if (sdata->metrics.last_share_time > 0 && sdata->metrics.last_block_time > 0) {
+		time_t share_age = now - sdata->metrics.last_share_time;
+		time_t block_age = now - sdata->metrics.last_block_time;
+		last_event_sec = (share_age < block_age) ? share_age : block_age;
+	} else if (sdata->metrics.last_share_time > 0) {
+		last_event_sec = now - sdata->metrics.last_share_time;
+	} else if (sdata->metrics.last_block_time > 0) {
+		last_event_sec = now - sdata->metrics.last_block_time;
+	}
+	
+	if (last_event_sec > 600)
+		activity_status = "critical";
+	else if (last_event_sec > 300)
+		activity_status = "degraded";
+	
+	/* Overall status is worst of all indicators */
+	if (strcmp(share_validation_status, "critical") == 0 || strcmp(activity_status, "critical") == 0)
+		overall_status = "critical";
+	else if (strcmp(share_validation_status, "degraded") == 0 || strcmp(activity_status, "degraded") == 0)
+		overall_status = "degraded";
+
 	/* Build single nested JSON object for metrics output */
 	json_t *root = json_object();
 
@@ -4331,6 +4372,24 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	mutex_unlock(sdata->ssends->lock);
 	json_set_int64(queues, "send_depth", send_queue_depth);
 	json_set_object(root, "queues", queues);
+
+	/* Health status */
+	json_t *health = json_object();
+	json_set_string(health, "status", overall_status);
+	
+	json_t *share_validation = json_object();
+	json_set_string(share_validation, "status", share_validation_status);
+	json_set_double(share_validation, "stale_pct", stale_pct);
+	json_set_double(share_validation, "duplicate_pct", duplicate_pct);
+	json_set_double(share_validation, "reject_pct", reject_pct);
+	json_set_object(health, "share_validation", share_validation);
+	
+	json_t *activity = json_object();
+	json_set_string(activity, "status", activity_status);
+	json_set_int64(activity, "last_event_sec", last_event_sec);
+	json_set_object(health, "activity", activity);
+	
+	json_set_object(root, "health", health);
 
 	/* Overhead at root */
 	format_seconds_from_us(buf, sizeof(buf), dump_overhead_usec);
