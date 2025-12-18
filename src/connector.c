@@ -13,6 +13,8 @@
 #include <netinet/in.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -85,6 +87,10 @@ struct client_instance {
 
 	/* The size of the socket send buffer */
 	int sendbufsize;
+
+	/* Opportunistic Proxy Protocol state: discard remaining header bytes */
+	unsigned long pp_discard_remaining;
+	bool pp_pending;
 };
 
 struct sender_send {
@@ -324,10 +330,74 @@ static int accept_client(cdata_t *cdata, const int epfd, const uint64_t server)
 			return 0;
 	}
 
+		/* Opportunistic Proxy Protocol v2/v1 detection via non-blocking peek.
+		 * If present, update the logged client address/port and mark header
+		 * bytes to discard on first read. No effect on non-PP traffic. */
+		{
+			unsigned char peekbuf[128];
+			ssize_t n = recv(fd, peekbuf, sizeof(peekbuf), MSG_PEEK | MSG_DONTWAIT);
+			if (n >= 16) {
+				static const unsigned char ppv2_magic[12] = {0x0D,0x0A,0x0D,0x0A,0x00,0x0D,0x0A,0x51,0x55,0x49,0x54,0x0A};
+				if (!memcmp(peekbuf, ppv2_magic, 12)) {
+					unsigned char vercmd = peekbuf[12];
+					unsigned char famproto = peekbuf[13];
+					uint16_t len = ((uint16_t)peekbuf[14] << 8) | (uint16_t)peekbuf[15];
+					/* Ensure we have the whole header in the peek */
+					if (n >= (ssize_t)(16 + len) && (vercmd >> 4) == 2) {
+						const unsigned char *addrp = peekbuf + 16;
+						unsigned char fam = famproto >> 4;
+						if (fam == 1 && len >= 12) { /* TCP4 */
+							struct in_addr src4;
+							uint16_t sport = ((uint16_t)addrp[8] << 8) | (uint16_t)addrp[9];
+							memcpy(&src4, addrp, 4);
+							inet_ntop(AF_INET, &src4, client->address_name, INET6_ADDRSTRLEN);
+							port = sport;
+							client->pp_discard_remaining = 16 + len;
+							client->pp_pending = true;
+						} else if (fam == 2 && len >= 36) { /* TCP6 */
+							struct in6_addr src6;
+							uint16_t sport6 = ((uint16_t)addrp[32] << 8) | (uint16_t)addrp[33];
+							memcpy(&src6, addrp, 16);
+							inet_ntop(AF_INET6, &src6, client->address_name, INET6_ADDRSTRLEN);
+							port = sport6;
+							client->pp_discard_remaining = 16 + len;
+							client->pp_pending = true;
+						}
+					}
+				}
+			}
+			/* Proxy Protocol v1: starts with "PROXY " and ends with CRLF */
+			if (!client->pp_pending && n > 6 && !memcmp(peekbuf, "PROXY ", 6)) {
+				int eol = -1;
+				for (int i = 6; i < n; i++) {
+					if (peekbuf[i] == '\n') { eol = i; break; }
+				}
+				if (eol > 0 && peekbuf[eol-1] == '\r') {
+					char line[128];
+					int linelen = eol + 1; /* include \n */
+					if (linelen > (int)sizeof(line)) linelen = sizeof(line)-1;
+					memcpy(line, peekbuf, linelen);
+					line[linelen] = '\0';
+					char proto[16], srcip[64], dstip[64];
+					int sport = 0, dport = 0;
+					if (sscanf(line, "PROXY %15s %63s %63s %d %d", proto, srcip, dstip, &sport, &dport) == 5) {
+						strncpy(client->address_name, srcip, INET6_ADDRSTRLEN);
+						client->address_name[INET6_ADDRSTRLEN-1] = '\0';
+						port = sport;
+						client->pp_discard_remaining = (unsigned long)(eol + 1);
+						client->pp_pending = true;
+					}
+				}
+			}
+		}
+
 	keep_sockalive(fd);
 	noblock_socket(fd);
 
-	LOGINFO("Connected new client %d on socket %d to %d active clients from %s:%d",
+	if (unlikely(client->pp_pending))
+		LOGNOTICE("PPv2/PPv1 parsed: real client IP=%s port=%d", client->address_name, port);
+
+	LOGNOTICE("Connected new client %d on socket %d to %d active clients from %s:%d",
 		cdata->nfds, fd, no_clients, client->address_name, port);
 
 	ck_wlock(&cdata->lock);
@@ -527,6 +597,25 @@ retry:
 		}
 		client->buf = realloc(client->buf, round_up_page(client->bufofs + MAX_MSGSIZE + 1));
 	}
+
+	/* Discard any pending Proxy Protocol header bytes before reading JSON. */
+	if (unlikely(client->pp_pending)) {
+		char tmp[256];
+		unsigned long toread = client->pp_discard_remaining < sizeof(tmp) ? client->pp_discard_remaining : (unsigned long)sizeof(tmp);
+		ret = read(client->fd, tmp, toread);
+		if (ret < 1) {
+			/* No data available; non-blocking would return EAGAIN */
+			if (errno == EAGAIN || errno == EWOULDBLOCK)
+				return true;
+			return true; /* wait for more */
+		}
+		client->pp_discard_remaining -= ret;
+		if (client->pp_discard_remaining > 0)
+			goto retry; /* loop back to discard more or read JSON */
+		client->pp_pending = false;
+		/* PP header fully discarded, now fall through to read JSON */
+	}
+
 	/* This read call is non-blocking since the socket is set to O_NOBLOCK */
 	ret = read(client->fd, client->buf + client->bufofs, MAX_MSGSIZE);
 	if (ret < 1) {
