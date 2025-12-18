@@ -93,7 +93,9 @@ struct stratifier_metrics {
 	/* Share counters */
 	uint64_t shares_accepted;
 	uint64_t shares_rejected;
-	uint64_t shares_invalid;  /* Stale, duplicate, etc. */
+	uint64_t shares_invalid;  /* General invalid category */
+	uint64_t shares_stale;
+	uint64_t shares_duplicate;
 	
 	/* Auth and connection counters */
 	uint64_t auth_fails;
@@ -102,10 +104,16 @@ struct stratifier_metrics {
 	/* RPC errors */
 	uint64_t rpc_errors;
 
+	/* Workbase health */
+	uint64_t workbases_generated;
+	uint64_t prev_workbases_generated;
+
 	/* Previous interval values for delta calculation */
 	uint64_t prev_shares_accepted;
 	uint64_t prev_shares_rejected;
 	uint64_t prev_shares_invalid;
+	uint64_t prev_shares_stale;
+	uint64_t prev_shares_duplicate;
 	uint64_t prev_auth_fails;
 	uint64_t prev_client_disconnects;
 	uint64_t prev_rpc_errors;
@@ -148,6 +156,10 @@ struct stratifier_metrics {
 
 	/* Timestamp of last write */
 	time_t last_dump_time;
+
+	/* Heartbeat timestamps */
+	time_t last_share_time;
+	time_t last_block_time;
 };
 
 typedef struct stratifier_metrics stratifier_metrics_t;

@@ -1094,6 +1094,9 @@ static void add_base(ckpool_t *ckp, sdata_t *sdata, workbase_t *wb, bool *new_bl
 	 * setting the workbase_id */
 	ck_wlock(&sdata->workbase_lock);
 	ckp_sdata->workbases_generated++;
+	mutex_lock(&ckp_sdata->metrics_lock);
+	ckp_sdata->metrics.workbases_generated++;
+	mutex_unlock(&ckp_sdata->metrics_lock);
 	if (!ckp->proxy)
 		wb->mapped_id = wb->id = sdata->workbase_id++;
 	else
@@ -1563,6 +1566,7 @@ retry:
 	int idx = sdata->metrics.block_fetch_latency_window_idx % 100;
 	sdata->metrics.block_fetch_latency_samples_window[idx] = latency_usec;
 	sdata->metrics.block_fetch_latency_window_idx++;
+	sdata->metrics.last_block_time = time(NULL);
 	mutex_unlock(&sdata->metrics_lock);
 
 	wb->ckp = ckp;
@@ -1804,6 +1808,9 @@ static void add_remote_base(ckpool_t *ckp, sdata_t *sdata, workbase_t *wb)
 
 	ck_wlock(&sdata->workbase_lock);
 	sdata->workbases_generated++;
+	mutex_lock(&sdata->metrics_lock);
+	sdata->metrics.workbases_generated++;
+	mutex_unlock(&sdata->metrics_lock);
 	wb->mapped_id = sdata->workbase_id++;
 	HASH_ITER(hh, sdata->remote_workbases, tmp, tmpa) {
 		if (HASH_COUNT(sdata->remote_workbases) < 3)
@@ -3977,6 +3984,8 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	/* Delta values since last dump */
 	uint64_t delta_accepted, delta_rejected, delta_invalid;
 	uint64_t delta_auth_fails, delta_disconnects, delta_rpc_errors;
+	/* Queue depths */
+	int64_t share_queue_depth = 0, send_queue_depth = 0;
 
 	if (!ckp->logdir)
 		return;
@@ -4254,6 +4263,75 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 
 	json_set_object(root, "block_fetch_latency", block);
 
+	/* Share validation counters */
+	json_t *shares = json_object();
+	
+	json_t *shares_accepted_obj = json_object();
+	json_set_int64(shares_accepted_obj, "count", sdata->metrics.shares_accepted);
+	json_set_int64(shares_accepted_obj, "delta", sdata->metrics.shares_accepted - sdata->metrics.prev_shares_accepted);
+	json_set_object(shares, "accepted", shares_accepted_obj);
+	
+	json_t *shares_rejected_obj = json_object();
+	json_set_int64(shares_rejected_obj, "count", sdata->metrics.shares_rejected);
+	json_set_int64(shares_rejected_obj, "delta", sdata->metrics.shares_rejected - sdata->metrics.prev_shares_rejected);
+	json_set_object(shares, "rejected", shares_rejected_obj);
+	
+	json_t *shares_invalid_obj = json_object();
+	json_set_int64(shares_invalid_obj, "count", sdata->metrics.shares_invalid);
+	json_set_int64(shares_invalid_obj, "delta", sdata->metrics.shares_invalid - sdata->metrics.prev_shares_invalid);
+	json_set_object(shares, "invalid", shares_invalid_obj);
+	
+	json_t *shares_stale_obj = json_object();
+	json_set_int64(shares_stale_obj, "count", sdata->metrics.shares_stale);
+	json_set_int64(shares_stale_obj, "delta", sdata->metrics.shares_stale - sdata->metrics.prev_shares_stale);
+	json_set_object(shares, "stale", shares_stale_obj);
+	
+	json_t *shares_duplicate_obj = json_object();
+	json_set_int64(shares_duplicate_obj, "count", sdata->metrics.shares_duplicate);
+	json_set_int64(shares_duplicate_obj, "delta", sdata->metrics.shares_duplicate - sdata->metrics.prev_shares_duplicate);
+	json_set_object(shares, "duplicate", shares_duplicate_obj);
+	
+	json_set_object(root, "shares", shares);
+
+	/* Workbase health */
+	json_t *workbase = json_object();
+	json_t *workbase_generated_obj = json_object();
+	json_set_int64(workbase_generated_obj, "count", sdata->metrics.workbases_generated);
+	json_set_int64(workbase_generated_obj, "delta", sdata->metrics.workbases_generated - sdata->metrics.prev_workbases_generated);
+	json_set_object(workbase, "generated", workbase_generated_obj);
+	json_set_object(root, "workbase", workbase);
+
+	/* Heartbeat ages */
+	json_t *heartbeat = json_object();
+	if (sdata->metrics.last_share_time > 0) {
+		time_t share_age = now - sdata->metrics.last_share_time;
+		format_seconds_from_us(buf, sizeof(buf), (uint64_t)share_age * 1000000ULL);
+		json_set_string(heartbeat, "last_share_age", buf);
+	} else {
+		json_set_string(heartbeat, "last_share_age", "never");
+	}
+	if (sdata->metrics.last_block_time > 0) {
+		time_t block_age = now - sdata->metrics.last_block_time;
+		format_seconds_from_us(buf, sizeof(buf), (uint64_t)block_age * 1000000ULL);
+		json_set_string(heartbeat, "last_block_age", buf);
+	} else {
+		json_set_string(heartbeat, "last_block_age", "never");
+	}
+	json_set_object(root, "heartbeat", heartbeat);
+
+	/* Queue depths */
+	json_t *queues = json_object();
+	mutex_lock(sdata->sshareq->lock);
+	share_queue_depth = sdata->sshareq->messages;
+	mutex_unlock(sdata->sshareq->lock);
+	json_set_int64(queues, "share_depth", share_queue_depth);
+	
+	mutex_lock(sdata->ssends->lock);
+	send_queue_depth = sdata->ssends->messages;
+	mutex_unlock(sdata->ssends->lock);
+	json_set_int64(queues, "send_depth", send_queue_depth);
+	json_set_object(root, "queues", queues);
+
 	/* Overhead at root */
 	format_seconds_from_us(buf, sizeof(buf), dump_overhead_usec);
 	json_set_string(root, "overhead", buf);
@@ -4291,6 +4369,9 @@ static void dump_metrics(ckpool_t *ckp, sdata_t *sdata)
 	sdata->metrics.prev_block_latency_p99 = block_p99;
 	sdata->metrics.prev_submit_latency_samples = sdata->metrics.submit_latency_samples;
 	sdata->metrics.prev_block_fetch_latency_samples = sdata->metrics.block_fetch_latency_samples;
+	sdata->metrics.prev_shares_stale = sdata->metrics.shares_stale;
+	sdata->metrics.prev_shares_duplicate = sdata->metrics.shares_duplicate;
+	sdata->metrics.prev_workbases_generated = sdata->metrics.workbases_generated;
 
 	fclose(fp);
 
@@ -6656,6 +6737,9 @@ static json_t *parse_submit(stratum_instance_t *client, json_t *json_msg,
 		}
 		err = SE_STALE;
 		json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
+		mutex_lock(&sdata->metrics_lock);
+		sdata->metrics.shares_stale++;
+		mutex_unlock(&sdata->metrics_lock);
 		goto out_submit;
 	}
 no_stale:
@@ -6692,6 +6776,7 @@ out_nowb:
 				result = true;
 				mutex_lock(&sdata->metrics_lock);
 				sdata->metrics.shares_accepted++;
+				sdata->metrics.last_share_time = now_t;
 				mutex_unlock(&sdata->metrics_lock);
 			} else {
 				err = SE_DUPE;
@@ -6700,6 +6785,7 @@ out_nowb:
 					client->identity, sdiff, diff, wdiffsuffix, hexhash);
 				submit = false;
 				mutex_lock(&sdata->metrics_lock);
+				sdata->metrics.shares_duplicate++;
 				sdata->metrics.shares_invalid++;
 				mutex_unlock(&sdata->metrics_lock);
 			}
