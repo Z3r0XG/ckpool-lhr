@@ -2392,7 +2392,6 @@ int parse_proxy_protocol_peek(unsigned char *peekbuf, ssize_t n,
 			if (sscanf(line, "PROXY %15s %127s %127s %d %d", proto, srcip, dstip, &sport, &dport) == 5) {
 				if (!strcmp(proto, "UNKNOWN")) {
 					*pp_discard_remaining = (unsigned long)(eol + 1);
-					*pp_pending = true;
 				} else if (!strcmp(proto, "TCP4") || !strcmp(proto, "TCP6")) {
 					int family = !strcmp(proto, "TCP4") ? AF_INET : AF_INET6;
 					if (sport >= 0 && sport <= 65535 && dport >= 0 && dport <= 65535) {

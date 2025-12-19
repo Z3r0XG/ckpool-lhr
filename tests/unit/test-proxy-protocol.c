@@ -158,6 +158,29 @@ static void test_ppv1_tcp4_valid(void)
 	assert_int_equal(discard, strlen(ppv1_line));
 }
 
+/* Test: Valid PPv1 TCP6 with CRLF */
+static void test_ppv1_tcp6_valid(void)
+{
+	unsigned char buf[200];
+	char address[128] = {0};
+	int port = 0;
+	bool pp_pending = false, pp_parsed = false;
+	unsigned long discard = 0;
+
+	const char *ppv1_line = "PROXY TCP6 2001:db8::1 ::1 40000 3333\r\n";
+	strcpy((char*)buf, ppv1_line);
+	
+	int result = parse_proxy_protocol_peek(buf, strlen(ppv1_line),
+	                                        address, &port, &pp_pending, &discard, &pp_parsed);
+	
+	assert_true(result == 1);  /* PP detected */
+	assert_true(pp_parsed);    /* Valid parse */
+	assert_true(pp_pending);   /* Mark for discard */
+	assert_string_equal(address, "2001:db8::1");
+	assert_int_equal(port, 40000);
+	assert_int_equal(discard, strlen(ppv1_line));
+}
+
 /* Test: PPv1 without CRLF (incomplete) */
 static void test_ppv1_no_crlf(void)
 {
@@ -298,6 +321,7 @@ int main(void)
 	test_ppv2_oversized_len();
 	test_ppv2_incomplete_header();
 	test_ppv1_tcp4_valid();
+	test_ppv1_tcp6_valid();
 	test_ppv1_no_crlf();
 	test_ppv1_unknown_proto();
 	test_ppv2_truncated();
