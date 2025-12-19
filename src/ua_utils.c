@@ -14,9 +14,9 @@ void normalize_ua_buf(const char *src, char *dst, int len)
     while (*src && isspace((unsigned char)*src)) src++;
 
     while (*src && i < len - 1) {
-        if (*src == '/' || *src == '(' || isspace((unsigned char)*src))
+        if (*src == '/' || *src == '(')
             break;
-        dst[i++] = tolower((unsigned char)*src);
+        dst[i++] = (unsigned char)*src;
         src++;
     }
     dst[i] = '\0';
