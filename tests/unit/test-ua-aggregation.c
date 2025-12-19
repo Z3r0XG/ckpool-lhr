@@ -2,7 +2,7 @@
 #include <string.h>
 #include <assert.h>
 #include "../test_common.h"
-#include "../../src/ua_utils.h"
+#include "ua_utils.h"
 
 static void test_normalize_basic()
 {
