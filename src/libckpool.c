@@ -2305,7 +2305,7 @@ int parse_proxy_protocol_peek(unsigned char *peekbuf, ssize_t n,
                               bool *pp_pending, unsigned long *pp_discard_remaining,
                               bool *pp_parsed)
 {
-	if (n < 0 || n == 0)
+	if (n <= 0)
 		return 0;
 
 	/* PPv2 magic bytes: 0x0D,0x0A,0x0D,0x0A,0x00,0x0D,0x0A,0x51,0x55,0x49,0x54,0x0A */
