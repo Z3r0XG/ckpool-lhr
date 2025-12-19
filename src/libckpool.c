@@ -2336,7 +2336,7 @@ int parse_proxy_protocol_peek(unsigned char *peekbuf, ssize_t n,
 					memcpy(&src4, addrp, 4);
 					if (inet_ntop(AF_INET, &src4, address_name, INET6_ADDRSTRLEN) != NULL) {
 						*port = sport;
-						*pp_discard_remaining = 16 + len;
+						*pp_discard_remaining = 16UL + (unsigned long)len;
 						*pp_pending = true;
 						*pp_parsed = true;
 						return 1;
@@ -2347,7 +2347,7 @@ int parse_proxy_protocol_peek(unsigned char *peekbuf, ssize_t n,
 					memcpy(&src6, addrp, 16);
 					if (inet_ntop(AF_INET6, &src6, address_name, INET6_ADDRSTRLEN) != NULL) {
 						*port = sport6;
-						*pp_discard_remaining = 16 + len;
+						*pp_discard_remaining = 16UL + (unsigned long)len;
 						*pp_pending = true;
 						*pp_parsed = true;
 						return 1;
@@ -2356,7 +2356,7 @@ int parse_proxy_protocol_peek(unsigned char *peekbuf, ssize_t n,
 			}
 			/* Mark for discard: if we have the full header, discard it; else retry */
 			if (n >= (ssize_t)(16 + len)) {
-				*pp_discard_remaining = 16 + len;  /* Complete header, discard it */
+				*pp_discard_remaining = 16UL + (unsigned long)len;  /* Complete header, discard it */
 			}
 			*pp_pending = true;
 			return 1;  /* PPv2 detected but incomplete or unparseable */
