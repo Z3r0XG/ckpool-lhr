@@ -91,6 +91,7 @@ struct client_instance {
 	/* Opportunistic Proxy Protocol state: discard remaining header bytes */
 	unsigned long pp_discard_remaining;
 	bool pp_pending;
+	bool pp_parsed;
 };
 
 struct sender_send {
@@ -334,6 +335,8 @@ static int accept_client(cdata_t *cdata, const int epfd, const uint64_t server)
 	{
 		unsigned char peekbuf[528];
 		ssize_t n = recv(fd, peekbuf, sizeof(peekbuf), MSG_PEEK | MSG_DONTWAIT);
+		if (n < 0)
+			goto pp_done;
 		if (n >= 16) {
 			static const unsigned char ppv2_magic[12] = {0x0D,0x0A,0x0D,0x0A,0x00,0x0D,0x0A,0x51,0x55,0x49,0x54,0x0A};
 			if (!memcmp(peekbuf, ppv2_magic, 12)) {
@@ -357,6 +360,7 @@ static int accept_client(cdata_t *cdata, const int epfd, const uint64_t server)
 							port = sport;
 							client->pp_discard_remaining = 16 + len;
 							client->pp_pending = true;
+							client->pp_parsed = true;
 						}
 					} else if (fam == 2 && len >= 36) { /* TCP6 */
 						struct in6_addr src6;
@@ -366,31 +370,42 @@ static int accept_client(cdata_t *cdata, const int epfd, const uint64_t server)
 							port = sport6;
 							client->pp_discard_remaining = 16 + len;
 							client->pp_pending = true;
+							client->pp_parsed = true;
 						}
 					}
 				}
 			}
 		}
-	pp_done:
-			/* Proxy Protocol v1: starts with "PROXY " and ends with CRLF */
-			if (!client->pp_pending && n > 6 && !memcmp(peekbuf, "PROXY ", 6)) {
-				int eol = -1;
+pp_done:
+		/* Proxy Protocol v1: starts with "PROXY " and ends with CRLF */
+		if (!client->pp_pending && n > 6 && !memcmp(peekbuf, "PROXY ", 6)) {
+			int eol = -1;
 			for (int i = 6; i < n && i < (int)sizeof(peekbuf); i++) {
 				if (peekbuf[i] == '\n') { eol = i; break; }
 			}
-			if (eol > 0 && peekbuf[eol-1] == '\r') {
-				char line[128];
+			if (eol > 0)
+				client->pp_discard_remaining = (unsigned long)(eol + 1);
+			else
+				client->pp_discard_remaining = sizeof(peekbuf);
+			client->pp_pending = true;
+
+			if (eol > 0 && peekbuf[eol - 1] == '\r') {
+				char line[528];
 				int linelen = eol + 1; /* include \n */
-				if (linelen > (int)sizeof(line) - 1) linelen = (int)sizeof(line) - 1;
-				if (linelen > (int)n) linelen = (int)n;
+				if (linelen > (int)sizeof(line) - 1)
+					linelen = (int)sizeof(line) - 1;
+				if (linelen > (int)n)
+					linelen = (int)n;
 				memcpy(line, peekbuf, linelen);
 				line[linelen] = '\0';
-				char proto[16], srcip[64], dstip[64];
+				char proto[16], srcip[128], dstip[128];
 				int sport = 0, dport = 0;
-				if (sscanf(line, "PROXY %15s %63s %63s %d %d", proto, srcip, dstip, &sport, &dport) == 5) {
+				if (sscanf(line, "PROXY %15s %127s %127s %d %d", proto, srcip, dstip, &sport, &dport) == 5) {
 					int family = 0;
-					if (!strcmp(proto, "TCP4")) family = AF_INET;
-					else if (!strcmp(proto, "TCP6")) family = AF_INET6;
+					if (!strcmp(proto, "TCP4"))
+						family = AF_INET;
+					else if (!strcmp(proto, "TCP6"))
+						family = AF_INET6;
 					if (family && sport >= 0 && sport <= 65535 && dport >= 0 && dport <= 65535) {
 						int valid = 0;
 						if (family == AF_INET) {
@@ -402,6 +417,8 @@ static int accept_client(cdata_t *cdata, const int epfd, const uint64_t server)
 						}
 						if (valid == 1) {
 							snprintf(client->address_name, sizeof(client->address_name), "%s", srcip);
+							port = sport;
+							client->pp_parsed = true;
 						}
 					}
 				}
@@ -412,8 +429,10 @@ static int accept_client(cdata_t *cdata, const int epfd, const uint64_t server)
 	keep_sockalive(fd);
 	noblock_socket(fd);
 
-	if (unlikely(client->pp_pending))
-		LOGNOTICE("PPv2/PPv1 parsed: real client IP=%s port=%d", client->address_name, port);
+	if (unlikely(client->pp_parsed))
+		LOGNOTICE("Proxy Protocol parsed from %s", client->address_name);
+	else if (unlikely(client->pp_pending))
+		LOGINFO("Proxy Protocol header detected; discarding before first message");
 
 	LOGINFO("Connected new client %d on socket %d to %d active clients from %s:%d",
 		cdata->nfds, fd, no_clients, client->address_name, port);
@@ -619,7 +638,8 @@ retry:
 	/* Discard any pending Proxy Protocol header bytes before reading JSON. */
 	if (unlikely(client->pp_pending)) {
 		char tmp[256];
-		unsigned long toread = client->pp_discard_remaining < sizeof(tmp) ? client->pp_discard_remaining : (unsigned long)sizeof(tmp);
+		bool discard_len_known = client->pp_discard_remaining > 0;
+		unsigned long toread = discard_len_known && client->pp_discard_remaining < sizeof(tmp) ? client->pp_discard_remaining : (unsigned long)sizeof(tmp);
 		ret = read(client->fd, tmp, toread);
 		if (ret < 1) {
 			/* Non-blocking: EAGAIN/EWOULDBLOCK means try later */
@@ -630,13 +650,17 @@ retry:
 				client->id, client->fd, ret, errno, strerror(errno));
 			return false;
 		}
-		if ((unsigned long)ret >= client->pp_discard_remaining)
-			client->pp_discard_remaining = 0;
-		else
-			client->pp_discard_remaining -= (unsigned long)ret;
-		if (client->pp_discard_remaining > 0)
+		if (discard_len_known) {
+			if ((unsigned long)ret >= client->pp_discard_remaining)
+				client->pp_discard_remaining = 0;
+			else
+				client->pp_discard_remaining -= (unsigned long)ret;
+			if (client->pp_discard_remaining > 0)
+				goto retry;
+		} else if (!memchr(tmp, '\n', ret))
 			goto retry;
 		client->pp_pending = false;
+		client->pp_discard_remaining = 0;
 		/* Header fully discarded; continue to JSON read */
 	}
 
