@@ -2354,7 +2354,11 @@ int parse_proxy_protocol_peek(unsigned char *peekbuf, ssize_t n,
 					}
 				}
 			}
-			*pp_pending = true;  /* Mark for discard even if incomplete */
+			/* Mark for discard: if we have the full header, discard it; else retry */
+			if (n >= (ssize_t)(16 + len)) {
+				*pp_discard_remaining = 16 + len;  /* Complete header, discard it */
+			}
+			*pp_pending = true;
 			return 1;  /* PPv2 detected but incomplete or unparseable */
 		}
 	}
