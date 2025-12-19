@@ -20,4 +20,10 @@ void normalize_ua_buf(const char *src, char *dst, int len)
         src++;
     }
     dst[i] = '\0';
+    
+    /* Strip trailing whitespace */
+    while (i > 0 && isspace((unsigned char)dst[i - 1])) {
+        i--;
+        dst[i] = '\0';
+    }
 }
