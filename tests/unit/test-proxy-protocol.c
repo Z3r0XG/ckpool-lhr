@@ -269,6 +269,7 @@ static void test_ppv1_invalid_ip(void)
 	assert_true(result == 1);      /* PP detected */
 	assert_false(pp_parsed);       /* But inet_pton fails, so not parsed */
 	assert_true(pp_pending);       /* Still mark for discard */
+	assert_int_equal(discard, strlen(ppv1_bad_ip));  /* Discard entire malformed line */
 }
 
 /* Test: Empty/null buffer */
