@@ -12,7 +12,7 @@
 #include "config.h"
 #include "../test_common.h"
 #include "libckpool.h"
-#include "../src/ua_utils.h"
+#include "ua_utils.h"
 
 /* Test safencmp prefix matching (used for useragent whitelist matching)
  * This is the core function used in stratifier.c:4956 for whitelist checks
@@ -364,7 +364,7 @@ static void test_normalize_ua_buf(void)
     normalize_ua_buf(long_ua, buf, 50); /* Limit to 50 chars */
     assert_int_equal(strlen(buf), 49); /* Should be 49 chars + null terminator */
     /* Verify it stopped at "/" */
-    assert_false(strchr(buf, '/') != NULL);
+    assert_true(strchr(buf, '/') == NULL);
 }
 
 int main(void)
