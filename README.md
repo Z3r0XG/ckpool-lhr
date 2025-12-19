@@ -169,8 +169,7 @@ Any valid Bitcoin address works as the username. Append `.workername` to track m
 
 ## Optional Configuration Options
 
-All configuration options relevant to solo mode are listed below. The `btcaddress`
-option is ignored in solo mode (miners provide their own address as username).
+All configuration options relevant to solo mode are listed below.
 
 **"donaddress"** : Bitcoin address for donation payments. **OPTIONAL**
 - Type: String
@@ -207,7 +206,6 @@ option is ignored in solo mode (miners provide their own address as username).
 - Default: 1.0
 - Note: Supports sub-"1" values (e.g., 0.0005) for low hash rate miners.
 - Example: `"mindiff" : 0.0005`
-
 **"startdiff"** : Starting difficulty for new clients. **OPTIONAL**
 - Type: Double
 - Values: Any positive number
@@ -309,3 +307,6 @@ option is ignored in solo mode (miners provide their own address as username).
 > [!NOTE]
 > Mining on testnet may create cascading solved blocks when difficulty is 1.
 > This is normal behavior optimized for mainnet where block solving is rare.
+
+> [!NOTE]
+> ckpool-lhr focuses on solo mode. Pooled and proxy modes are available but untested.
