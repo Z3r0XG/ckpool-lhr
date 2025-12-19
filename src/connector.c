@@ -346,8 +346,11 @@ static int accept_client(cdata_t *cdata, const int epfd, const uint64_t server)
 				unsigned char cmd = vercmd & 0x0F;
 				unsigned char proto = famproto & 0x0F;
 				/* Clamp unsupported or pathological header lengths */
-				if (len > 512)
+				if (len > 512) {
+					client->pp_discard_remaining = 16UL + (unsigned long)len;
+					client->pp_pending = true;
 					goto pp_done;
+				}
 				/* Ensure we have the whole header in the peek */
 				if (n >= (ssize_t)(16 + len) && (vercmd >> 4) == 2 && cmd == 0x01 && proto == 0x01) {
 					const unsigned char *addrp = peekbuf + 16;
@@ -380,13 +383,13 @@ pp_done:
 		/* Proxy Protocol v1: starts with "PROXY " and ends with CRLF */
 		if (!client->pp_pending && n > 6 && !memcmp(peekbuf, "PROXY ", 6)) {
 			int eol = -1;
-			for (int i = 6; i < n && i < (int)sizeof(peekbuf); i++) {
+			for (int i = 6; i < n; i++) {
 				if (peekbuf[i] == '\n') { eol = i; break; }
 			}
 			if (eol > 0)
 				client->pp_discard_remaining = (unsigned long)(eol + 1);
 			else
-				client->pp_discard_remaining = sizeof(peekbuf);
+				client->pp_discard_remaining = 0; /* unknown length: seek newline later */
 			client->pp_pending = true;
 
 			if (eol > 0 && peekbuf[eol - 1] == '\r') {
@@ -401,24 +404,27 @@ pp_done:
 				char proto[16], srcip[128], dstip[128];
 				int sport = 0, dport = 0;
 				if (sscanf(line, "PROXY %15s %127s %127s %d %d", proto, srcip, dstip, &sport, &dport) == 5) {
-					int family = 0;
-					if (!strcmp(proto, "TCP4"))
-						family = AF_INET;
-					else if (!strcmp(proto, "TCP6"))
-						family = AF_INET6;
-					if (family && sport >= 0 && sport <= 65535 && dport >= 0 && dport <= 65535) {
-						int valid = 0;
-						if (family == AF_INET) {
-							struct in_addr addr4;
-							valid = inet_pton(AF_INET, srcip, &addr4);
-						} else {
-							struct in6_addr addr6;
-							valid = inet_pton(AF_INET6, srcip, &addr6);
-						}
-						if (valid == 1) {
-							snprintf(client->address_name, sizeof(client->address_name), "%s", srcip);
-							port = sport;
-							client->pp_parsed = true;
+					if (!strcmp(proto, "UNKNOWN")) {
+						client->pp_discard_remaining = (unsigned long)(eol + 1);
+						client->pp_pending = true;
+					} else if (!strcmp(proto, "TCP4") || !strcmp(proto, "TCP6")) {
+						int family = !strcmp(proto, "TCP4") ? AF_INET : AF_INET6;
+						if (sport >= 0 && sport <= 65535 && dport >= 0 && dport <= 65535) {
+							int valid = 0;
+							if (family == AF_INET) {
+								struct in_addr addr4;
+								valid = inet_pton(AF_INET, srcip, &addr4);
+							} else {
+								struct in6_addr addr6;
+								valid = inet_pton(AF_INET6, srcip, &addr6);
+							}
+							if (valid == 1) {
+								snprintf(client->address_name, sizeof(client->address_name), "%s", srcip);
+								port = sport;
+								client->pp_discard_remaining = (unsigned long)(eol + 1);
+								client->pp_pending = true;
+								client->pp_parsed = true;
+							}
 						}
 					}
 				}
@@ -642,10 +648,8 @@ retry:
 		unsigned long toread = discard_len_known && client->pp_discard_remaining < sizeof(tmp) ? client->pp_discard_remaining : (unsigned long)sizeof(tmp);
 		ret = read(client->fd, tmp, toread);
 		if (ret < 1) {
-			/* Non-blocking: EAGAIN/EWOULDBLOCK means try later */
 			if (ret < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
 				return true;
-			/* EOF or error: disconnect */
 			LOGINFO("Client id %"PRId64" fd %d proxy header discard failed ret %d errno %d:%s",
 				client->id, client->fd, ret, errno, strerror(errno));
 			return false;
@@ -655,6 +659,9 @@ retry:
 				client->pp_discard_remaining = 0;
 			else
 				client->pp_discard_remaining -= (unsigned long)ret;
+			if (client->pp_discard_remaining > 512)
+				LOGWARNING("Client id %"PRId64" fd %d discarding large proxy header bytes remaining %lu",
+					client->id, client->fd, client->pp_discard_remaining);
 			if (client->pp_discard_remaining > 0)
 				goto retry;
 		} else if (!memchr(tmp, '\n', ret))

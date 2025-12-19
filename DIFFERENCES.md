@@ -68,6 +68,6 @@ devices and other embedded systems).
 - Safely discards the Proxy Protocol header before parsing Stratum JSON messages
 - **No configuration required** — detection is opportunistic and always enabled
 - Falls back gracefully for connections without Proxy Protocol headers
-- Logs "PPv2/PPv1 parsed: real client IP=..." when a header is detected
+- Logs "Proxy Protocol parsed from <ip>" when a header is detected
 - Prevents "Invalid JSON" errors that would occur if the header were treated as a Stratum message
 
