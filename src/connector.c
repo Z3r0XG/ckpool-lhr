@@ -335,100 +335,11 @@ static int accept_client(cdata_t *cdata, const int epfd, const uint64_t server)
 	{
 		unsigned char peekbuf[528];
 		ssize_t n = recv(fd, peekbuf, sizeof(peekbuf), MSG_PEEK | MSG_DONTWAIT);
-		if (n < 0)
-			goto pp_done;
-		if (n >= 16) {
-			static const unsigned char ppv2_magic[12] = {0x0D,0x0A,0x0D,0x0A,0x00,0x0D,0x0A,0x51,0x55,0x49,0x54,0x0A};
-			if (!memcmp(peekbuf, ppv2_magic, 12)) {
-				unsigned char vercmd = peekbuf[12];
-				unsigned char famproto = peekbuf[13];
-				uint16_t len = ((uint16_t)peekbuf[14] << 8) | (uint16_t)peekbuf[15];
-				unsigned char cmd = vercmd & 0x0F;
-				unsigned char proto = famproto & 0x0F;
-				/* Clamp unsupported or pathological header lengths */
-				if (len > 512) {
-					client->pp_discard_remaining = 16UL + (unsigned long)len;
-					client->pp_pending = true;
-					goto pp_done;
-				}
-				/* Ensure we have the whole header in the peek */
-				if (n >= (ssize_t)(16 + len) && (vercmd >> 4) == 2 && cmd == 0x01 && proto == 0x01) {
-					const unsigned char *addrp = peekbuf + 16;
-					unsigned char fam = famproto >> 4;
-					if (fam == 1 && len >= 12) { /* TCP4 */
-						struct in_addr src4;
-						uint16_t sport = ((uint16_t)addrp[8] << 8) | (uint16_t)addrp[9];
-						memcpy(&src4, addrp, 4);
-						if (inet_ntop(AF_INET, &src4, client->address_name, INET6_ADDRSTRLEN) != NULL) {
-							port = sport;
-							client->pp_discard_remaining = 16 + len;
-							client->pp_pending = true;
-							client->pp_parsed = true;
-						}
-					} else if (fam == 2 && len >= 36) { /* TCP6 */
-						struct in6_addr src6;
-						uint16_t sport6 = ((uint16_t)addrp[32] << 8) | (uint16_t)addrp[33];
-						memcpy(&src6, addrp, 16);
-						if (inet_ntop(AF_INET6, &src6, client->address_name, INET6_ADDRSTRLEN) != NULL) {
-							port = sport6;
-							client->pp_discard_remaining = 16 + len;
-							client->pp_pending = true;
-							client->pp_parsed = true;
-						}
-					}
-				}
-			}
-		}
-pp_done:
-		/* Proxy Protocol v1: starts with "PROXY " and ends with CRLF */
-		if (!client->pp_pending && n > 6 && !memcmp(peekbuf, "PROXY ", 6)) {
-			int eol = -1;
-			for (int i = 6; i < n; i++) {
-				if (peekbuf[i] == '\n') { eol = i; break; }
-			}
-			if (eol > 0)
-				client->pp_discard_remaining = (unsigned long)(eol + 1);
-			else
-				client->pp_discard_remaining = 0; /* unknown length: seek newline later */
-			client->pp_pending = true;
-
-			if (eol > 0 && peekbuf[eol - 1] == '\r') {
-				char line[528];
-				int linelen = eol + 1; /* include \n */
-				if (linelen > (int)sizeof(line) - 1)
-					linelen = (int)sizeof(line) - 1;
-				if (linelen > (int)n)
-					linelen = (int)n;
-				memcpy(line, peekbuf, linelen);
-				line[linelen] = '\0';
-				char proto[16], srcip[128], dstip[128];
-				int sport = 0, dport = 0;
-				if (sscanf(line, "PROXY %15s %127s %127s %d %d", proto, srcip, dstip, &sport, &dport) == 5) {
-					if (!strcmp(proto, "UNKNOWN")) {
-						client->pp_discard_remaining = (unsigned long)(eol + 1);
-						client->pp_pending = true;
-					} else if (!strcmp(proto, "TCP4") || !strcmp(proto, "TCP6")) {
-						int family = !strcmp(proto, "TCP4") ? AF_INET : AF_INET6;
-						if (sport >= 0 && sport <= 65535 && dport >= 0 && dport <= 65535) {
-							int valid = 0;
-							if (family == AF_INET) {
-								struct in_addr addr4;
-								valid = inet_pton(AF_INET, srcip, &addr4);
-							} else {
-								struct in6_addr addr6;
-								valid = inet_pton(AF_INET6, srcip, &addr6);
-							}
-							if (valid == 1) {
-								snprintf(client->address_name, sizeof(client->address_name), "%s", srcip);
-								port = sport;
-								client->pp_discard_remaining = (unsigned long)(eol + 1);
-								client->pp_pending = true;
-								client->pp_parsed = true;
-							}
-						}
-					}
-				}
-			}
+		if (n >= 0) {
+			parse_proxy_protocol_peek(peekbuf, n,
+			                          client->address_name, &port,
+			                          &client->pp_pending, &client->pp_discard_remaining,
+			                          &client->pp_parsed);
 		}
 	}
 

@@ -2294,3 +2294,124 @@ void gen_hash(uchar *data, uchar *hash, int len)
 	sha256(data, len, hash1);
 	sha256(hash1, 32, hash);
 }
+
+/* Parse Proxy Protocol v2/v1 header from peek buffer.
+ * Returns: 1 if PP detected, 0 otherwise
+ * On return, pp_pending indicates header detected (more bytes to drain),
+ * pp_parsed indicates valid address extracted and set in address_name.
+ */
+int parse_proxy_protocol_peek(unsigned char *peekbuf, ssize_t n,
+                              char *address_name, int *port,
+                              bool *pp_pending, unsigned long *pp_discard_remaining,
+                              bool *pp_parsed)
+{
+	if (n < 0 || n == 0)
+		return 0;
+
+	/* PPv2 magic bytes: 0x0D,0x0A,0x0D,0x0A,0x00,0x0D,0x0A,0x51,0x55,0x49,0x54,0x0A */
+	if (n >= 16) {
+		static const unsigned char ppv2_magic[12] = {0x0D,0x0A,0x0D,0x0A,0x00,0x0D,0x0A,0x51,0x55,0x49,0x54,0x0A};
+		if (!memcmp(peekbuf, ppv2_magic, 12)) {
+			unsigned char vercmd = peekbuf[12];
+			unsigned char famproto = peekbuf[13];
+			uint16_t len = ((uint16_t)peekbuf[14] << 8) | (uint16_t)peekbuf[15];
+			unsigned char cmd = vercmd & 0x0F;
+			unsigned char proto = famproto & 0x0F;
+
+			/* Clamp unsupported or pathological header lengths */
+			if (len > 512) {
+				*pp_discard_remaining = 16UL + (unsigned long)len;
+				*pp_pending = true;
+				return 1;  /* PP detected but too large to parse */
+			}
+
+			/* Ensure we have the whole header in the peek, check version/cmd/proto */
+			if (n >= (ssize_t)(16 + len) && (vercmd >> 4) == 2 && cmd == 0x01 && proto == 0x01) {
+				const unsigned char *addrp = peekbuf + 16;
+				unsigned char fam = famproto >> 4;
+
+				if (fam == 1 && len >= 12) {  /* TCP4 */
+					struct in_addr src4;
+					uint16_t sport = ((uint16_t)addrp[8] << 8) | (uint16_t)addrp[9];
+					memcpy(&src4, addrp, 4);
+					if (inet_ntop(AF_INET, &src4, address_name, INET6_ADDRSTRLEN) != NULL) {
+						*port = sport;
+						*pp_discard_remaining = 16 + len;
+						*pp_pending = true;
+						*pp_parsed = true;
+						return 1;
+					}
+				} else if (fam == 2 && len >= 36) {  /* TCP6 */
+					struct in6_addr src6;
+					uint16_t sport6 = ((uint16_t)addrp[32] << 8) | (uint16_t)addrp[33];
+					memcpy(&src6, addrp, 16);
+					if (inet_ntop(AF_INET6, &src6, address_name, INET6_ADDRSTRLEN) != NULL) {
+						*port = sport6;
+						*pp_discard_remaining = 16 + len;
+						*pp_pending = true;
+						*pp_parsed = true;
+						return 1;
+					}
+				}
+			}
+			return 1;  /* PPv2 detected but incomplete or unparseable */
+		}
+	}
+
+	/* PPv1: starts with "PROXY " and ends with CRLF */
+	if (n > 6 && !memcmp(peekbuf, "PROXY ", 6)) {
+		int eol = -1;
+		for (int i = 6; i < n; i++) {
+			if (peekbuf[i] == '\n') { eol = i; break; }
+		}
+
+		if (eol > 0)
+			*pp_discard_remaining = (unsigned long)(eol + 1);
+		else
+			*pp_discard_remaining = 0;  /* unknown length: seek newline later */
+
+		*pp_pending = true;
+
+		if (eol > 0 && peekbuf[eol - 1] == '\r') {
+			char line[528];
+			int linelen = eol + 1;  /* include \n */
+			if (linelen > (int)sizeof(line) - 1)
+				linelen = (int)sizeof(line) - 1;
+			if (linelen > (int)n)
+				linelen = (int)n;
+			memcpy(line, peekbuf, linelen);
+			line[linelen] = '\0';
+
+			char proto[16], srcip[128], dstip[128];
+			int sport = 0, dport = 0;
+			if (sscanf(line, "PROXY %15s %127s %127s %d %d", proto, srcip, dstip, &sport, &dport) == 5) {
+				if (!strcmp(proto, "UNKNOWN")) {
+					*pp_discard_remaining = (unsigned long)(eol + 1);
+					*pp_pending = true;
+				} else if (!strcmp(proto, "TCP4") || !strcmp(proto, "TCP6")) {
+					int family = !strcmp(proto, "TCP4") ? AF_INET : AF_INET6;
+					if (sport >= 0 && sport <= 65535 && dport >= 0 && dport <= 65535) {
+						int valid = 0;
+						if (family == AF_INET) {
+							struct in_addr addr4;
+							valid = inet_pton(AF_INET, srcip, &addr4);
+						} else {
+							struct in6_addr addr6;
+							valid = inet_pton(AF_INET6, srcip, &addr6);
+						}
+						if (valid == 1) {
+							snprintf(address_name, INET6_ADDRSTRLEN, "%s", srcip);
+							*port = sport;
+							*pp_discard_remaining = (unsigned long)(eol + 1);
+							*pp_pending = true;
+							*pp_parsed = true;
+						}
+					}
+				}
+			}
+		}
+		return 1;  /* PPv1 detected */
+	}
+
+	return 0;  /* No PP detected */
+}

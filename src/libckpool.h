@@ -614,4 +614,13 @@ void target_from_diff(uchar *target, double diff);
 
 void gen_hash(uchar *data, uchar *hash, int len);
 
+/* Parse Proxy Protocol v2/v1 header from peek buffer.
+ * Returns: 1 if PP detected, 0 otherwise
+ * On return, pp_pending indicates more bytes to drain, pp_parsed indicates valid address extracted
+ */
+int parse_proxy_protocol_peek(unsigned char *peekbuf, ssize_t n,
+                              char *address_name, int *port,
+                              bool *pp_pending, unsigned long *pp_discard_remaining,
+                              bool *pp_parsed);
+
 #endif /* LIBCKPOOL_H */

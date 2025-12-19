@@ -36,12 +36,17 @@ check_PROGRAMS = \
 	unit/test-adjustment-hysteresis \
 	unit/test-network-diff-interactions \
 	unit/test-backwards-compatibility \
-	unit/test-ua-aggregation
+	unit/test-ua-aggregation \
+	unit/test-proxy-protocol
 
 TESTS = $(check_PROGRAMS)
 # UA normalization/aggregation tests
 unit_test_ua_aggregation_SOURCES = \
 	unit/test-ua-aggregation.c
+
+# Proxy Protocol v2/v1 parsing tests
+unit_test_proxy_protocol_SOURCES = \
+	unit/test-proxy-protocol.c
 
 # Difficulty calculation tests
 unit_test_difficulty_SOURCES = \
