@@ -554,7 +554,7 @@ retry:
 
 	/* Discard any pending Proxy Protocol header bytes before reading JSON. */
 	if (unlikely(client->pp_pending)) {
-		char tmp[256];
+		char tmp[528];
 		bool discard_len_known = client->pp_discard_remaining > 0;
 		unsigned long toread = discard_len_known && client->pp_discard_remaining < sizeof(tmp) ? client->pp_discard_remaining : (unsigned long)sizeof(tmp);
 		ret = read(client->fd, tmp, toread);
