@@ -70,6 +70,44 @@ static void test_ppv2_tcp4_valid(void)
 	assert_int_equal(discard, 28);  /* 16 + 12 */
 }
 
+/* Test: Valid PPv2 TCP6 (IPv6 addresses) */
+static void test_ppv2_tcp6_valid(void)
+{
+	unsigned char buf[100];
+	char address[128] = {0};
+	int port = 0;
+	bool pp_pending = false, pp_parsed = false;
+	unsigned long discard = 0;
+
+	/* PPv2 magic + version/cmd + family/proto + len + TCP6 addresses */
+	unsigned char ppv2_tcp6_header[] = {
+		0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A,  /* magic */
+		0x21,                                                                      /* version=2, cmd=PROXY */
+		0x21,                                                                      /* family=AF_INET6, proto=STREAM */
+		0x00, 0x24,                                                                /* len=36 (16+16+2+2) */
+		/* src: 2001:db8::1 */
+		0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+		/* dst: ::1 */
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+		0x9C, 0x40,                                                                /* src port 40000 */
+		0x0D, 0x05                                                                 /* dst port 3333 */
+	};
+	
+	memcpy(buf, ppv2_tcp6_header, sizeof(ppv2_tcp6_header));
+	
+	int result = parse_proxy_protocol_peek(buf, sizeof(ppv2_tcp6_header),
+	                                        address, &port, &pp_pending, &discard, &pp_parsed);
+	
+	assert_true(result == 1);      /* PP detected */
+	assert_true(pp_parsed);        /* Valid parse */
+	assert_true(pp_pending);       /* Mark for discard */
+	assert_string_equal(address, "2001:db8::1");
+	assert_int_equal(port, 40000);
+	assert_int_equal(discard, 52);  /* 16 + 36 */
+}
+
 /* Test: PPv2 with oversized len (should still discard) */
 static void test_ppv2_oversized_len(void)
 {
@@ -227,6 +265,7 @@ int main(void)
 {
 	test_no_proxy_protocol();
 	test_ppv2_tcp4_valid();
+	test_ppv2_tcp6_valid();
 	test_ppv2_oversized_len();
 	test_ppv1_tcp4_valid();
 	test_ppv1_no_crlf();
