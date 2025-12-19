@@ -13,8 +13,10 @@ static void test_normalize_basic()
     normalize_ua_buf("cpuminer-multi (linux)", out, sizeof(out));
     assert(strcmp(out, "cpuminer-multi") == 0);
 
+    /* With case and space preservation: " BM1387 Miner " -> "BM1387 Miner"
+     * (leading/trailing spaces stripped, but internal space preserved, case preserved) */
     normalize_ua_buf(" BM1387 Miner ", out, sizeof(out));
-    assert(strcmp(out, "bm1387") == 0);
+    assert(strcmp(out, "BM1387 Miner") == 0);
 }
 
 static void test_normalize_truncate()
