@@ -12,6 +12,7 @@
 #include "config.h"
 #include "../test_common.h"
 #include "libckpool.h"
+#include "../src/ua_utils.h"
 
 /* Test safencmp prefix matching (used for useragent whitelist matching)
  * This is the core function used in stratifier.c:4956 for whitelist checks
@@ -284,6 +285,88 @@ static void test_real_world_useragents(void)
     assert_false(ua_ret);
 }
 
+/* Test normalize_ua_buf function for stats/logging display
+ * normalize_ua_buf() extracts the base UA string up to "/" or "("
+ * It should preserve case and spaces, stop at "/" or "("
+ */
+static void test_normalize_ua_buf(void)
+{
+    char buf[256];
+    
+    /* Test simple useragents (no special chars) */
+    normalize_ua_buf("NMMiner", buf, sizeof(buf));
+    assert_string_equal(buf, "NMMiner");
+    
+    normalize_ua_buf("Nerd Miner", buf, sizeof(buf));
+    assert_string_equal(buf, "Nerd Miner"); /* Preserve space */
+    
+    /* Test case preservation */
+    normalize_ua_buf("NerdMinerV2", buf, sizeof(buf));
+    assert_string_equal(buf, "NerdMinerV2");
+    
+    normalize_ua_buf("NMMINER", buf, sizeof(buf));
+    assert_string_equal(buf, "NMMINER"); /* Preserve uppercase */
+    
+    /* Test with version numbers after "/" */
+    normalize_ua_buf("bitaxe/BM1370/v2.13.0b1", buf, sizeof(buf));
+    assert_string_equal(buf, "bitaxe"); /* Stop at first "/" */
+    
+    normalize_ua_buf("NerdMinerV2/V1.8.3", buf, sizeof(buf));
+    assert_string_equal(buf, "NerdMinerV2"); /* Stop at "/" */
+    
+    normalize_ua_buf("CGMiner/4.13.5", buf, sizeof(buf));
+    assert_string_equal(buf, "CGMiner");
+    
+    /* Test with parentheses */
+    normalize_ua_buf("cpuminer(some variant)", buf, sizeof(buf));
+    assert_string_equal(buf, "cpuminer"); /* Stop at "(" */
+    
+    normalize_ua_buf("bitdsk/N8-T", buf, sizeof(buf));
+    assert_string_equal(buf, "bitdsk"); /* Hyphen should be preserved, but "/" stops */
+    
+    /* Test spaces in middle of name */
+    normalize_ua_buf("Jingle Miner", buf, sizeof(buf));
+    assert_string_equal(buf, "Jingle Miner"); /* Preserve space in middle */
+    
+    normalize_ua_buf("Forge Miner/1.0", buf, sizeof(buf));
+    assert_string_equal(buf, "Forge Miner"); /* Preserve space but stop at "/" */
+    
+    /* Test leading whitespace handling */
+    normalize_ua_buf("  NMMiner", buf, sizeof(buf));
+    assert_string_equal(buf, "NMMiner"); /* Strip leading whitespace */
+    
+    normalize_ua_buf("\t\tBitsyMiner", buf, sizeof(buf));
+    assert_string_equal(buf, "BitsyMiner"); /* Strip leading tabs */
+    
+    /* Test device type identification (important for stats aggregation) */
+    normalize_ua_buf("MvIiIaX_Nerd", buf, sizeof(buf));
+    assert_string_equal(buf, "MvIiIaX_Nerd"); /* Underscores preserved */
+    
+    normalize_ua_buf("ForgeMiner/v1.0", buf, sizeof(buf));
+    assert_string_equal(buf, "ForgeMiner");
+    
+    /* Test edge case: space followed by "/" (shouldn't happen but should handle) */
+    normalize_ua_buf("Some Miner/v1.0", buf, sizeof(buf));
+    assert_string_equal(buf, "Some Miner");
+    
+    /* Test empty string */
+    normalize_ua_buf("", buf, sizeof(buf));
+    assert_string_equal(buf, "");
+    
+    /* Test very long useragent (buffer limit test) */
+    char long_ua[512];
+    memset(long_ua, 'A', 100);
+    long_ua[100] = '/';
+    long_ua[101] = 'v';
+    long_ua[102] = '1';
+    long_ua[103] = '\0';
+    
+    normalize_ua_buf(long_ua, buf, 50); /* Limit to 50 chars */
+    assert_int_equal(strlen(buf), 49); /* Should be 49 chars + null terminator */
+    /* Verify it stopped at "/" */
+    assert_false(strchr(buf, '/') != NULL);
+}
+
 int main(void)
 {
     printf("Running useragent whitelisting tests...\n\n");
@@ -293,6 +376,7 @@ int main(void)
     run_test(test_whitelist_not_configured);
     run_test(test_whitelist_edge_cases);
     run_test(test_real_world_useragents);
+    run_test(test_normalize_ua_buf);
     
     printf("\nAll useragent whitelisting tests passed!\n");
     return 0;
