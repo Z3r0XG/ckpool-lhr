@@ -200,7 +200,35 @@ static void test_ppv1_unknown_proto(void)
 	assert_int_equal(discard, strlen(ppv1_unknown));
 }
 
-/* Test: Truncated PPv2 header (only 8 bytes) */
+/* Test: PPv2 truncated (exactly 16 bytes - header only, no payload) */
+static void test_ppv2_incomplete_header(void)
+{
+	unsigned char buf[100];
+	char address[128] = {0};
+	int port = 0;
+	bool pp_pending = false, pp_parsed = false;
+	unsigned long discard = 0;
+
+	/* PPv2 with magic, version/cmd, family/proto, but len field says 12 more bytes */
+	unsigned char ppv2_incomplete[] = {
+		0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A,  /* magic */
+		0x21,                                                                      /* version=2, cmd=PROXY */
+		0x11,                                                                      /* family=AF_INET, proto=STREAM */
+		0x00, 0x0C                                                                 /* len=12 (but we only have header, no addresses) */
+	};
+	
+	memcpy(buf, ppv2_incomplete, sizeof(ppv2_incomplete));
+	
+	int result = parse_proxy_protocol_peek(buf, sizeof(ppv2_incomplete),
+	                                        address, &port, &pp_pending, &discard, &pp_parsed);
+	
+	assert_true(result == 1);       /* PP detected */
+	assert_false(pp_parsed);        /* NOT parsed (incomplete data) */
+	assert_true(pp_pending);        /* Mark pending for retry */
+	assert_int_equal(discard, 0);   /* Don't discard yet (incomplete) */
+}
+
+/* Test: PPv2 truncated (only 8 bytes) */
 static void test_ppv2_truncated(void)
 {
 	unsigned char buf[100];
@@ -267,6 +295,7 @@ int main(void)
 	test_ppv2_tcp4_valid();
 	test_ppv2_tcp6_valid();
 	test_ppv2_oversized_len();
+	test_ppv2_incomplete_header();
 	test_ppv1_tcp4_valid();
 	test_ppv1_no_crlf();
 	test_ppv1_unknown_proto();
