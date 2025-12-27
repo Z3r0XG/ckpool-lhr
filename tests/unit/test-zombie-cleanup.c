@@ -15,7 +15,7 @@
 
 /* Test the core decision logic for zombie cleanup
  * 
- * The logic in statsupdate (stratifier.c:8143-8174) is:
+ * Mirrors the zombie cleanup logic in the statsupdate function in stratifier.c:
  * 1. If client->dropped is true
  * 2. Check if client exists in connector via connector_client_exists()
  * 3. If client doesn't exist in connector:
