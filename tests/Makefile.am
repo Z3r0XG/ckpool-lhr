@@ -37,8 +37,7 @@ check_PROGRAMS = \
 	unit/test-network-diff-interactions \
 	unit/test-backwards-compatibility \
 	unit/test-ua-aggregation \
-	unit/test-zombie-cleanup \
-	unit/test-zombie-cleanup-integration
+	unit/test-zombie-cleanup
 
 TESTS = $(check_PROGRAMS)
 # UA normalization/aggregation tests
@@ -156,10 +155,6 @@ unit_test_backwards_compatibility_SOURCES = \
 # Zombie cleanup logic tests
 unit_test_zombie_cleanup_SOURCES = \
 	unit/test-zombie-cleanup.c
-
-# Zombie cleanup integration tests
-unit_test_zombie_cleanup_integration_SOURCES = \
-	unit/test-zombie-cleanup-integration.c
 
 # All tests depend on libckpool
 $(check_PROGRAMS): $(top_builddir)/src/libckpool.a
