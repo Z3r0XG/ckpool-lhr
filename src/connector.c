@@ -264,6 +264,9 @@ int64_t connector_newclientid(ckpool_t *ckp)
 	return ret;
 }
 
+/* Forward declaration for client_exists */
+static bool client_exists(cdata_t *cdata, int64_t id);
+
 /* Check if a client exists in connector's hashtable. Used by stratifier
  * to verify clients before operations. */
 bool connector_client_exists(ckpool_t *ckp, int64_t id)
