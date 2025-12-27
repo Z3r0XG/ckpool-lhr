@@ -3607,17 +3607,11 @@ static void drop_client(ckpool_t *ckp, sdata_t *sdata, const int64_t id)
 	stratum_instance_t *client;
 	char *msg = NULL;
 
-	LOGINFO("Stratifier asked to drop client %"PRId64, id);
+	LOGINFO("Stratifier asked to drop client %"PRId64, id);""
 
 	ck_wlock(&sdata->instance_lock);
 	client = __instance_by_id(sdata, id);
-	/* Process client if it exists and either:
-	 * 1. Not already marked as dropped (normal case), OR
-	 * 2. Already dropped but ref=0 (cleanup case - all references released)
-	 * 
-	 * This prevents concurrent reprocessing when ref>0 but allows cleanup
-	 * when all references are gone, matching official ckpool behavior. */
-	if (client && (!client->dropped || !client->ref)) {
+	if (client) {
 		__disconnect_session(sdata, client);
 		/* If the client is still holding a reference, don't drop them
 		 * now but wait till the reference is dropped */
