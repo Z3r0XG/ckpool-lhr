@@ -3,9 +3,8 @@
  * 
  * Note: Full integration testing of connector_client_exists() would require
  * complete ckpool initialization which is complex. This test validates that:
- * 1. The function compiles and links correctly
- * 2. The function signature is correct
- * 3. Basic behavior with NULL/invalid inputs
+ * 1. The function compiles and links correctly (build system validates signature)
+ * 2. The function is properly exported and accessible
  * 
  * For full integration testing, run ckpool in a test environment and monitor
  * the watchdog loop behavior with actual zombie clients.
@@ -37,30 +36,6 @@ static void test_connector_client_exists_function_exists(void)
     printf("  Note: connector_client_exists() function is properly exported\n");
 }
 
-/* Test that the function signature matches expectations
- * This is a compile-time test - if it compiles, the signature is correct
- */
-static void test_connector_client_exists_signature(void)
-{
-    /* This test validates at compile time that:
-     * - Function returns bool
-     * - Function takes ckpool_t* and int64_t
-     * - Function is callable
-     */
-    bool result;
-    ckpool_t *ckp = NULL;
-    int64_t id = 12345;
-    
-    /* Function call compiles - signature is correct */
-    /* Note: This will likely crash with NULL, but that's OK for this test */
-    /* We're just validating the function exists and has the right signature */
-    printf("  Note: connector_client_exists() signature is correct\n");
-    printf("  Note: Full testing requires initialized ckpool_t structure\n");
-    
-    /* Mark test as passed - we've validated compilation */
-    assert_true(true);
-}
-
 /* Test documentation and usage
  * Validates that the function is documented and used correctly
  */
@@ -82,7 +57,6 @@ int main(void)
     printf("Full integration testing requires running ckpool with actual clients.\n\n");
     
     run_test(test_connector_client_exists_function_exists);
-    run_test(test_connector_client_exists_signature);
     run_test(test_zombie_cleanup_documentation);
     
     printf("\nAll zombie cleanup integration tests passed!\n");
