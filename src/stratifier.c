@@ -8158,8 +8158,38 @@ static void *statsupdate(void *arg)
 			/* Look for clients that have been dropped which the
 			 * connector may not have been informed about and should
 			 * disconnect. */
-			if (client->dropped)
-				connector_drop_client(ckp, client->id);
+			if (client->dropped) {
+				/* Check if client still exists in connector. If not,
+				 * it was already removed - clean up from stratifier's
+				 * hashtable to prevent repeated drop attempts. */
+				if (!connector_client_exists(ckp, client->id)) {
+					/* Client doesn't exist in connector - remove from
+					 * stratifier's hashtable to stop the watchdog loop.
+					 * We hold a ref on this client (from line 8135), so
+					 * check if ref == 1 (only our ref remains) before removing. */
+					ck_wlock(&sdata->instance_lock);
+					/* Check if only our ref remains (ref == 1 means only
+					 * the ref we hold from iteration). If others hold refs,
+					 * they'll clean it up when they release via _dec_instance_ref. */
+					if (client->ref == 1) {
+						/* Get next pointer before removal since client will
+						 * be removed from hashtable and hh.next won't be valid */
+						stratum_instance_t *next = client->hh.next;
+						__drop_client(sdata, client, true, NULL);
+						/* Move to next client and increment its ref for iteration */
+						client = next;
+						if (likely(client))
+							__inc_instance_ref(client);
+						ck_wunlock(&sdata->instance_lock);
+						/* We've already advanced to next client, continue to process it */
+						continue;
+					}
+					ck_wunlock(&sdata->instance_lock);
+				} else {
+					/* Client exists in connector - legitimate drop */
+					connector_drop_client(ckp, client->id);
+				}
+			}
 			else if (remote_server(client)) {
 				/* Do nothing to these */
 			} else if (!client->authorised) {
