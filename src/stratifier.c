@@ -8165,7 +8165,7 @@ static void *statsupdate(void *arg)
 				if (!connector_client_exists(ckp, client->id)) {
 					/* Client doesn't exist in connector - remove from
 					 * stratifier's hashtable to stop the watchdog loop.
-					 * We hold a ref on this client (from line 8135), so
+					 * We hold a ref on this client from the current iteration, so
 					 * check if ref == 1 (only our ref remains) before removing. */
 					ck_wlock(&sdata->instance_lock);
 					/* Check if only our ref remains (ref == 1 means only
