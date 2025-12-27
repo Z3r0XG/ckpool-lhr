@@ -3607,7 +3607,7 @@ static void drop_client(ckpool_t *ckp, sdata_t *sdata, const int64_t id)
 	stratum_instance_t *client;
 	char *msg = NULL;
 
-	LOGINFO("Stratifier asked to drop client %"PRId64, id);""
+	LOGINFO("Stratifier asked to drop client %"PRId64, id);
 
 	ck_wlock(&sdata->instance_lock);
 	client = __instance_by_id(sdata, id);
