@@ -8175,6 +8175,10 @@ static void *statsupdate(void *arg)
 						/* Get next pointer before removal since client will
 						 * be removed from hashtable and hh.next won't be valid */
 						stratum_instance_t *next = client->hh.next;
+						/* Drop our iteration reference so ref reaches 0 before
+						 * calling __drop_client, matching the normal cleanup path
+						 * in _dec_instance_ref (line 3368-3373). */
+						__dec_instance_ref(client);
 						__drop_client(sdata, client, true, NULL);
 						/* Move to next client and increment its ref for iteration */
 						client = next;
