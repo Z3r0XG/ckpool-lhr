@@ -264,6 +264,15 @@ int64_t connector_newclientid(ckpool_t *ckp)
 	return ret;
 }
 
+/* Check if a client exists in connector's hashtable. Used by stratifier
+ * to verify clients before operations. */
+bool connector_client_exists(ckpool_t *ckp, int64_t id)
+{
+	cdata_t *cdata = ckp->cdata;
+
+	return client_exists(cdata, id);
+}
+
 /* Accepts incoming connections on the server socket and generates client
  * instances */
 static int accept_client(cdata_t *cdata, const int epfd, const uint64_t server)
