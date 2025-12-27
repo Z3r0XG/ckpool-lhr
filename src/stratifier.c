@@ -8164,28 +8164,18 @@ static void *statsupdate(void *arg)
 				 * hashtable to prevent repeated drop attempts. */
 				if (!connector_client_exists(ckp, client->id)) {
 					/* Client doesn't exist in connector - remove from
-					 * stratifier's hashtable to stop the watchdog loop.
-					 * We hold a ref on this client from the current iteration, so
-					 * check if ref == 1 (only our ref remains) before removing. */
+					 * stratifier's hashtable to stop the watchdog loop. */
 					ck_wlock(&sdata->instance_lock);
-					/* Check if only our ref remains (ref == 1 means only
-					 * the ref we hold from iteration). If others hold refs,
-					 * they'll clean it up when they release via _dec_instance_ref. */
+					/* Only remove if no other references exist */
 					if (client->ref == 1) {
-						/* Get next pointer before removal since client will
-						 * be removed from hashtable and hh.next won't be valid */
+						/* Save next pointer before removal */
 						stratum_instance_t *next = client->hh.next;
-						/* Drop our iteration reference so ref reaches 0 before
-						 * calling __drop_client, matching the normal cleanup path
-						 * in _dec_instance_ref (line 3368-3373). */
 						__dec_instance_ref(client);
 						__drop_client(sdata, client, true, NULL);
-						/* Move to next client and increment its ref for iteration */
 						client = next;
 						if (likely(client))
 							__inc_instance_ref(client);
 						ck_wunlock(&sdata->instance_lock);
-						/* We've already advanced to next client, continue to process it */
 						continue;
 					}
 					ck_wunlock(&sdata->instance_lock);
