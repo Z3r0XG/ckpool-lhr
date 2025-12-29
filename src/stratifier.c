@@ -2361,6 +2361,24 @@ static void __dec_worker(sdata_t *sdata, user_instance_t *user, worker_instance_
 	worker->instance_count--;
 }
 
+/* Age out disconnected sessions older than 600 seconds (10 minutes) */
+static void age_disconnected_sessions(sdata_t *sdata)
+{
+	time_t now_t = time(NULL);
+	session_t *session, *tmp;
+
+	ck_wlock(&sdata->instance_lock);
+	HASH_ITER(hh, sdata->disconnected_sessions, session, tmp) {
+		if (now_t - session->added > 600) {
+			HASH_DEL(sdata->disconnected_sessions, session);
+			dealloc(session);
+			sdata->stats.disconnected--;
+		}
+	}
+	ck_wunlock(&sdata->instance_lock);
+}
+
+/* Called with instance_lock held */
 static void __disconnect_session(sdata_t *sdata, const stratum_instance_t *client)
 {
 	time_t now_t = time(NULL);
@@ -8543,6 +8561,9 @@ static void *statsupdate(void *arg)
 				"createcode", __func__,
 				"createinet", ckp->serverurl[0]);
 		json_decref(val);
+
+		/* Age out old disconnected sessions periodically (once per minute) */
+		age_disconnected_sessions(sdata);
 
 		/* Update stats 32 times per minute to divide up userstats,
 		 * displaying status every minute. */
