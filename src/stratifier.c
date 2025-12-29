@@ -3635,6 +3635,8 @@ static void drop_client(ckpool_t *ckp, sdata_t *sdata, const int64_t id)
 	ck_wlock(&sdata->instance_lock);
 	client = __instance_by_id(sdata, id);
 	if (client) {
+		LOGDEBUG("drop_client: Processing drop request for client %"PRId64" (ref: %d, exists in connector: checking)",
+			 id, client->ref);
 		__disconnect_session(sdata, client);
 		/* If the client is still holding a reference, don't drop them
 		 * now but wait till the reference is dropped */
@@ -3647,6 +3649,9 @@ static void drop_client(ckpool_t *ckp, sdata_t *sdata, const int64_t id)
 			LOGDEBUG("drop_client: Marked client %"PRId64" as dropped (ref: %d) - will cleanup when ref drops to 0",
 				 id, client->ref);
 		}
+	} else {
+		LOGDEBUG("drop_client: Client %"PRId64" not found in stratifier hashtable (may have been cleaned up already)",
+			 id);
 	}
 	ck_wunlock(&sdata->instance_lock);
 
@@ -8175,11 +8180,17 @@ static void *statsupdate(void *arg)
 				 * it was already removed - clean up from stratifier's
 				 * hashtable to prevent repeated drop attempts. */
 				if (!connector_client_exists(ckp, client->id)) {
-					/* Client doesn't exist in connector - remove from
-					 * stratifier's hashtable to stop the watchdog loop. */
+					/* Client doesn't exist in connector - this is a zombie.
+					 * Log detection with context for troubleshooting. */
+					time_t now_t = time(NULL);
+					int age_seconds = now_t - client->start_time;
 					ck_wlock(&sdata->instance_lock);
+					LOGDEBUG("Watchdog: Detected zombie client %"PRId64" (not in connector, ref: %d, age: %ds, authorized: %d, subscribed: %d)",
+						 client->id, client->ref, age_seconds, client->authorised, client->subscribed);
 					/* Only remove if no other references exist */
 					if (client->ref == 1) {
+						LOGDEBUG("Watchdog: Cleaning up zombie client %"PRId64" (ref == 1, age: %ds)",
+							 client->id, age_seconds);
 						/* Save next pointer before removal */
 						stratum_instance_t *next = client->hh.next;
 						__dec_instance_ref(client);
@@ -8190,8 +8201,8 @@ static void *statsupdate(void *arg)
 						ck_wunlock(&sdata->instance_lock);
 						continue;
 					} else {
-						LOGDEBUG("Watchdog: Zombie client %"PRId64" not in connector but ref > 1 (ref: %d) - cannot cleanup yet",
-							 client->id, client->ref);
+						LOGDEBUG("Watchdog: Cannot cleanup zombie client %"PRId64" yet (ref: %d > 1, age: %ds) - waiting for refs to drop",
+							 client->id, client->ref, age_seconds);
 					}
 					ck_wunlock(&sdata->instance_lock);
 				} else {
