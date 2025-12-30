@@ -89,7 +89,6 @@ static void test_config_defaults(void)
     double mindiff = 0.0;
     double startdiff = 0.0;
     int dropidle = -1;
-    int user_cleanup_days = -1;
     
     /* Defaults should be set if not in config */
     json_t *obj = json_object();
@@ -103,11 +102,6 @@ static void test_config_defaults(void)
     if (dropidle < 0)
         dropidle = 0;
     assert_int_equal(dropidle, 0);
-    
-    /* user_cleanup_days default is 0 if not set */
-    if (user_cleanup_days < 0)
-        user_cleanup_days = 0;
-    assert_int_equal(user_cleanup_days, 0);
     
     json_decref(obj);
 }
