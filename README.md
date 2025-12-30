@@ -280,10 +280,6 @@ option is ignored in solo mode (miners provide their own address as username).
 - Default: 0 (disabled)
 - Note: 1 hour (3600) is generous for low hash rate miners.
 
-**"user_cleanup_days"** : Clean up inactive user data after this many days. **OPTIONAL**
-- Type: Integer
-- Default: 0 (never cleanup)
-
 **"useragent"** : Allowed user agent strings (whitelist). **OPTIONAL**
 - Type: Array of strings
 - Default: None (all allowed)
