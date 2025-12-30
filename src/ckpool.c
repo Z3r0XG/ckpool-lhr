@@ -1506,6 +1506,10 @@ static void parse_config(ckpool_t *ckp)
 	json_get_int(&ckp->dropidle, json_conf, "dropidle");
 	/* Default never cleanup user data (0 = never, matches official behavior) */
 	json_get_int(&ckp->user_cleanup_days, json_conf, "user_cleanup_days");
+	/* Share rate limiting threshold in shares per second */
+	json_get_int(&ckp->share_rate_limit, json_conf, "share_rate_limit");
+	/* Grace period in seconds after first share before rate limiting kicks in */
+	json_get_int(&ckp->share_rate_grace_period, json_conf, "share_rate_grace_period");
 	/* Look for an array first and then a single entry */
 	arr_val = json_object_get(json_conf, "useragent");
 	if (!parse_useragents(ckp, arr_val)) {
@@ -1837,6 +1841,14 @@ int main(int argc, char **argv)
 		quit(0, "Invalid nonce2length %d specified, must be 2~8", ckp.nonce2length);
 	if (!ckp.update_interval)
 		ckp.update_interval = 30;
+	/* Default share rate limit: 10 shares per second */
+	if (!ckp.share_rate_limit)
+		ckp.share_rate_limit = 10;
+	/* Default grace period: 60 seconds after first share */
+	if (ckp.share_rate_grace_period < 0)
+		ckp.share_rate_grace_period = 60;
+	else if (!ckp.share_rate_grace_period)
+		ckp.share_rate_grace_period = 60;
 
 	/* Validate mindiff is sane */
 	if (!validate_mindiff(&ckp.mindiff))

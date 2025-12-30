@@ -6204,6 +6204,50 @@ static json_t *parse_submit(stratum_instance_t *client, json_t *json_msg,
 
 	share = true;
 
+	/* Rate limiting: Check if client is submitting shares too quickly.
+	 * Skip expensive hash computation for throttled shares, but still
+	 * update vardiff stats so difficulty can increase. */
+	if (client->last_share.tv_sec) {
+		tv_t now_tv;
+		int time_diff_ms;
+		int grace_elapsed = 0;
+
+		ts_to_tv(&now_tv, &now);
+		
+		/* If first_share is not set yet, this is the first actual share.
+		 * Skip rate limiting to allow first share through (it will set first_share). */
+		if (!client->first_share.tv_sec) {
+			LOGDEBUG("Rate limiting: Client %s first share, skipping rate limit",
+				client->identity);
+			goto skip_rate_limit;
+		}
+		
+		/* Check if we're still in grace period (if configured) */
+		if (ckp->share_rate_grace_period > 0) {
+			grace_elapsed = now_tv.tv_sec - client->first_share.tv_sec;
+			if (grace_elapsed < ckp->share_rate_grace_period) {
+				/* Still in grace period, skip rate limiting */
+				LOGDEBUG("Rate limiting: Client %s still in grace period (%d/%d seconds)",
+					client->identity, grace_elapsed, ckp->share_rate_grace_period);
+				goto skip_rate_limit;
+			}
+		}
+		
+		time_diff_ms = ms_tvdiff(&now_tv, &client->last_share);
+		/* Throttle if shares submitted faster than configured rate limit.
+		 * share_rate_limit is shares per second, so minimum interval is 1000/rate ms */
+		if (ckp->share_rate_limit > 0 && time_diff_ms < (1000 / ckp->share_rate_limit)) {
+			err = SE_THROTTLED;
+			json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
+			LOGINFO("Rejected client %s throttled share (rate: %d shares/sec, interval: %d ms)",
+				client->identity, ckp->share_rate_limit, time_diff_ms);
+			/* Call add_submit for vardiff tracking (it will update last_share) */
+			add_submit(ckp, client, client->diff, false, false);
+			return json_boolean(false);
+		}
+	}
+skip_rate_limit:
+
 	if (unlikely(!sdata->current_workbase))
 		return json_boolean(false);
 

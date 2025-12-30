@@ -168,6 +168,10 @@ struct ckpool_instance {
 	int dropidle;
 	/* Clean up user/worker data after this many days of inactivity, 0 to never cleanup */
 	int user_cleanup_days;
+	/* Maximum shares per second per client (rate limiting, integer) */
+	int share_rate_limit;
+	/* Grace period in seconds after first share before rate limiting kicks in */
+	int share_rate_grace_period;
 
 	/* API message queue */
 	ckmsgq_t *ckpapi;
