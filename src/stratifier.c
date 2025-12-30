@@ -8258,11 +8258,6 @@ static void *statsupdate(void *arg)
 				LOGDEBUG("Skipping inactive user %s", user->username);
 				continue;
 			}
-			/* Cleanup users idle longer than user_cleanup_days (if configured) */
-			if (ckp->user_cleanup_days > 0 && per_tdiff > (ckp->user_cleanup_days * 86400)) {
-				LOGDEBUG("Skipping user %s (idle for %d days)", user->username, ckp->user_cleanup_days);
-				continue;
-			}
 			if (per_tdiff > 60)
 				decay_user(user, 0, &now);
 
@@ -8319,15 +8314,6 @@ static void *statsupdate(void *arg)
 				if (per_tdiff > 60) {
 					decay_worker(worker, 0, &now);
 					worker->idle = true;
-					/* Drop storage of workers idle for longer than user_cleanup_days (if configured) */
-					if (ckp->user_cleanup_days > 0 && per_tdiff > (ckp->user_cleanup_days * 86400)) {
-						LOGDEBUG("Skipping inactive worker %s (idle for %d days)", worker->workername, ckp->user_cleanup_days);
-						continue;
-					}
-				} else if (ckp->user_cleanup_days > 0 && per_tdiff > (ckp->user_cleanup_days * 86400)) {
-					/* Also check cleanup threshold for workers that haven't been idle long enough to decay */
-					LOGDEBUG("Skipping inactive worker %s (idle for %d days)", worker->workername, ckp->user_cleanup_days);
-					continue;
 				}
 
 				ghs = worker->dsps1440 * nonces;

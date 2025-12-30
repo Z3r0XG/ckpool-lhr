@@ -86,6 +86,15 @@ tests/TESTING_STATUS.md
 MERGE_ANALYSIS.md
 TESTING_STRATEGY.md
 
+# Local scratch/state
+.local/
+
+# Editor and shell artifacts
+*.swp
+*.swo
+*~
+.DS_Store
+
 # VS Code workspace settings
 .vscode/
 

@@ -44,16 +44,5 @@ devices and other embedded systems).
 - Add `"cookie" : "/path/to/.cookie"` to the btcd entry in ckpool.conf
 - Cookie file location: `~/.bitcoin/.cookie` (Linux default) or `<datadir>/.cookie` if custom datadir is set
 
-### 4. Configurable User Data Cleanup
 
-**Purpose**: Control how long user and worker statistics are retained on disk.
-
-**Behavior**:
-- `user_cleanup_days` configuration option (integer, days)
-- Default: `0` (never cleanup - user data persists indefinitely)
-- When set to a positive value: User and worker statistics are removed from disk after the specified number of days of inactivity (no shares submitted)
-- Provides flexibility: `0` = keep forever, `7` = 1 week, `365` = 1 year, etc.
-
-> [!NOTE]
-> Users who have never submitted a share are not saved to disk regardless of this setting.
 
