@@ -5837,11 +5837,11 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 		return;
 	}
 
-	client->ssdc = 0;
-
 	double new_diff = normalize_pool_diff(optimal);
 	if (fabs(client->diff - new_diff) < 1e-6)
 		return;
+
+	client->ssdc = 0;
 
 	LOGINFO("Client %s biased dsps %.2f dsps %.2f drr %.2f adjust diff from %lf to: %lf ",
 		client->identity, dsps, client->dsps5, drr, client->diff, new_diff);
