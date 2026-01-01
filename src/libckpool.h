@@ -156,7 +156,7 @@ static inline void flip_80(void *dest_p, const void *src_p)
 static inline double normalize_pool_diff(const double diff)
 {
 	if (diff >= 1.0)
-		return floor(diff + 0.5);
+		return round(diff);
 	return diff;
 }
 
