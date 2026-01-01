@@ -296,7 +296,7 @@ option is ignored in solo mode (miners provide their own address as username).
 ## Notes
 
 > [!NOTE]
-> **Difficulty values:** For `mindiff`, `startdiff`, `maxdiff`, and `highdiff`, values >= 1 are automatically rounded to whole numbers using `floor(diff + 0.5)` (standard rounding). Values below 1 retain full precision for low hash rate miners. Example: 1.3 \u2192 1, 42.5 \u2192 43, 256.9 \u2192 257, 0.0005 \u2192 0.0005.
+> **Difficulty rounding:** `mindiff`, `startdiff`, `maxdiff`, and `highdiff` values >= 1 are rounded to whole numbers. Values below 1 retain full precision.
 
 > [!WARNING]
 > JSON is strict with formatting. Do not put a comma after the last field.

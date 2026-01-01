@@ -106,3 +106,4 @@ test-suite.log
 # Unit test binaries (keep sources)
 /tests/unit/test-*
 !/tests/unit/test-*.c
+build/
