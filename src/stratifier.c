@@ -3388,9 +3388,14 @@ static void _dec_instance_ref(sdata_t *sdata, stratum_instance_t *client, const 
 	 * moved due to holding a reference and drop them now. */
 	if (unlikely(client->dropped && !ref)) {
 		dropped = true;
+		LOGDEBUG("_dec_instance_ref: Cleaning up dropped client %"PRId64" (ref dropped to 0)",
+			 client->id);
 		__drop_client(sdata, client, true, &msg);
 		if (msg)
 			add_msg_entry(&entries, &msg);
+	} else if (unlikely(client->dropped && ref > 0)) {
+		LOGDEBUG("_dec_instance_ref: Dropped client %"PRId64" still has ref: %d (from %s %s:%d)",
+			 client->id, ref, file, func, line);
 	}
 	ck_wunlock(&sdata->instance_lock);
 
@@ -3630,6 +3635,8 @@ static void drop_client(ckpool_t *ckp, sdata_t *sdata, const int64_t id)
 	ck_wlock(&sdata->instance_lock);
 	client = __instance_by_id(sdata, id);
 	if (client) {
+		LOGDEBUG("drop_client: Processing drop request for client %"PRId64" (ref: %d, exists in connector: checking)",
+			 id, client->ref);
 		__disconnect_session(sdata, client);
 		/* If the client is still holding a reference, don't drop them
 		 * now but wait till the reference is dropped */
@@ -3637,8 +3644,14 @@ static void drop_client(ckpool_t *ckp, sdata_t *sdata, const int64_t id)
 			__drop_client(sdata, client, false, &msg);
 			if (msg)
 				add_msg_entry(&entries, &msg);
-		} else
+		} else {
 			client->dropped = true;
+			LOGDEBUG("drop_client: Marked client %"PRId64" as dropped (ref: %d) - will cleanup when ref drops to 0",
+				 id, client->ref);
+		}
+	} else {
+		LOGDEBUG("drop_client: Client %"PRId64" not found in stratifier hashtable (may have been cleaned up already)",
+			 id);
 	}
 	ck_wunlock(&sdata->instance_lock);
 
@@ -6882,6 +6895,7 @@ static void parse_method(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t *clie
 			return;
 		}
 		jp = create_json_params(client_id, method_val, params_val, id_val);
+		LOGDEBUG("Queued auth for client %"PRId64" to sauthq", client_id);
 		ckmsgq_add(sdata->sauthq, jp);
 		return;
 	}
@@ -7841,6 +7855,8 @@ static stratum_instance_t *preauth_ref_instance_by_id(sdata_t *sdata, const int6
 			client = NULL;
 		else {
 			__inc_instance_ref(client);
+			LOGDEBUG("preauth_ref_instance_by_id incremented ref for client %"PRId64" (ref now: %d, dropped: %d)",
+				 client->id, client->ref, client->dropped);
 			client->authorising = true;
 		}
 	}
@@ -7886,6 +7902,7 @@ static void sauth_process(ckpool_t *ckp, json_params_t *jp)
 
 	client_id = jp->client_id;
 
+	LOGDEBUG("sauth_process processing client %"PRId64, client_id);
 	client = preauth_ref_instance_by_id(sdata, client_id);
 	if (unlikely(!client)) {
 		LOGINFO("Authoriser failed to find client id %"PRId64" in hashtable!", client_id);
@@ -8158,8 +8175,41 @@ static void *statsupdate(void *arg)
 			/* Look for clients that have been dropped which the
 			 * connector may not have been informed about and should
 			 * disconnect. */
-			if (client->dropped)
-				connector_drop_client(ckp, client->id);
+			if (client->dropped) {
+				/* Check if client still exists in connector. If not,
+				 * it was already removed - clean up from stratifier's
+				 * hashtable to prevent repeated drop attempts. */
+				if (!connector_client_exists(ckp, client->id)) {
+					/* Client doesn't exist in connector - this is a zombie.
+					 * Log detection with context for troubleshooting. */
+					time_t now_t = time(NULL);
+					int age_seconds = now_t - client->start_time;
+					ck_wlock(&sdata->instance_lock);
+					LOGDEBUG("Watchdog: Detected zombie client %"PRId64" (not in connector, ref: %d, age: %ds, authorized: %d, subscribed: %d)",
+						 client->id, client->ref, age_seconds, client->authorised, client->subscribed);
+					/* Only remove if no other references exist */
+					if (client->ref == 1) {
+						LOGDEBUG("Watchdog: Cleaning up zombie client %"PRId64" (ref == 1, age: %ds)",
+							 client->id, age_seconds);
+						/* Save next pointer before removal */
+						stratum_instance_t *next = client->hh.next;
+						__dec_instance_ref(client);
+						__drop_client(sdata, client, true, NULL);
+						client = next;
+						if (likely(client))
+							__inc_instance_ref(client);
+						ck_wunlock(&sdata->instance_lock);
+						continue;
+					} else {
+						LOGDEBUG("Watchdog: Cannot cleanup zombie client %"PRId64" yet (ref: %d > 1, age: %ds) - waiting for refs to drop",
+							 client->id, client->ref, age_seconds);
+					}
+					ck_wunlock(&sdata->instance_lock);
+				} else {
+					/* Client exists in connector - legitimate drop */
+					connector_drop_client(ckp, client->id);
+				}
+			}
 			else if (remote_server(client)) {
 				/* Do nothing to these */
 			} else if (!client->authorised) {
