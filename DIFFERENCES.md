@@ -18,12 +18,14 @@ devices and other embedded systems).
 **Behavior**:
 - All difficulty settings (`mindiff`, `startdiff`, `highdiff`, `maxdiff`) changed from integer to double precision floating point
 - Configuration options accept fractional values below 1.0 (e.g., 0.0005, 0.001)
+- Values >= 1 are automatically rounded to the nearest whole number (e.g., 1.3 → 1, 42.5 → 43)
 - Vardiff algorithm performs smooth adjustments using floating-point calculations (e.g., optimal = DSPS × 3.33)
 - Configuration validation:
   - Negative values are rejected (pool exits with error)
-  - Zero values apply sensible defaults (mindiff=1.0, startdiff=42.0, highdiff=1000000.0)
+  - Zero values apply sensible defaults (mindiff=1, startdiff=42, highdiff=1000000)
   - Values below 0.001 trigger performance warnings (but are accepted)
 - Automatic vardiff adjustment can now reduce difficulty below 1.0 based on hashrate
+- Difficulty values sent to miners as JSON integers for whole numbers >= 1 (e.g., 128 not 128.0)
 
 ### 2. User Agent Whitelisting
 
