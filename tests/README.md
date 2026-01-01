@@ -19,6 +19,19 @@ This directory contains unit tests for CKPOOL-LHR.
 13. **test-base58.c** - Base58 decoding (LOW)
 14. **test-base64.c** - Base64 encoding (LOW)
 15. **test-dropidle.c** - dropidle feature (idle client management) (MEDIUM)
+16. **test-vardiff.c** - Variable difficulty adjustment logic (HIGH)
+17. **test-share-params.c** - Share submission parameter validation (HIGH)
+18. **test-config.c** - Configuration parsing and validation (HIGH)
+19. **test-adjustment-hysteresis.c** - Difficulty adjustment hysteresis (MEDIUM)
+20. **test-backwards-compatibility.c** - Backwards compatibility checks (MEDIUM)
+21. **test-fractional-config.c** - Fractional difficulty configuration (HIGH fork feature)
+22. **test-fractional-stats.c** - Fractional difficulty statistics (MEDIUM fork feature)
+23. **test-fractional-vardiff.c** - Fractional difficulty vardiff behavior (HIGH fork feature)
+24. **test-low-diff.c** - Low difficulty share handling (HIGH fork feature)
+25. **test-network-diff-interactions.c** - Network difficulty interactions (MEDIUM)
+26. **test-share-orphan-prevention.c** - Share orphan prevention (HIGH)
+27. **test-ua-aggregation.c** - Useragent aggregation (MEDIUM fork feature)
+28. **test-vardiff-comprehensive.c** - Comprehensive vardiff testing (HIGH)
 
 ## Building and Running Tests
 
@@ -61,6 +74,16 @@ make check
 ./tests/unit/test-vardiff
 ./tests/unit/test-share-params
 ./tests/unit/test-config
+./tests/unit/test-adjustment-hysteresis
+./tests/unit/test-backwards-compatibility
+./tests/unit/test-fractional-config
+./tests/unit/test-fractional-stats
+./tests/unit/test-fractional-vardiff
+./tests/unit/test-low-diff
+./tests/unit/test-network-diff-interactions
+./tests/unit/test-share-orphan-prevention
+./tests/unit/test-ua-aggregation
+./tests/unit/test-vardiff-comprehensive
 ```
 
 ## Test Framework

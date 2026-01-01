@@ -13,80 +13,62 @@
 #include "../test_common.h"
 #include "libckpool.h"
 
-/* Test optimal diff calculation with fractional values */
-static void test_optimal_diff_calculation_fractional(void)
+/* Test optimal diff calculation stays fractional only below 1.0 and is normalized when >= 1.0 */
+static void test_optimal_diff_normalization(void)
 {
-	/* optimal = dsps * multiplier (2.4 or 3.33 depending on mindiff)
-	 * Should work with fractional inputs and outputs
-	 */
-	
 	struct {
 		double dsps;
 		double multiplier;
-		double expected;
-		char desc[50];
-	} test_cases[] = {
-		/* Below 1.0 */
-		{ 0.1, 3.33, 0.333, "Very low dsps, no mindiff" },
-		{ 0.3, 2.4,  0.72,  "Low dsps, with mindiff" },
-		
-		/* Around 1.0 */
-		{ 1.0, 3.33, 3.33,  "dsps=1, no mindiff" },
-		{ 1.0, 2.4,  2.4,   "dsps=1, with mindiff" },
-		
-		/* Above 1.0 */
-		{ 10.0, 3.33, 33.3,   "dsps=10, no mindiff" },
-		{ 22.0, 2.4,  52.8,   "dsps=22, with mindiff" },
-		{ 100.5, 3.33, 334.665, "High dsps fractional" },
+		double expected; /* expected after normalization for >=1 */
+		double raw;      /* expected raw before normalization */
+		bool expect_normalized;
+	} cases[] = {
+		{ 0.1,   3.33, 0.333, 0.333, false },
+		{ 0.3,   2.4,  0.72,  0.72,  false },
+		{ 1.0,   3.33, 3.0,   3.33,  true  },
+		{ 1.0,   2.4,  2.0,   2.4,   true  },
+		{ 10.0,  3.33, 33.0,  33.3,  true  },
+		{ 22.0,  2.4,  53.0,  52.8,  true  },
+		{ 100.5, 3.33, 335.0, 334.665, true },
 	};
-	
-	int num_tests = sizeof(test_cases) / sizeof(test_cases[0]);
-	for (int i = 0; i < num_tests; i++) {
-		double dsps = test_cases[i].dsps;
-		double multiplier = test_cases[i].multiplier;
-		double expected = test_cases[i].expected;
-		
-		/* Vardiff computes optimal as dsps * multiplier; fractional values
-		 * are preserved (no integer rounding applied).
-		 */
-		double optimal = dsps * multiplier;
-		
-		assert_double_equal(optimal, expected, EPSILON_DIFF);
+
+	int num = sizeof(cases) / sizeof(cases[0]);
+	for (int i = 0; i < num; i++) {
+		double optimal_raw = cases[i].dsps * cases[i].multiplier;
+		assert_double_equal(optimal_raw, cases[i].raw, EPSILON_DIFF);
+
+		double normalized = normalize_pool_diff(optimal_raw);
+		if (cases[i].expect_normalized)
+			assert_double_equal(normalized, cases[i].expected, EPSILON_DIFF);
+		else
+			assert_double_equal(normalized, optimal_raw, EPSILON_DIFF);
 	}
 }
 
-/* Test that lround truncation is gone */
-static void test_lround_elimination(void)
+/* Test that lround truncation remains eliminated for sub-1 paths (preserve fractional) */
+static void test_lround_elimination_sub1_only(void)
 {
-	/* Legacy behavior: previous algorithm rounded optimal difficulty using
-	 * lround(dsps * multiplier) which could truncate or change fractional
-	 * results. This test asserts that fractional diffs are preserved.
-	 */
-	
 	struct {
 		double dsps;
 		double multiplier;
-	} test_cases[] = {
+	} cases[] = {
 		{ 0.1, 3.33 },   /* 0.333 would become 0 with lround */
 		{ 0.2, 2.4 },    /* 0.48 would become 0 with lround */
-		{ 0.5, 3.33 },   /* 1.665 would become 2 with lround */
-		{ 1.5, 2.4 },    /* 3.6 would become 4 with lround */
+		{ 0.5, 3.33 },   /* 1.665 would normalize to 2; ensure raw still fractional pre-norm */
 	};
-	
-	int num_tests = sizeof(test_cases) / sizeof(test_cases[0]);
-	for (int i = 0; i < num_tests; i++) {
-		double dsps = test_cases[i].dsps;
-		double mult = test_cases[i].multiplier;
-		
-		/* Legacy rounding approach (lround) for comparison */
-		long old_optimal = lround(dsps * mult);
-		
-		/* New way (direct double) */
-		double new_optimal = dsps * mult;
-		
-		/* They should differ if result is fractional */
-		if (new_optimal < 1.0) {
-			assert_true((double)old_optimal != new_optimal);
+
+	int num = sizeof(cases) / sizeof(cases[0]);
+	for (int i = 0; i < num; i++) {
+		double raw = cases[i].dsps * cases[i].multiplier;
+		long old_optimal = lround(raw);
+		double normalized = normalize_pool_diff(raw);
+
+		if (raw < 1.0) {
+			assert_true((double)old_optimal != raw);
+			assert_double_equal(normalized, raw, EPSILON_DIFF);
+		} else {
+			/* >=1 should normalize to a nearby whole number */
+			assert_true(fabs(normalized - raw) <= 1.0);
 		}
 	}
 }
@@ -126,32 +108,25 @@ static void test_vardiff_below_1(void)
 	}
 }
 
-/* Test vardiff adjusting above 1.0 with fractional values */
-static void test_vardiff_above_1_fractional(void)
+/* Test vardiff outputs >=1 get normalized to whole numbers */
+static void test_vardiff_above_1_normalized(void)
 {
-	/* Medium hashrate miner, adjust from 1.0 → 1.5 → 2.5 → 3.3, etc.
-	 * Vardiff should handle 1.001, 1.5, 2.7, etc. smoothly
-	 */
-	
 	struct {
 		double dsps;
-		double expected_approx;
-	} test_cases[] = {
-		{ 1.5, 4.995 },    /* 1.5 * 3.33 = 4.995 */
-		{ 2.5, 8.325 },    /* 2.5 * 3.33 = 8.325 */
-		{ 10.5, 34.965 },  /* 10.5 * 3.33 = 34.965 */
+		double raw_expected;
+		double normalized_expected;
+	} cases[] = {
+		{ 1.5, 4.995, 5.0 },
+		{ 2.5, 8.325, 8.0 },
+		{ 10.5, 34.965, 35.0 },
 	};
-	
-	int num_tests = sizeof(test_cases) / sizeof(test_cases[0]);
-	for (int i = 0; i < num_tests; i++) {
-		double dsps = test_cases[i].dsps;
-		double expected = test_cases[i].expected_approx;
-		
-		double optimal = dsps * 3.33;
-		
-		/* Allow 1% error for floating point */
-		double error = fabs(optimal - expected) / expected;
-		assert_true(error < 0.01);
+
+	int num = sizeof(cases) / sizeof(cases[0]);
+	for (int i = 0; i < num; i++) {
+		double raw = cases[i].dsps * 3.33;
+		assert_double_equal(raw, cases[i].raw_expected, EPSILON_DIFF);
+		double normalized = normalize_pool_diff(raw);
+		assert_double_equal(normalized, cases[i].normalized_expected, EPSILON_DIFF);
 	}
 }
 
@@ -275,16 +250,16 @@ static void test_vardiff_adjustment_sequence(void)
 int main(void)
 {
 	printf("Testing fractional variable difficulty support...\n\n");
-	
-	run_test(test_optimal_diff_calculation_fractional);
-	run_test(test_lround_elimination);
+
+	run_test(test_optimal_diff_normalization);
+	run_test(test_lround_elimination_sub1_only);
 	run_test(test_vardiff_below_1);
-	run_test(test_vardiff_above_1_fractional);
+	run_test(test_vardiff_above_1_normalized);
 	run_test(test_floor_check_change);
 	run_test(test_mindiff_clamping_fractional);
 	run_test(test_worker_mindiff_fractional);
 	run_test(test_vardiff_adjustment_sequence);
-	
+
 	printf("\nAll fractional vardiff tests passed!\n");
 	return 0;
 }

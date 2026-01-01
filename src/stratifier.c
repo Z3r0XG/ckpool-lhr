@@ -3188,10 +3188,11 @@ static void update_diff(ckpool_t *ckp, const char *cmd)
 
 	ck_wlock(&dsdata->workbase_lock);
 	old_diff = proxy->diff;
-	dsdata->current_workbase->diff = proxy->diff = diff;
+	double new_diff = normalize_pool_diff(diff);
+	dsdata->current_workbase->diff = proxy->diff = new_diff;
 	ck_wunlock(&dsdata->workbase_lock);
 
-	if (old_diff < diff)
+	if (old_diff < new_diff)
 		return;
 
 	/* If the diff has dropped, iterate over all the clients and check
@@ -3202,8 +3203,8 @@ static void update_diff(ckpool_t *ckp, const char *cmd)
 			continue;
 		if (client->subproxyid != subid)
 			continue;
-		if (client->diff > diff) {
-			client->diff = diff;
+		if (client->diff > new_diff) {
+			client->diff = new_diff;
 			stratum_send_diff(sdata, client);
 		}
 	}
@@ -3449,9 +3450,11 @@ static stratum_instance_t *__stratum_add_instance(ckpool_t *ckp, int64_t id, con
 	if (server >= ckp->serverurls)
 		server = 0;
 	client->server = server;
-	client->diff = client->old_diff = ckp->startdiff;
+	client->diff = client->old_diff = normalize_pool_diff(ckp->startdiff);
 	if (ckp->server_highdiff && ckp->server_highdiff[server]) {
-		client->suggest_diff = ckp->highdiff;
+		double highdiff = normalize_pool_diff(ckp->highdiff);
+
+		client->suggest_diff = highdiff;
 		if (client->suggest_diff > client->diff)
 			client->diff = client->old_diff = client->suggest_diff;
 	}
@@ -5693,7 +5696,8 @@ static void stratum_send_diff(sdata_t *sdata, const stratum_instance_t *client)
 	json_t *json_msg;
 
 	JSON_CPACK(json_msg, "{s[f]soss}", "params", client->diff, "id", json_null(),
-			     "method", "mining.set_difficulty");
+		   "method", "mining.set_difficulty");
+
 	stratum_add_send(sdata, json_msg, client->id, SM_DIFF);
 }
 
@@ -5835,7 +5839,7 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 		return;
 
 	/* Use epsilon comparison for floating-point equality to handle rounding errors */
-	if (fabs(client->diff - optimal) < 1e-6)
+	if (fabs(client->diff - optimal) < DIFF_EPSILON)
 		return;
 
 	/* If this is the first share in a change, reset the last diff change
@@ -5846,15 +5850,19 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 		return;
 	}
 
+	double new_diff = normalize_pool_diff(optimal);
+	if (fabs(client->diff - new_diff) < DIFF_EPSILON)
+		return;
+
 	client->ssdc = 0;
 
 	LOGINFO("Client %s biased dsps %.2f dsps %.2f drr %.2f adjust diff from %lf to: %lf ",
-		client->identity, dsps, client->dsps5, drr, client->diff, optimal);
+		client->identity, dsps, client->dsps5, drr, client->diff, new_diff);
 
 	copy_tv(&client->ldc, &now_t);
 	client->diff_change_job_id = next_blockid;
 	client->old_diff = client->diff;
-	client->diff = optimal;
+	client->diff = new_diff;
 	stratum_send_diff(sdata, client);
 }
 
@@ -6127,6 +6135,20 @@ static void check_best_diff(sdata_t *sdata, user_instance_t *user,worker_instanc
 
 #define JSON_ERR(err) json_string(SHARE_ERR(err))
 
+/* Format difficulty for logging with trailing zeros stripped */
+static void format_diff(char *buf, size_t len, double diff)
+{
+	snprintf(buf, len, "%.10f", diff);
+	char *decimal = strchr(buf, '.');
+	if (decimal) {
+		char *end = buf + strlen(buf) - 1;
+		while (end > decimal && *end == '0')
+			*end-- = '\0';
+		if (end == decimal)
+			*decimal = '\0';
+	}
+}
+
 /* Needs to be entered with client holding a ref count. */
 static json_t *parse_submit(stratum_instance_t *client, json_t *json_msg,
 			    const json_t *params_val, json_t **err_val)
@@ -6314,24 +6336,27 @@ out_nowb:
 		diff = client->old_diff;
 	if (!invalid) {
 		char wdiffsuffix[16];
+		char sdiff_str[32], diff_str[32];
 
+		format_diff(sdiff_str, sizeof(sdiff_str), sdiff);
+		format_diff(diff_str, sizeof(diff_str), diff);
 		suffix_string(wdiff, wdiffsuffix, 16, 0);
 		if (sdiff >= diff) {
 			if (new_share(sdata, hash, id)) {
-				LOGINFO("Accepted client %s share diff %.10f/%.10f/%s: %s",
-					client->identity, sdiff, diff, wdiffsuffix, hexhash);
+				LOGINFO("Accepted client %s share diff %s/%s/%s: %s",
+					client->identity, sdiff_str, diff_str, wdiffsuffix, hexhash);
 				result = true;
 			} else {
 				err = SE_DUPE;
 				json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
-				LOGINFO("Rejected client %s dupe diff %.1f/%.10f/%s: %s",
-					client->identity, sdiff, diff, wdiffsuffix, hexhash);
+				LOGINFO("Rejected client %s dupe diff %s/%s/%s: %s",
+					client->identity, sdiff_str, diff_str, wdiffsuffix, hexhash);
 				submit = false;
 			}
 		} else {
 			err = SE_HIGH_DIFF;
-			LOGINFO("Rejected client %s high diff %.1f/%.10f/%s: %s",
-				client->identity, sdiff, diff, wdiffsuffix, hexhash);
+			LOGINFO("Rejected client %s high diff %s/%s/%s: %s",
+				client->identity, sdiff_str, diff_str, wdiffsuffix, hexhash);
 			json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
 			submit = false;
 		}
@@ -6582,6 +6607,7 @@ static bool apply_suggest_diff(ckpool_t *ckp, stratum_instance_t *client, double
 
 	if (sdiff < ckp->mindiff)
 		sdiff = ckp->mindiff;
+	sdiff = normalize_pool_diff(sdiff);
 	/* No-op if suggested diff unchanged */
 	if (fabs(sdiff - client->suggest_diff) < epsilon)
 		return false;
@@ -6660,7 +6686,7 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 		LOGINFO("Failed to parse suggest_difficulty for client %s", client->identity);
 		return;
 	}
-	if (!apply_suggest_diff(ckp, client, sdiff, 1e-6))
+	if (!apply_suggest_diff(ckp, client, sdiff, DIFF_EPSILON))
 		return;
 	stratum_send_diff(ckp->sdata, client);
 }
@@ -6939,7 +6965,7 @@ static void parse_method(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t *clie
 				LOGINFO("Failed to parse early suggest_difficulty from unauthorised client %s", client->identity);
 				return;
 			}
-			apply_suggest_diff(ckp, client, sdiff, 1e-6);
+			apply_suggest_diff(ckp, client, sdiff, DIFF_EPSILON);
 			return;
 		}
 

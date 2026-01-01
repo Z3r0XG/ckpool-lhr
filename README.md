@@ -203,30 +203,30 @@ option is ignored in solo mode (miners provide their own address as username).
 **"mindiff"** : Minimum difficulty for vardiff. **OPTIONAL**
 - Type: Double
 - Values: Any positive number
-- Default: 1.0
+- Default: 1
 - Note: Supports sub-"1" values (e.g., 0.0005) for low hash rate miners.
-- Example: `"mindiff" : 0.0005`
+- Example: `"mindiff" : 1` or `"mindiff" : 0.0005`
 
 **"startdiff"** : Starting difficulty for new clients. **OPTIONAL**
 - Type: Double
 - Values: Any positive number
-- Default: 42.0
+- Default: 42
 - Note: Can be set below 1 for low hash rate miners.
-- Example: `"startdiff" : 0.0005`
+- Example: `"startdiff" : 42` or `"startdiff" : 0.0005`
 
 **"maxdiff"** : Maximum difficulty for vardiff. **OPTIONAL**
 - Type: Double
 - Values: Any positive number, or 0 for no maximum
 - Default: 0 (no maximum)
 - Note: Caps vardiff adjustments to prevent difficulty from growing too high.
-- Example: `"maxdiff" : 10000000.0`
+- Example: `"maxdiff" : 10000000` or `"maxdiff" : 0`
 
 **"highdiff"** : Starting difficulty for high-hashrate server ports. **OPTIONAL**
 - Type: Double
 - Values: Any positive number
-- Default: 1000000.0
+- Default: 1000000
 - Note: Used when specific server ports are designated as "highdiff" ports.
-- Example: `"highdiff" : 100000.0`
+- Example: `"highdiff" : 100000`
 
 **"allow_low_diff"** : Remove minimum network difficulty floor (for regtest). **OPTIONAL**
 - Type: Boolean
@@ -294,6 +294,9 @@ option is ignored in solo mode (miners provide their own address as username).
 ---
 
 ## Notes
+
+> [!NOTE]
+> **Difficulty rounding:** `mindiff`, `startdiff`, `maxdiff`, and `highdiff` values >= 1 are rounded to whole numbers. Values below 1 retain full precision.
 
 > [!WARNING]
 > JSON is strict with formatting. Do not put a comma after the last field.

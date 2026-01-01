@@ -24,6 +24,7 @@
 #include <string.h>
 #include <syslog.h>
 #include <semaphore.h>
+#include <math.h>
 
 #if HAVE_BYTESWAP_H
 # include <byteswap.h>
@@ -147,6 +148,16 @@ static inline void flip_80(void *dest_p, const void *src_p)
 
 	for (i = 0; i < 20; i++)
 		dest[i] = bswap_32(src[i]);
+}
+
+/* Epsilon for floating-point difficulty comparisons */
+#define DIFF_EPSILON 1e-6
+
+static inline double normalize_pool_diff(const double diff)
+{
+	if (diff >= 1.0)
+		return round(diff);
+	return diff;
 }
 
 #define cond_wait(_cond, _lock) _cond_wait(_cond, _lock, __FILE__, __func__, __LINE__)

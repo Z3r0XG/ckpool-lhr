@@ -14,6 +14,32 @@
 #include "libckpool.h"
 #include "sha2.h"
 
+/* Test normalize_pool_diff helper (whole numbers for >=1, unchanged below) */
+static void test_normalize_pool_diff(void)
+{
+    struct {
+        double in;
+        double out;
+    } cases[] = {
+        { 0.5, 0.5 },
+        { 0.999, 0.999 },
+        { 1.0, 1.0 },
+        { 1.001, 1.0 },
+        { 1.4, 1.0 },
+        { 1.5, 2.0 },
+        { 153.6176, 154.0 },
+        { 1000.5, 1001.0 },
+    };
+
+    int num = sizeof(cases) / sizeof(cases[0]);
+    for (int i = 0; i < num; i++) {
+        double normalized = normalize_pool_diff(cases[i].in);
+        assert_double_equal(normalized, cases[i].out, EPSILON_DIFF);
+        /* Idempotence */
+        assert_double_equal(normalize_pool_diff(normalized), normalized, EPSILON_DIFF);
+    }
+}
+
 /* Test target_from_diff and diff_from_target round-trip */
 static void test_diff_roundtrip_sub1(void)
 {
@@ -146,6 +172,7 @@ int main(void)
     run_test(test_difficulty_edge_cases);
     run_test(test_diff_from_nbits);
     run_test(test_target_conversions);
+    run_test(test_normalize_pool_diff);
     
     printf("\nAll difficulty tests passed!\n");
     return 0;
