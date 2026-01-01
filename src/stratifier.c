@@ -5826,7 +5826,7 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 		return;
 
 	/* Use epsilon comparison for floating-point equality to handle rounding errors */
-	if (fabs(client->diff - optimal) < 1e-6)
+	if (fabs(client->diff - optimal) < DIFF_EPSILON)
 		return;
 
 	/* If this is the first share in a change, reset the last diff change
@@ -5838,7 +5838,7 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	}
 
 	double new_diff = normalize_pool_diff(optimal);
-	if (fabs(client->diff - new_diff) < 1e-6)
+	if (fabs(client->diff - new_diff) < DIFF_EPSILON)
 		return;
 
 	client->ssdc = 0;
@@ -6673,7 +6673,7 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 		LOGINFO("Failed to parse suggest_difficulty for client %s", client->identity);
 		return;
 	}
-	if (!apply_suggest_diff(ckp, client, sdiff, 1e-6))
+	if (!apply_suggest_diff(ckp, client, sdiff, DIFF_EPSILON))
 		return;
 	stratum_send_diff(ckp->sdata, client);
 }
@@ -6951,7 +6951,7 @@ static void parse_method(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t *clie
 				LOGINFO("Failed to parse early suggest_difficulty from unauthorised client %s", client->identity);
 				return;
 			}
-			apply_suggest_diff(ckp, client, sdiff, 1e-6);
+			apply_suggest_diff(ckp, client, sdiff, DIFF_EPSILON);
 			return;
 		}
 
