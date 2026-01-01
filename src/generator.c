@@ -1048,10 +1048,11 @@ out:
 static bool parse_diff(proxy_instance_t *proxi, json_t *val)
 {
 	double diff = json_number_value(json_array_get(val, 0));
+	double new_diff = normalize_pool_diff(diff);
 
-	if (diff == 0 || diff == proxi->diff)
+	if (new_diff == 0 || fabs(new_diff - proxi->diff) < 1e-9)
 		return true;
-	proxi->diff = diff;
+	proxi->diff = new_diff;
 	return true;
 }
 

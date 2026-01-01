@@ -88,6 +88,7 @@ TESTING_STRATEGY.md
 
 # Local scratch/state
 .local/
+.clinerules
 
 # Editor and shell artifacts
 *.swp
@@ -105,5 +106,3 @@ test-suite.log
 # Unit test binaries (keep sources)
 /tests/unit/test-*
 !/tests/unit/test-*.c
-
-

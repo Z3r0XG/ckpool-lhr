@@ -3188,10 +3188,11 @@ static void update_diff(ckpool_t *ckp, const char *cmd)
 
 	ck_wlock(&dsdata->workbase_lock);
 	old_diff = proxy->diff;
-	dsdata->current_workbase->diff = proxy->diff = diff;
+	double new_diff = normalize_pool_diff(diff);
+	dsdata->current_workbase->diff = proxy->diff = new_diff;
 	ck_wunlock(&dsdata->workbase_lock);
 
-	if (old_diff < diff)
+	if (old_diff < new_diff)
 		return;
 
 	/* If the diff has dropped, iterate over all the clients and check
@@ -3202,8 +3203,8 @@ static void update_diff(ckpool_t *ckp, const char *cmd)
 			continue;
 		if (client->subproxyid != subid)
 			continue;
-		if (client->diff > diff) {
-			client->diff = diff;
+		if (client->diff > new_diff) {
+			client->diff = new_diff;
 			stratum_send_diff(sdata, client);
 		}
 	}
@@ -3444,9 +3445,11 @@ static stratum_instance_t *__stratum_add_instance(ckpool_t *ckp, int64_t id, con
 	if (server >= ckp->serverurls)
 		server = 0;
 	client->server = server;
-	client->diff = client->old_diff = ckp->startdiff;
+	client->diff = client->old_diff = normalize_pool_diff(ckp->startdiff);
 	if (ckp->server_highdiff && ckp->server_highdiff[server]) {
-		client->suggest_diff = ckp->highdiff;
+		double highdiff = normalize_pool_diff(ckp->highdiff);
+
+		client->suggest_diff = highdiff;
 		if (client->suggest_diff > client->diff)
 			client->diff = client->old_diff = client->suggest_diff;
 	}
@@ -5677,10 +5680,24 @@ out:
 /* Needs to be entered with client holding a ref count. */
 static void stratum_send_diff(sdata_t *sdata, const stratum_instance_t *client)
 {
-	json_t *json_msg;
+	json_t *json_msg, *params;
 
-	JSON_CPACK(json_msg, "{s[f]soss}", "params", client->diff, "id", json_null(),
-			     "method", "mining.set_difficulty");
+	/* Send as integer for whole numbers >= 1.0 (cleaner for ASIC hardware).
+	 * Send as float for sub-1.0 diffs to preserve precision. */
+	params = json_array();
+	if (client->diff >= 1.0 && client->diff == floor(client->diff)) {
+		/* Whole number >= 1: send as integer */
+		json_array_append_new(params, json_integer((int64_t)client->diff));
+	} else {
+		/* Fractional or sub-1: send as float */
+		json_array_append_new(params, json_real(client->diff));
+	}
+
+	json_msg = json_object();
+	json_object_set_new(json_msg, "params", params);
+	json_object_set_new(json_msg, "id", json_null());
+	json_object_set_new(json_msg, "method", json_string("mining.set_difficulty"));
+
 	stratum_add_send(sdata, json_msg, client->id, SM_DIFF);
 }
 
@@ -5835,13 +5852,17 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 
 	client->ssdc = 0;
 
+	double new_diff = normalize_pool_diff(optimal);
+	if (fabs(client->diff - new_diff) < 1e-6)
+		return;
+
 	LOGINFO("Client %s biased dsps %.2f dsps %.2f drr %.2f adjust diff from %lf to: %lf ",
-		client->identity, dsps, client->dsps5, drr, client->diff, optimal);
+		client->identity, dsps, client->dsps5, drr, client->diff, new_diff);
 
 	copy_tv(&client->ldc, &now_t);
 	client->diff_change_job_id = next_blockid;
 	client->old_diff = client->diff;
-	client->diff = optimal;
+	client->diff = new_diff;
 	stratum_send_diff(sdata, client);
 }
 
@@ -6569,6 +6590,7 @@ static bool apply_suggest_diff(ckpool_t *ckp, stratum_instance_t *client, double
 
 	if (sdiff < ckp->mindiff)
 		sdiff = ckp->mindiff;
+	sdiff = normalize_pool_diff(sdiff);
 	/* No-op if suggested diff unchanged */
 	if (fabs(sdiff - client->suggest_diff) < epsilon)
 		return false;
