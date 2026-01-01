@@ -6122,6 +6122,20 @@ static void check_best_diff(sdata_t *sdata, user_instance_t *user,worker_instanc
 
 #define JSON_ERR(err) json_string(SHARE_ERR(err))
 
+/* Format difficulty for logging with trailing zeros stripped */
+static void format_diff(char *buf, size_t len, double diff)
+{
+	snprintf(buf, len, "%.10f", diff);
+	char *decimal = strchr(buf, '.');
+	if (decimal) {
+		char *end = buf + strlen(buf) - 1;
+		while (end > decimal && *end == '0')
+			*end-- = '\0';
+		if (end == decimal)
+			*decimal = '\0';
+	}
+}
+
 /* Needs to be entered with client holding a ref count. */
 static json_t *parse_submit(stratum_instance_t *client, json_t *json_msg,
 			    const json_t *params_val, json_t **err_val)
@@ -6309,24 +6323,27 @@ out_nowb:
 		diff = client->old_diff;
 	if (!invalid) {
 		char wdiffsuffix[16];
+		char sdiff_str[32], diff_str[32];
 
+		format_diff(sdiff_str, sizeof(sdiff_str), sdiff);
+		format_diff(diff_str, sizeof(diff_str), diff);
 		suffix_string(wdiff, wdiffsuffix, 16, 0);
 		if (sdiff >= diff) {
 			if (new_share(sdata, hash, id)) {
-				LOGINFO("Accepted client %s share diff %.10f/%.10f/%s: %s",
-					client->identity, sdiff, diff, wdiffsuffix, hexhash);
+				LOGINFO("Accepted client %s share diff %s/%s/%s: %s",
+					client->identity, sdiff_str, diff_str, wdiffsuffix, hexhash);
 				result = true;
 			} else {
 				err = SE_DUPE;
 				json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
-				LOGINFO("Rejected client %s dupe diff %.1f/%.10f/%s: %s",
-					client->identity, sdiff, diff, wdiffsuffix, hexhash);
+				LOGINFO("Rejected client %s dupe diff %s/%s/%s: %s",
+					client->identity, sdiff_str, diff_str, wdiffsuffix, hexhash);
 				submit = false;
 			}
 		} else {
 			err = SE_HIGH_DIFF;
-			LOGINFO("Rejected client %s high diff %.1f/%.10f/%s: %s",
-				client->identity, sdiff, diff, wdiffsuffix, hexhash);
+			LOGINFO("Rejected client %s high diff %s/%s/%s: %s",
+				client->identity, sdiff_str, diff_str, wdiffsuffix, hexhash);
 			json_set_string(json_msg, "reject-reason", SHARE_ERR(err));
 			submit = false;
 		}
