@@ -5680,23 +5680,10 @@ out:
 /* Needs to be entered with client holding a ref count. */
 static void stratum_send_diff(sdata_t *sdata, const stratum_instance_t *client)
 {
-	json_t *json_msg, *params;
+	json_t *json_msg;
 
-	/* Send as integer for whole numbers >= 1.0 (cleaner for ASIC hardware).
-	 * Send as float for sub-1.0 diffs to preserve precision. */
-	params = json_array();
-	if (client->diff >= 1.0 && client->diff == floor(client->diff)) {
-		/* Whole number >= 1: send as integer */
-		json_array_append_new(params, json_integer((int64_t)client->diff));
-	} else {
-		/* Fractional or sub-1: send as float */
-		json_array_append_new(params, json_real(client->diff));
-	}
-
-	json_msg = json_object();
-	json_object_set_new(json_msg, "params", params);
-	json_object_set_new(json_msg, "id", json_null());
-	json_object_set_new(json_msg, "method", json_string("mining.set_difficulty"));
+	JSON_CPACK(json_msg, "{s[f]siss}", "params", client->diff, "id", json_null(),
+		   "method", "mining.set_difficulty");
 
 	stratum_add_send(sdata, json_msg, client->id, SM_DIFF);
 }
