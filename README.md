@@ -11,7 +11,6 @@ pool software in C for Linux.
 - Sub-"1" difficulty support for low hash rate miners
 - Bitcoind cookie authentication
 - User agent whitelisting
-- Configurable user data cleanup
 - Configurable donation address
 
 ## Acknowledgment
