@@ -11,6 +11,7 @@ pool software in C for Linux.
 - Sub-"1" difficulty support for low hash rate miners
 - Bitcoind cookie authentication
 - User agent whitelisting
+- User agent reporting (pool.status and user pages)
 - Configurable donation address
 
 ## Acknowledgment
@@ -21,9 +22,82 @@ Con Kolivas's foundational work that made this fork possible.
 
 **Original project:** https://bitbucket.org/ckolivas/ckpool
 
+## Design
+
+**Architecture:**
+
+- Multiprocess + multithreaded design to scale to massive deployments and capitalize on modern multicore/multithread CPU designs
+- Minimal memory overhead and low-level hand-coded architecture for maximum efficiency
+- Ultra-reliable Unix sockets for inter-process communication
+- Modular code design to streamline further development
+- Event-driven communication preventing slow clients from delaying low-latency ones
+
+**Features:**
+
+- Bitcoind communication with multiple failover to local or remote locations
+- Virtually seamless restarts for upgrades through socket handover
+- Configurable custom coinbase signature
+- Configurable instant starting and minimum difficulty (including sub-1.0 for low hashrate miners)
+- Rapid vardiff adjustment with stable unlimited maximum difficulty handling
+- New work generation on block changes incorporate full bitcoind transaction set without delay
+- Stratum messaging system to running clients
+- Accurate pool and per-client statistics with user agent tracking
+- Multiple named instances can run concurrently on the same machine
+
 ## License
 
 GNU Public license V3. See included COPYING for details.
+
+---
+
+# Building
+
+Building ckpool-lhr requires basic build tools and yasm on any Linux installation. ZMQ notification support (recommended) requires the zmq devel library installed.
+
+### Building with ZMQ (recommended)
+
+```bash
+sudo apt-get install build-essential yasm libzmq3-dev
+./configure
+make
+```
+
+### Basic build (without ZMQ)
+
+```bash
+sudo apt-get install build-essential yasm
+./configure
+make
+```
+
+### Building from git
+
+Requires additional autotools:
+
+```bash
+git clone https://github.com/Z3r0XG/ckpool-lhr.git
+cd ckpool-lhr
+sudo apt-get install build-essential yasm autoconf automake libtool libzmq3-dev pkgconf
+./autogen.sh
+./configure
+make
+```
+
+### Binaries
+
+Binaries will be built in the `src/` subdirectory:
+
+- **ckpool** - The main pool backend
+- **ckpmsg** - Application for passing messages to ckpool
+- **notifier** - Application for bitcoind's `-blocknotify` to notify ckpool of block changes
+
+### Installation
+
+Installation is **not required** and ckpool can be run directly from the build directory, but it can be installed system-wide with:
+
+```bash
+sudo make install
+```
 
 ---
 
@@ -64,6 +138,74 @@ Example:
 ```bash
 src/ckpool -B
 ```
+
+### All Command Line Options
+
+**`-B | --btcsolo`**
+- Start ckpool in solo mode (required for solo mining)
+
+**`-c CONFIG | --config CONFIG`**
+- Specify path to configuration file (default: ckpool.conf)
+
+**`-D | --daemonise`**
+- Run ckpool as a daemon (background process)
+
+**`-g GROUP | --group GROUP`**
+- Run as specified group
+
+**`-H | --handover`**
+- Handover mode: Take over sockets from old instance, then shut it down
+- Implies -k (killold)
+
+**`-h | --help`**
+- Display help message with all options
+
+**`-k | --killold`**
+- Send shutdown message to old instance with same name
+
+**`-L | --log-shares`**
+- Log shares to disk (can generate large logs)
+
+**`-l LOGLEVEL | --loglevel LOGLEVEL`**
+- Set log level (0=emergency to 7=debug, default: 5=notice)
+
+**`-n NAME | --name NAME`**
+- Set process name (default: ckpool, cknode, etc.)
+
+**`-N | --node`**
+- Run as a passthrough node (combines proxy + passthrough)
+- Cannot be combined with other proxy modes
+
+**`-P | --passthrough`**
+- Passthrough proxy mode (relays to upstream pool)
+- Cannot be combined with other proxy modes
+
+**`-p | --proxy`**
+- Standard proxy mode
+- Cannot be combined with other proxy modes
+
+**`-q | --quiet`**
+- Disable warnings and non-critical messages
+
+**`-R | --redirector`**
+- Redirector mode (minimal proxy that redirects clients)
+- Cannot be combined with other proxy modes
+
+**`-s SOCKDIR | --sockdir SOCKDIR`**
+- Directory for unix domain sockets
+
+**`-t | --trusted`**
+- Trusted remote mode (cannot be combined with proxy modes)
+
+**`-u | --userproxy`**
+- User-based proxy mode
+- Cannot be combined with other proxy modes
+
+> [!NOTE]
+> Most users only need `-B` for solo mining. Other options are for advanced configurations.
+
+> [!WARNING]
+> Proxy modes (`-p`, `-P`, `-N`, `-R`, `-u`) are mutually exclusive and cannot be combined with solo mode (`-B`).
 
 ### Configuration File
 
@@ -288,7 +430,7 @@ option is ignored in solo mode (miners provide their own address as username).
 **"max_pool_useragents"** : Maximum distinct normalized useragents to include in pool.status. **OPTIONAL**
 - Type: Integer
 - Default: 100
-- Note: Controls how many UA entries are included in `pool/pool.status` JSON; 0 disables the array.
+- Note: Controls how many aggregated UA entries (normalized string + count) are included in pool/pool.status JSON; 0 disables publishing. Individual user/worker pages show the specific useragent string for each worker.
 
 ---
 
@@ -306,3 +448,21 @@ option is ignored in solo mode (miners provide their own address as username).
 > [!NOTE]
 > Mining on testnet may create cascading solved blocks when difficulty is 1.
 > This is normal behavior optimized for mainnet where block solving is rare.
+
+---
+
+## Other Modes
+
+While ckpool-lhr is optimized and documented for solo mining, it inherits all capabilities from upstream CKPool and can also operate in the following modes:
+
+- **Proxy mode** (`-p`) - Standard proxy appearing as a single user to upstream pool
+- **Passthrough mode** (`-P`) - Collates connections while retaining individual presence on master pool
+- **Node mode** (`-N`) - Passthrough node with local bitcoind for block submission
+- **Redirector mode** (`-R`) - Front-end filter that redirects active miners
+- **Userproxy mode** (`-u`) - User-based proxy accepting username/password credentials
+
+> [!NOTE]
+> These modes are inherited from upstream CKPool but are not the primary focus of ckpool-lhr. For detailed documentation on proxy/passthrough modes, refer to the original CKPool documentation.
+
+> [!WARNING]
+> Solo mode (`-B`) cannot be combined with any proxy modes.

@@ -1835,11 +1835,6 @@ int main(int argc, char **argv)
 	/* Validate mindiff is sane */
 	if (!validate_mindiff(&ckp.mindiff))
 		quit(0, "mindiff must not be negative");
-	if (ckp.mindiff < RECOMMENDED_MIN_DIFF) {
-		LOGWARNING("mindiff %.6f is below recommended minimum of %.6f", ckp.mindiff, RECOMMENDED_MIN_DIFF);
-		LOGWARNING("This may cause pool performance issues with high share submission rates");
-		LOGWARNING("Proceeding anyway as configured...");
-	}
 
 	/* Validate startdiff is sane before setting default */
 	if (!validate_startdiff(&ckp.startdiff))

@@ -26,17 +26,42 @@ devices and other embedded systems).
   - Values below 0.001 trigger performance warnings (but are accepted)
 - Automatic vardiff adjustment can now reduce difficulty below 1 based on hashrate
 
-### 2. User Agent Whitelisting
+### 2. Whole-Number Difficulty Emission
+
+**Purpose**: Improve ASIC compatibility by emitting whole-number diffs as integers while retaining fractional math internally.
+
+**Behavior**:
+- Diff values >= 1 are emitted in JSON as integers (not floats)
+- Internal calculations still use floating point with DIFF_EPSILON standardization (1e-6)
+- Rounding uses round() for clarity and consistency
+
+### 3. User Agent Whitelisting
 
 **Purpose**: Optionally restrict which mining software can connect to the pool.
 
 **Behavior**:
-- **Whitelist not configured** (missing or empty array): All user agents allowed,
-  including empty strings
-- **Whitelist configured**: User agent must match a whitelist entry using prefix matching,
-  otherwise connection is rejected. Empty user agents are rejected (they don't match any pattern)
+- **Whitelist not configured** (missing or empty array): All user agents allowed, including empty strings
+- **Whitelist configured**: User agent must match a whitelist entry using prefix matching, otherwise connection is rejected. Empty user agents are rejected (they don't match any pattern)
 
-### 3. Bitcoind Cookie Authentication Support
+### 4. User Agent Aggregation & Exposure
+
+**Purpose**: Expose normalized user-agent usage in operator-facing endpoints.
+
+**Behavior**:
+- Pool aggregates normalized UA strings and publishes counts in pool/pool.status (capped by max_pool_useragents; 0 disables publishing)
+- Individual user/worker pages show the specific useragent string for each worker
+
+### 5. Zombie/Ghost Cleanup Improvements
+
+**Purpose**: Faster eviction of orphaned/ghost clients and safer refcount handling.
+
+**Behavior**:
+- Tightened refcount invariant checks and lazy invalidation paths
+- Improved connector/stratifier cleanup to avoid stale clients and FD reuse hazards
+- Enhanced LOGDEBUG instrumentation to investigate zombie scenarios (production-safe)
+- Automatic behavior (no new config); distinct from dropidle, which remains user-tunable
+
+### 6. Bitcoind Cookie Authentication Support
 
 **Purpose**: Support cookie-based authentication for bitcoind connections.
 

@@ -4,34 +4,35 @@ This directory contains unit tests for CKPOOL-LHR.
 
 ## Test Files
 
-1. **test-difficulty.c** - Sub-"1" difficulty calculations (CRITICAL fork feature)
-2. **test-sha256.c** - SHA-256 hashing (CRITICAL)
-3. **test-encoding.c** - Encoding/decoding functions (HIGH)
-4. **test-donation.c** - Donation system (CRITICAL fork feature)
-5. **test-useragent.c** - Useragent whitelisting (CRITICAL fork feature)
-6. **test-address.c** - Address encoding (HIGH)
-7. **test-string-utils.c** - String utilities (MEDIUM)
-8. **test-time-utils.c** - Time utilities (MEDIUM)
-9. **test-fulltest.c** - Hash vs target validation (CRITICAL)
-10. **test-serialization.c** - Number serialization for transactions (MEDIUM)
-11. **test-endian.c** - Endian conversion functions (MEDIUM)
-12. **test-time-conversion.c** - Time conversion functions (LOW)
-13. **test-base58.c** - Base58 decoding (LOW)
-14. **test-base64.c** - Base64 encoding (LOW)
-15. **test-dropidle.c** - dropidle feature (idle client management) (MEDIUM)
-16. **test-vardiff.c** - Variable difficulty adjustment logic (HIGH)
-17. **test-share-params.c** - Share submission parameter validation (HIGH)
-18. **test-config.c** - Configuration parsing and validation (HIGH)
-19. **test-adjustment-hysteresis.c** - Difficulty adjustment hysteresis (MEDIUM)
-20. **test-backwards-compatibility.c** - Backwards compatibility checks (MEDIUM)
-21. **test-fractional-config.c** - Fractional difficulty configuration (HIGH fork feature)
-22. **test-fractional-stats.c** - Fractional difficulty statistics (MEDIUM fork feature)
-23. **test-fractional-vardiff.c** - Fractional difficulty vardiff behavior (HIGH fork feature)
-24. **test-low-diff.c** - Low difficulty share handling (HIGH fork feature)
-25. **test-network-diff-interactions.c** - Network difficulty interactions (MEDIUM)
-26. **test-share-orphan-prevention.c** - Share orphan prevention (HIGH)
-27. **test-ua-aggregation.c** - Useragent aggregation (MEDIUM fork feature)
-28. **test-vardiff-comprehensive.c** - Comprehensive vardiff testing (HIGH)
+1. **test-difficulty.c** - Sub-"1" difficulty calculations (fork feature)
+2. **test-sha256.c** - SHA-256 hashing
+3. **test-encoding.c** - Encoding/decoding functions
+4. **test-donation.c** - Donation system (fork feature)
+5. **test-useragent.c** - Useragent whitelisting (fork feature)
+6. **test-address.c** - Address encoding
+7. **test-string-utils.c** - String utilities
+8. **test-time-utils.c** - Time utilities
+9. **test-fulltest.c** - Hash vs target validation
+10. **test-serialization.c** - Number serialization for transactions
+11. **test-endian.c** - Endian conversion functions
+12. **test-time-conversion.c** - Time conversion functions
+13. **test-base58.c** - Base58 decoding
+14. **test-base64.c** - Base64 encoding
+15. **test-dropidle.c** - dropidle feature (idle client management)
+16. **test-vardiff.c** - Variable difficulty adjustment logic
+17. **test-share-params.c** - Share submission parameter validation
+18. **test-config.c** - Configuration parsing and validation
+19. **test-adjustment-hysteresis.c** - Difficulty adjustment hysteresis
+20. **test-backwards-compatibility.c** - Backwards compatibility checks
+21. **test-fractional-config.c** - Fractional difficulty configuration (fork feature)
+22. **test-fractional-stats.c** - Fractional difficulty statistics (fork feature)
+23. **test-fractional-vardiff.c** - Fractional difficulty vardiff behavior (fork feature)
+24. **test-low-diff.c** - Low difficulty share handling (fork feature)
+25. **test-network-diff-interactions.c** - Network difficulty interactions
+26. **test-share-orphan-prevention.c** - Share orphan prevention
+27. **test-ua-aggregation.c** - Useragent aggregation (fork feature)
+28. **test-vardiff-comprehensive.c** - Comprehensive vardiff testing
+29. **test-zombie-cleanup.c** - Zombie/ghost cleanup and refcount invariants (fork feature)
 
 ## Building and Running Tests
 
@@ -110,6 +111,8 @@ Tests use a simple custom test framework defined in `test_common.h`. The framewo
 
 The test suite covers:
 - All critical fork-specific features (sub-"1" difficulty, donation system, useragent whitelisting, dropidle)
+- Useragent aggregation/reporting (pool.status, user pages exposure)
+- Zombie/ghost cleanup behavior and refcount safety
 - Core cryptographic functions (SHA-256, hash validation)
 - Variable difficulty adjustment logic (vardiff)
 - Share submission parameter validation
