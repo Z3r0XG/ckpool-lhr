@@ -75,6 +75,8 @@ make
 Requires additional autotools:
 
 ```bash
+git clone https://github.com/Z3r0XG/ckpool-lhr.git
+cd ckpool-lhr
 sudo apt-get install build-essential yasm autoconf automake libtool libzmq3-dev pkgconf
 ./autogen.sh
 ./configure
