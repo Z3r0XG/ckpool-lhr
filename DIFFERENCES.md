@@ -86,6 +86,7 @@ devices and other embedded systems).
 - Password supports comma-separated parameters (e.g., `x, diff=200, f=9`).
 - Supported variable:
   - `diff`: Suggest difficulty. Format: `diff=X` where `X` is numeric (e.g., `diff=0.001`). Applied after successful authorization and clamped to pool `mindiff`.
+- **Precedence**: Once a difficulty is set via password `diff=X`, subsequent `mining.suggest_difficulty` messages from the client are ignored. Password-configured difficulty takes precedence and is sticky for the connection lifetime.
 
 
 
