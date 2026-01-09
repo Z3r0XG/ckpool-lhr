@@ -709,9 +709,7 @@ static void test_substring_matching_failures(void)
 
     /* diff= as part of value in another param */
     result = parse_password_diff("name=user_diff=fake,x=1", 1.0);
-    assert_double_equal(result, 0.0, EPSILON_DIFF); /* diff= is in value, but strstr finds it */
-    /* NOTE: This is a design limitation - strstr finds diff= anywhere, even in values.
-       To fix would require proper CSV parsing. This test documents current behavior. */
+    assert_double_equal(result, 0.0, EPSILON_DIFF);
 
     /* Actually, let's test what does match as word boundary */
     result = parse_password_diff(",worker,diff=200", 1.0);
@@ -725,13 +723,11 @@ static void test_overlapping_patterns(void)
 
     /* Multiple diff appearances but only one is valid */
     result = parse_password_diff("difficulty=100,diff=50", 1.0);
-    assert_double_equal(result, 50.0, EPSILON_DIFF); /* Finds first "diff=" after strstr */
+    assert_double_equal(result, 50.0, EPSILON_DIFF);
 
     /* diff= inside quoted string (quote is not valid prefix, so rejected at prefix check) */
     result = parse_password_diff("comment=\"diff=999\",diff=25", 1.0);
-    assert_double_equal(result, 0.0, EPSILON_DIFF); /* First strstr matches in value, quote is invalid prefix */
-    /* NOTE: Design limitation - strstr finds first "diff=", but quote fails prefix check.
-       We don't search for next occurrence, so this returns 0. Would need full CSV parser to fix. */
+    assert_double_equal(result, 0.0, EPSILON_DIFF);
 
     /* consecutive diff= parameters (no delimiter between them) */
     result = parse_password_diff("diff=100diff=200", 1.0);
@@ -749,7 +745,6 @@ static void test_overlapping_patterns(void)
 static void test_suggest_diff_interaction(void)
 {
     double result;
-    double existing_suggest = 5.0;
     double mindiff = 0.001;
 
     /*
@@ -764,7 +759,7 @@ static void test_suggest_diff_interaction(void)
 
     /* Case 2: Password diff same as existing suggest_diff (would skip update) */
     result = parse_password_diff("diff=5.0", mindiff);
-    assert_double_equal(result, 5.0, EPSILON_DIFF); /* Same as existing_suggest */
+    assert_double_equal(result, 5.0, EPSILON_DIFF);
 
     /* Case 3: No password diff (returns 0, wouldn't overwrite) */
     result = parse_password_diff("x", mindiff);
