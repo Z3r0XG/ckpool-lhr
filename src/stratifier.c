@@ -5550,12 +5550,10 @@ static void client_auth(ckpool_t *ckp, stratum_instance_t *client, user_instance
 			const bool ret)
 {
 	sdata_t *sdata = ckp->sdata;
-	worker_instance_t *worker;
 
 	if (ret) {
 		client->authorised = ret;
 		user->authorised = ret;
-		worker = client->worker_instance ? client->worker_instance : get_worker(sdata, user, client->workername);
 		if (ckp->proxy) {
 			LOGNOTICE("Authorised client %s to proxy %d:%d, worker %s as user %s",
 				  client->identity, client->proxyid, client->subproxyid,
