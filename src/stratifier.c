@@ -5710,9 +5710,16 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 				/* Enforce word boundary: "diff" must be preceded by start-of-string or comma */
 				bool valid_prefix = (diff_ptr == pwd_normalized); /* Start of string */
 				if (!valid_prefix && diff_ptr > pwd_normalized) {
-					char prev_char = *(diff_ptr - 1);
-					/* Valid delimiter before "diff": comma only */
-					valid_prefix = (prev_char == ',');
+					/* Skip backward over whitespace to find actual delimiter */
+					const char *check_pos = diff_ptr - 1;
+					while (check_pos >= pwd_normalized && (*check_pos == ' ' || *check_pos == '\t'))
+						check_pos--;
+					
+					/* Valid delimiter: comma or start (if we skipped to before start) */
+					if (check_pos < pwd_normalized)
+						valid_prefix = true; /* Whitespace from start to diff= */
+					else
+						valid_prefix = (*check_pos == ',');
 				}
 
 				if (valid_prefix) {

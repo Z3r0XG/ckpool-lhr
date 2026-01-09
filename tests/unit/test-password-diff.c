@@ -77,15 +77,22 @@ static double parse_password_diff(const char *password, double mindiff)
             /* Enforce word boundary: "diff" must be preceded by start-of-string or comma */
             bool valid_prefix = (diff_ptr == start); /* Start of string */
             if (!valid_prefix && diff_ptr > start) {
-                char prev_char = *(diff_ptr - 1);
-                /* Valid delimiter before "diff": comma only */
-                valid_prefix = (prev_char == ',');
+                /* Skip backward over whitespace to find actual delimiter */
+                const char *check_pos = diff_ptr - 1;
+                while (check_pos >= start && (*check_pos == ' ' || *check_pos == '\t'))
+                    check_pos--;
+                
+                /* Valid delimiter: comma or start (if we skipped to before start) */
+                if (check_pos < start)
+                    valid_prefix = true; /* Whitespace from start to diff= */
+                else
+                    valid_prefix = (*check_pos == ',');
             }
 
             if (valid_prefix) {
                 const char *value_start = diff_ptr + strlen("diff=");
 
-                /* Reject if there's a space immediately after "diff=" (e.g., "diff =1") */
+                /* Reject if there's a space immediately after "diff=" (e.g., "diff= 1") */
                 if (*value_start == ' ' || *value_start == '\t') {
                     pass_diff = 0;
                 } else {
@@ -146,7 +153,7 @@ static void test_parse_comma_separated(void)
 {
     double result;
 
-    /* Comma-separated: no spaces allowed (internal spaces cause parsing failure) */
+    /* Comma-separated: whitespace around commas is allowed and trimmed */
     result = parse_password_diff("x,diff=200,f=9", 1.0);
     assert_double_equal(result, 200.0, EPSILON_DIFF);
 
@@ -239,9 +246,9 @@ static void test_word_boundary_enforcement(void)
     result = parse_password_diff(" ,diff=100 ", 1.0);
     assert_double_equal(result, 100.0, EPSILON_DIFF);
 
-    /* Comma with space after it: internal space, will fail to parse */
+    /* Comma with space after it: should now work (whitespace skipped) */
     result = parse_password_diff("x, diff=0.1", 0.001);
-    assert_double_equal(result, 0.0, EPSILON_DIFF);
+    assert_double_equal(result, 0.1, EPSILON_DIFF);
 }
 
 /* Test: Accept valid delimiters after number */
@@ -679,13 +686,13 @@ static void test_whitespace_variations(void)
     result = parse_password_diff("diff=100,   ", 1.0);
     assert_double_equal(result, 100.0, EPSILON_DIFF); /* Trailing spaces after comma trimmed */
 
-    /* Comma and space before diff */
+    /* Comma and space before diff - now works (whitespace skipped) */
     result = parse_password_diff("x=1, diff=50", 1.0);
-    assert_double_equal(result, 0.0, EPSILON_DIFF); /* Space after comma is internal, not trimmed */
+    assert_double_equal(result, 50.0, EPSILON_DIFF);
 
-    /* Tab after comma before diff */
+    /* Tab after comma before diff - now works (whitespace skipped) */
     result = parse_password_diff("x=1,\tdiff=50", 1.0);
-    assert_double_equal(result, 0.0, EPSILON_DIFF); /* Tab after comma breaks it */
+    assert_double_equal(result, 50.0, EPSILON_DIFF);
 
     /* Multiple spaces between comma and next param (no diff=) */
     result = parse_password_diff("x,  y,  z", 1.0);
@@ -785,6 +792,76 @@ static void test_suggest_diff_interaction(void)
      */
 }
 
+/* Test: Additional edge cases for robustness */
+static void test_additional_edge_cases(void)
+{
+    double result;
+
+    /* Multiple spaces after comma */
+    result = parse_password_diff("x,  diff=200", 1.0);
+    assert_double_equal(result, 200.0, EPSILON_DIFF);
+
+    result = parse_password_diff("x,   diff=0.1", 0.001);
+    assert_double_equal(result, 0.1, EPSILON_DIFF);
+
+    /* Mixed whitespace (tab + spaces) */
+    result = parse_password_diff("x,\t  diff=50", 1.0);
+    assert_double_equal(result, 50.0, EPSILON_DIFF);
+
+    result = parse_password_diff("x,  \tdiff=100", 1.0);
+    assert_double_equal(result, 100.0, EPSILON_DIFF);
+
+    /* Space before comma (comma still valid delimiter) */
+    result = parse_password_diff("x ,diff=200", 1.0);
+    assert_double_equal(result, 200.0, EPSILON_DIFF);
+
+    /* All-whitespace password */
+    result = parse_password_diff("   ", 1.0);
+    assert_double_equal(result, 0.0, EPSILON_DIFF);
+
+    result = parse_password_diff("\t\t\t", 1.0);
+    assert_double_equal(result, 0.0, EPSILON_DIFF);
+
+    /* Non-ASCII characters in keyword (should not match) */
+    result = parse_password_diff("diffé=200", 1.0);
+    assert_double_equal(result, 0.0, EPSILON_DIFF);
+
+    /* Fullwidth equals (Unicode lookalike) */
+    result = parse_password_diff("diff＝200", 1.0);
+    assert_double_equal(result, 0.0, EPSILON_DIFF);
+
+    /* Garbage after valid scientific notation */
+    result = parse_password_diff("diff=1e10garbage", 1.0);
+    assert_double_equal(result, 0.0, EPSILON_DIFF);
+
+    result = parse_password_diff("diff=1e-5junk", 0.001);
+    assert_double_equal(result, 0.0, EPSILON_DIFF);
+
+    /* Very long password (tests 64-byte buffer limit) */
+    char long_pwd[100];
+    memset(long_pwd, 'a', 99);
+    long_pwd[99] = '\0';
+    result = parse_password_diff(long_pwd, 1.0);
+    assert_double_equal(result, 0.0, EPSILON_DIFF); /* No diff= found */
+
+    /* Long password with diff= near the end (truncated) */
+    memset(long_pwd, 'x', 50);
+    strcpy(long_pwd + 50, ",diff=200");
+    result = parse_password_diff(long_pwd, 1.0);
+    assert_double_equal(result, 200.0, EPSILON_DIFF); /* Should work if within 64 bytes */
+
+    /* Long password exceeding 64 bytes
+     * Note: Test function uses strdup (no limit), but production code
+     * truncates at 64 bytes. This test documents expected behavior if
+     * production truncation were applied. In practice, the test will pass
+     * because test function doesn't enforce limit. */
+    memset(long_pwd, 'x', 70);
+    strcpy(long_pwd + 70, ",diff=200");
+    result = parse_password_diff(long_pwd, 1.0);
+    /* Test function doesn't truncate, so this actually works */
+    assert_double_equal(result, 200.0, EPSILON_DIFF);
+}
+
 int main(void)
 {
     printf("Running password difficulty parsing tests...\n\n");
@@ -814,6 +891,7 @@ int main(void)
     run_test(test_substring_matching_failures);
     run_test(test_overlapping_patterns);
     run_test(test_suggest_diff_interaction);
+    run_test(test_additional_edge_cases);
 
     printf("\nAll password difficulty parsing tests passed!\n");
     return 0;
