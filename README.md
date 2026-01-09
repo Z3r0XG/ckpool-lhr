@@ -12,6 +12,8 @@ pool software in C for Linux.
 - Bitcoind cookie authentication
 - User agent whitelisting
 - User agent reporting (pool.status and user pages)
+- Network difficulty monitoring (pool.status)
+- Worker connection timestamp tracking
 - Configurable donation address
 
 ## Acknowledgment

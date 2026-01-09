@@ -215,6 +215,7 @@ struct worker_instance {
 	tv_t last_share;
 	tv_t last_decay;
 	time_t start_time;
+	time_t last_connect;
 
 	double best_diff; /* Best share found by this worker */
 	double best_ever; /* Best share ever found by this worker */
@@ -602,8 +603,8 @@ static void generate_coinbase(ckpool_t *ckp, workbase_t *wb)
 	len += wb->enonce2varlen;
 
 	wb->coinb2bin = ckzalloc(512);
-	memcpy(wb->coinb2bin, "\x0a\x63\x6b\x70\x6f\x6f\x6c", 7);
-	wb->coinb2len = 7;
+	memcpy(wb->coinb2bin, "\x0a\x63\x6b\x70\x6f\x6f\x6c\x2d\x6c\x68\x72", 11);
+	wb->coinb2len = 11;
 	if (ckp->btcsig) {
 		int siglen = strlen(ckp->btcsig);
 
@@ -2350,6 +2351,8 @@ static void __inc_worker(sdata_t *sdata, user_instance_t *user, worker_instance_
 	sdata->stats.workers++;
 	if (!user->workers++)
 		sdata->stats.users++;
+	if (!worker->instance_count)
+		worker->last_connect = time(NULL);
 	worker->instance_count++;
 }
 
@@ -2359,6 +2362,8 @@ static void __dec_worker(sdata_t *sdata, user_instance_t *user, worker_instance_
 	if (!--user->workers)
 		sdata->stats.users--;
 	worker->instance_count--;
+	if (!worker->instance_count)
+		worker->last_connect = 0;
 }
 
 /* Age out disconnected sessions older than 600 seconds (10 minutes) */
@@ -4200,11 +4205,12 @@ static json_t *workerinfo(const user_instance_t *user, const worker_instance_t *
 {
 	json_t *val;
 
-	JSON_CPACK(val, "{ss,ss,si,sf,sf,sf,sf,si,sf,si,sb}",
+	JSON_CPACK(val, "{ss,ss,si,sf,sf,sf,sf,si,si,sf,si,sb}",
 		   "user", user->username, "worker", worker->workername, "id", user->id,
 	    "dsps1", worker->dsps1, "dsps5", worker->dsps5, "dsps60", worker->dsps60,
 	    "dsps1440", worker->dsps1440, "lastshare", worker->last_share.tv_sec,
-	    "bestdiff", worker->best_diff, "mindiff", worker->mindiff, "idle", worker->idle);
+	    "started", worker->last_connect, "bestdiff", worker->best_diff,
+	    "mindiff", worker->mindiff, "idle", worker->idle);
 	return val;
 }
 
@@ -5258,6 +5264,7 @@ static void read_userstats(ckpool_t *ckp, sdata_t *sdata, int tvsec_diff)
 	while ((dir = readdir(d)) != NULL) {
 		json_t *worker_array, *arr_val;
 		int64_t authorised;
+		int64_t connected;
 		int lastshare;
 		size_t index;
 
@@ -5331,6 +5338,7 @@ static void read_userstats(ckpool_t *ckp, sdata_t *sdata, int tvsec_diff)
 			const char *workername = json_string_value(json_object_get(arr_val, "workername"));
 			worker_instance_t *worker;
 			bool new_worker = false;
+			connected = 0;
 
 			if (unlikely(!workername || !strlen(workername)) ||
 			    !strstr(workername, username)) {
@@ -5351,6 +5359,10 @@ static void read_userstats(ckpool_t *ckp, sdata_t *sdata, int tvsec_diff)
 			worker->dsps10080 = dsps_from_key(arr_val, "hashrate7d");
 			json_get_int(&lastshare, arr_val, "lastshare");
 			worker->last_share.tv_sec = lastshare;
+			json_get_int64(&connected, arr_val, "started");
+			if (!connected)
+				json_get_int64(&connected, arr_val, "connected");
+			worker->last_connect = connected;
 			json_get_double(&worker->best_diff, arr_val, "bestshare");
 			json_get_double(&worker->best_ever, arr_val, "bestever");
 			/* Read optional useragent from stored user logfile */
@@ -5425,6 +5437,7 @@ static worker_instance_t *__create_worker(user_instance_t *user, const char *wor
 	worker->user_instance = user;
 	DL_APPEND(user->worker_instances, worker);
 	worker->start_time = time(NULL);
+	worker->last_connect = 0;
 	return worker;
 }
 
@@ -8409,7 +8422,7 @@ static void *statsupdate(void *arg)
 
 				LOGDEBUG("Storing worker %s", worker->workername);
 
-				JSON_CPACK(wval, "{ss,ss,ss,ss,ss,ss,si,sf,sf,sf,ss}",
+				JSON_CPACK(wval, "{ss,ss,ss,ss,ss,ss,si,si,sf,sf,sf,ss}",
 					"workername", worker->workername,
 					"hashrate1m", suffix1,
 					"hashrate5m", suffix5,
@@ -8417,6 +8430,7 @@ static void *statsupdate(void *arg)
 					"hashrate1d", suffix1440,
 					"hashrate7d", suffix10080,
 					"lastshare", worker->last_share.tv_sec,
+					"started", worker->last_connect,
 					"shares", worker->shares,
 					"bestshare", worker->best_diff,
 					"bestever", worker->best_ever,
@@ -8544,8 +8558,9 @@ static void *statsupdate(void *arg)
 
 		/* Round to 4 significant digits */
 		percent = round(stats->accounted_diff_shares * 10000 / stats->network_diff) / 100;
-		JSON_CPACK(val, "{sf,sf,sf,sf,sf,sf,sf,sf}",
+		JSON_CPACK(val, "{sf,sf,sf,sf,sf,sf,sf,sf,sf}",
 			        "diff", percent,
+				"netdiff", stats->network_diff,
 				"accepted", stats->accounted_diff_shares,
 				"rejected", stats->accounted_rejects,
 				"bestshare", stats->best_diff,
