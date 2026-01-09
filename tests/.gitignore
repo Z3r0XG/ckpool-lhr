@@ -51,3 +51,5 @@ config.h
 config.h.in
 unit/test-low-diff
 test-low-diff
+unit/test-password-diff
+test-password-diff

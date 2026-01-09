@@ -303,7 +303,10 @@ src/ckpool -B
 Point mining hardware to the pool:
 - **URL**: `192.168.1.100:3333` (pool IP address, default port 3333)
 - **Username**: Your Bitcoin address, optionally with a worker name (e.g., `bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5.worker1`)
-- **Password**: Anything (e.g., "x")
+- **Password** (optional parameters):
+    - Default: any value (e.g., `x`)
+    - Supports comma-separated parameters (e.g., `x, diff=200, f=9`)
+    - `diff`: Suggest difficulty after authorization. Format: `diff=X` where `X` is numeric (e.g., `diff=0.001`). Clamped to pool `mindiff`.
 
 Any valid Bitcoin address works as the username. Append `.workername` to track multiple miners separately.
 

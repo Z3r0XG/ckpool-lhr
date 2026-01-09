@@ -33,6 +33,7 @@ This directory contains unit tests for CKPOOL-LHR.
 27. **test-ua-aggregation.c** - Useragent aggregation (fork feature)
 28. **test-vardiff-comprehensive.c** - Comprehensive vardiff testing
 29. **test-zombie-cleanup.c** - Zombie/ghost cleanup and refcount invariants (fork feature)
+30. **test-password-diff.c** - Password field difficulty suggestion parsing
 
 ## Building and Running Tests
 
@@ -85,6 +86,7 @@ make check
 ./tests/unit/test-share-orphan-prevention
 ./tests/unit/test-ua-aggregation
 ./tests/unit/test-vardiff-comprehensive
+./tests/unit/test-password-diff
 ```
 
 ## Test Framework

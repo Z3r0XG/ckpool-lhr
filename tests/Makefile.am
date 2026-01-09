@@ -28,6 +28,7 @@ check_PROGRAMS = \
 	unit/test-share-params \
 	unit/test-config \
 	unit/test-low-diff \
+	unit/test-password-diff \
 	unit/test-fractional-stats \
 	unit/test-fractional-vardiff \
 	unit/test-fractional-config \
@@ -119,6 +120,10 @@ unit_test_config_SOURCES = \
 # Low diff (allow_low_diff) feature tests
 unit_test_low_diff_SOURCES = \
 	unit/test-low-diff.c
+
+# Password difficulty suggestion tests
+unit_test_password_diff_SOURCES = \
+	unit/test-password-diff.c
 
 # Fractional statistics accumulation tests
 unit_test_fractional_stats_SOURCES = \

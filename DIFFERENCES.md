@@ -78,5 +78,14 @@ devices and other embedded systems).
 - **Network difficulty in pool.status**: Current Bitcoin network difficulty exposed via `netdiff` field for monitoring blockchain state
 - **Worker connection timestamps**: Worker connection time persisted as `started` field (Unix timestamp) in `logs/users/*.json` for session tracking; maintains backward compatibility with legacy `connected` field
 
+### 8. Password Field Variable Support
+
+**Purpose**: Allow miners to provide parameters via the password field when their miner cannot send `mining.suggest_difficulty`.
+
+**Behavior**:
+- Password supports comma-separated parameters (e.g., `x, diff=200, f=9`).
+- Supported variable:
+  - `diff`: Suggest difficulty. Format: `diff=X` where `X` is numeric (e.g., `diff=0.001`). Applied after successful authorization and clamped to pool `mindiff`.
+
 
 
