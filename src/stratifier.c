@@ -8544,8 +8544,9 @@ static void *statsupdate(void *arg)
 
 		/* Round to 4 significant digits */
 		percent = round(stats->accounted_diff_shares * 10000 / stats->network_diff) / 100;
-		JSON_CPACK(val, "{sf,sf,sf,sf,sf,sf,sf,sf}",
+		JSON_CPACK(val, "{sf,sf,sf,sf,sf,sf,sf,sf,sf}",
 			        "diff", percent,
+				"netdiff", stats->network_diff,
 				"accepted", stats->accounted_diff_shares,
 				"rejected", stats->accounted_rejects,
 				"bestshare", stats->best_diff,
