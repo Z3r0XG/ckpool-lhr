@@ -46,13 +46,18 @@ static double parse_password_diff(const char *password, double mindiff)
     char *endptr;
     char *diff_ptr;
     char *pwd;
+    char pwd_normalized[65]; /* Match production 64-byte limit (+ null terminator) */
     size_t pwd_len;
 
     if (!password || !strlen(password))
         return 0;
 
+    /* Truncate to 64 bytes to match production behavior */
+    strncpy(pwd_normalized, password, sizeof(pwd_normalized) - 1);
+    pwd_normalized[sizeof(pwd_normalized) - 1] = '\0';
+
     /* Create a modifiable copy for trimming */
-    pwd = strdup(password);
+    pwd = strdup(pwd_normalized);
     if (!pwd)
         return 0;
 
@@ -851,15 +856,22 @@ static void test_additional_edge_cases(void)
     assert_double_equal(result, 200.0, EPSILON_DIFF); /* Should work if within 64 bytes */
 
     /* Long password exceeding 64 bytes
-     * Note: Test function uses strdup (no limit), but production code
-     * truncates at 64 bytes. This test documents expected behavior if
-     * production truncation were applied. In practice, the test will pass
-     * because test function doesn't enforce limit. */
+     * Test function now enforces same 64-byte truncation as production.
+     * When truncated to 64 bytes, this password becomes:
+     * "xxxx...(64 bytes total)...xx,di" with ",diff=200" cut off.
+     * Result: diff= keyword is incomplete, so no match (returns 0). */
     memset(long_pwd, 'x', 70);
     strcpy(long_pwd + 70, ",diff=200");
     result = parse_password_diff(long_pwd, 1.0);
-    /* Test function doesn't truncate, so this actually works */
-    assert_double_equal(result, 200.0, EPSILON_DIFF);
+    /* Truncation cuts off the diff= parsing, so result is 0 */
+    assert_double_equal(result, 0.0, EPSILON_DIFF);
+
+    /* Long password with diff= within 64-byte limit
+     * 55 x's + ",diff=100" (9 bytes) = 64 bytes total (fits exactly) */
+    memset(long_pwd, 'x', 55);
+    strcpy(long_pwd + 55, ",diff=100");
+    result = parse_password_diff(long_pwd, 1.0);
+    assert_double_equal(result, 100.0, EPSILON_DIFF);
 }
 
 int main(void)
