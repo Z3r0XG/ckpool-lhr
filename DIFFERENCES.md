@@ -80,7 +80,7 @@ devices and other embedded systems).
 
 ### 8. Difficulty Configuration via Password Field
 
-**Purpose**: Allow miners to suggest a difficulty via the password field for clients that do not support or expose `mining.suggest_difficulty`.
+**Purpose**: Allow miners to override suggested difficulty via the password field for clients that do not support or expose `mining.suggest_difficulty`.
 
 **Behavior**:
 - Append `diff=X` to the password field, where `X` is numeric (e.g., password: `user_password, diff=200` or simply `diff=0.001`).
