@@ -70,5 +70,13 @@ devices and other embedded systems).
 - Add `"cookie" : "/path/to/.cookie"` to the btcd entry in ckpool.conf
 - Cookie file location: `~/.bitcoin/.cookie` (Linux default) or `<datadir>/.cookie` if custom datadir is set
 
+### 7. Pool Status Enhancements
+
+**Purpose**: Expose additional operational metrics and identify blocks mined by this fork.
+
+**Behavior**:
+- **Network difficulty in pool.status**: Current Bitcoin network difficulty exposed via `netdiff` field for monitoring blockchain state
+- **Worker connection timestamps**: Worker connection time persisted as `started` field (Unix timestamp) in `logs/users/*.json` for session tracking; maintains backward compatibility with legacy `connected` field
+
 
 
