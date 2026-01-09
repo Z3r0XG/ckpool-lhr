@@ -5,20 +5,22 @@
  * INTERACTION WITH STRATUM mining.suggest_difficulty:
  * -------------------------------------------------
  * Password diff parsing occurs during mining.authorize (authentication).
- * It sets client->suggest_diff, which can interact with stratum suggest_difficulty:
+ * When a password diff is set, client->password_diff_set is marked true.
+ * This prevents subsequent mining.suggest_difficulty messages from overwriting it.
  *
  * Scenario 1: suggest_difficulty BEFORE auth
- *   1. Client sends mining.suggest_difficulty(5) → client->suggest_diff = 5
- *   2. Client sends mining.authorize with password "diff=10" → client->suggest_diff = 10 (overwrites)
- *   Result: Password diff wins (10)
+ *   1. Client sends mining.suggest_difficulty(128) → client->suggest_diff = 128
+ *   2. Client sends mining.authorize with password "diff=200" → password_diff_set=true, suggest_diff=200
+ *   Result: Password diff wins (200)
  *
- * Scenario 2: suggest_difficulty AFTER auth
- *   1. Client sends mining.authorize with password "diff=10" → client->suggest_diff = 10
- *   2. Client sends mining.suggest_difficulty(5) → client->suggest_diff = 5 (overwrites)
- *   Result: Stratum suggest wins (5)
+ * Scenario 2: suggest_difficulty AFTER auth (with password diff set)
+ *   1. Client sends mining.authorize with password "diff=200" → password_diff_set=true, suggest_diff=200
+ *   2. Client sends mining.suggest_difficulty(50) → IGNORED (blocked by password_diff_set check)
+ *   Result: Password diff remains (200)
  *
- * The password diff is not "sticky"—it simply sets suggest_diff at authorization time.
- * Subsequent stratum messages can change it. This is the expected behavior per ckpool design.
+ * Password diff is "sticky"—once set via password during auth, it blocks subsequent
+ * stratum suggest_difficulty messages from overwriting it. This ensures user-configured
+ * difficulty takes precedence over miner-suggested difficulty.
  */
 
 #include <stdio.h>
