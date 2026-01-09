@@ -2351,6 +2351,8 @@ static void __inc_worker(sdata_t *sdata, user_instance_t *user, worker_instance_
 	sdata->stats.workers++;
 	if (!user->workers++)
 		sdata->stats.users++;
+	if (!worker->instance_count)
+		worker->last_connect = time(NULL);
 	worker->instance_count++;
 }
 
@@ -5553,8 +5555,7 @@ static void client_auth(ckpool_t *ckp, stratum_instance_t *client, user_instance
 	if (ret) {
 		client->authorised = ret;
 		user->authorised = ret;
-		worker = get_worker(sdata, user, client->workername);
-		worker->last_connect = time(NULL);
+		worker = client->worker_instance ? client->worker_instance : get_worker(sdata, user, client->workername);
 		if (ckp->proxy) {
 			LOGNOTICE("Authorised client %s to proxy %d:%d, worker %s as user %s",
 				  client->identity, client->proxyid, client->subproxyid,
