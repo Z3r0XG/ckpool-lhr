@@ -5549,8 +5549,6 @@ static void check_global_user(ckpool_t *ckp, user_instance_t *user, stratum_inst
 static void client_auth(ckpool_t *ckp, stratum_instance_t *client, user_instance_t *user,
 			const bool ret)
 {
-	sdata_t *sdata = ckp->sdata;
-
 	if (ret) {
 		client->authorised = ret;
 		user->authorised = ret;
