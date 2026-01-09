@@ -45,50 +45,42 @@ static double parse_password_diff(const char *password, double mindiff)
     double pass_diff = 0;
     char *endptr;
     char *diff_ptr;
-    char *pwd;
     char pwd_normalized[65]; /* Match production 64-byte limit (+ null terminator) */
-    size_t pwd_len;
+    size_t i, j, pwd_len;
 
     if (!password || !strlen(password))
         return 0;
 
-    /* Truncate to 64 bytes to match production behavior */
-    strncpy(pwd_normalized, password, sizeof(pwd_normalized) - 1);
-    pwd_normalized[sizeof(pwd_normalized) - 1] = '\0';
+    /* Match production behavior exactly: skip leading whitespace BEFORE truncating */
+    i = 0;
+    while (password[i] && (password[i] == ' ' || password[i] == '\t'))
+        i++; /* Skip leading whitespace */
+    
+    j = 0;
+    while (password[i] && j < 64)
+        pwd_normalized[j++] = password[i++];
+    
+    /* Remove trailing whitespace from what we copied */
+    while (j > 0 && (pwd_normalized[j - 1] == ' ' || pwd_normalized[j - 1] == '\t'))
+        j--;
+    
+    pwd_normalized[j] = '\0';
+    pwd_len = j;
 
-    /* Create a modifiable copy for trimming */
-    pwd = strdup(pwd_normalized);
-    if (!pwd)
-        return 0;
-
-    /* Trim leading whitespace */
-    char *start = pwd;
-    while (*start && (*start == ' ' || *start == '\t'))
-        start++;
-
-    /* Find the end (ignoring trailing whitespace) */
-    pwd_len = strlen(start);
-    while (pwd_len > 0 && (start[pwd_len - 1] == ' ' || start[pwd_len - 1] == '\t'))
-        pwd_len--;
-
-    /* Null-terminate at the end of trimmed string */
-    if (pwd_len > 0)
-        start[pwd_len] = '\0';
-
-    /* Search for "diff=" in the trimmed password string */
+    /* Search for "diff=" in the normalized password string */
     if (pwd_len > 0) {
-        diff_ptr = strstr(start, "diff=");
+        diff_ptr = strstr(pwd_normalized, "diff=");
         if (diff_ptr) {
             /* Enforce word boundary: "diff" must be preceded by start-of-string or comma */
-            bool valid_prefix = (diff_ptr == start); /* Start of string */
-            if (!valid_prefix && diff_ptr > start) {
+            bool valid_prefix = (diff_ptr == pwd_normalized); /* Start of string */
+            if (!valid_prefix && diff_ptr > pwd_normalized) {
                 /* Skip backward over whitespace to find actual delimiter */
                 const char *check_pos = diff_ptr - 1;
-                while (check_pos >= start && (*check_pos == ' ' || *check_pos == '\t'))
+                while (check_pos >= pwd_normalized && (*check_pos == ' ' || *check_pos == '\t'))
                     check_pos--;
                 
                 /* Valid delimiter: comma or start (if we skipped to before start) */
-                if (check_pos < start)
+                if (check_pos < pwd_normalized)
                     valid_prefix = true; /* Whitespace from start to diff= */
                 else
                     valid_prefix = (*check_pos == ',');
@@ -121,8 +113,6 @@ static double parse_password_diff(const char *password, double mindiff)
             }
         }
     }
-
-    free(pwd);
 
     /* If we got a valid positive number, apply constraints */
     if (pass_diff > 0) {
@@ -872,6 +862,25 @@ static void test_additional_edge_cases(void)
     strcpy(long_pwd + 55, ",diff=100");
     result = parse_password_diff(long_pwd, 1.0);
     assert_double_equal(result, 100.0, EPSILON_DIFF);
+
+    /* Edge case: Leading whitespace + content that would exceed 64 bytes
+     * Test validates production behavior: skip leading whitespace BEFORE truncating.
+     * Password: "     " (5 spaces) + 60 x's + "diff=100" = 74 bytes total
+     * Production skips 5 spaces first, then copies 64 bytes starting from first 'x',
+     * so "diff=100" gets truncated. Test should match this behavior. */
+    memset(long_pwd, ' ', 5);
+    memset(long_pwd + 5, 'x', 60);
+    strcpy(long_pwd + 65, "diff=100");
+    result = parse_password_diff(long_pwd, 1.0);
+    assert_double_equal(result, 0.0, EPSILON_DIFF); /* Truncated before diff= */
+
+    /* Variation: Leading whitespace but diff= WITHIN 64-byte post-trim limit
+     * "     " (5 spaces) + 50 x's + ",diff=100" = 64 bytes after skipping spaces */
+    memset(long_pwd, ' ', 5);
+    memset(long_pwd + 5, 'x', 50);
+    strcpy(long_pwd + 55, ",diff=100");
+    result = parse_password_diff(long_pwd, 1.0);
+    assert_double_equal(result, 100.0, EPSILON_DIFF); /* Fits after trimming */
 }
 
 int main(void)
