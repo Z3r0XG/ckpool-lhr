@@ -15,6 +15,7 @@ pool software in C for Linux.
 - Network difficulty monitoring (pool.status)
 - Worker connection timestamp tracking
 - Configurable donation address
+- Client configurable suggested difficulty via password field
 
 ## Acknowledgment
 
