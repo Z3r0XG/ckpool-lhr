@@ -5762,11 +5762,13 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 				sdiff = ckp->mindiff;
 			sdiff = normalize_pool_diff(sdiff);
 
-			/* Only apply if different from current (follow suggest_diff pattern) */
+			/* Mark password diff as set immediately - blocks all stratum suggests in this session */
+			client->password_diff_set = true;
+
+			/* Optimization: skip value update if unchanged */
 			if (fabs(sdiff - client->suggest_diff) < DIFF_EPSILON)
 				goto skip_password_diff;
 			client->suggest_diff = sdiff;
-			client->password_diff_set = true; /* Mark that password diff was set */
 			if (fabs(client->diff - sdiff) < DIFF_EPSILON)
 				goto skip_password_diff;
 			client->diff_change_job_id = client->sdata->workbase_id + 1;
