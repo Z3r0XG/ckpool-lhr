@@ -5688,7 +5688,7 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 		char pwd_normalized[65];
 		size_t i, j;
 		
-		/* Trim only leading and trailing whitespace (preserve internal structure) */
+		/* Normalize: trim leading/trailing whitespace only */
 		i = 0;
 		while (pwd[i] && (pwd[i] == ' ' || pwd[i] == '\t'))
 			i++; /* Skip leading whitespace */
@@ -5737,9 +5737,13 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 							/* Failed to parse or invalid value (inf/nan) - reset to 0 */
 							pass_diff = 0;
 						} else {
-							/* Parsing succeeded - verify it's followed by valid delimiter */
+							/* Parsing succeeded - skip whitespace after number to find delimiter */
+							const char *delim_pos = endptr;
+							while (*delim_pos && (*delim_pos == ' ' || *delim_pos == '\t'))
+								delim_pos++;
+
 							/* Valid: end of string or comma */
-							if (*endptr != '\0' && *endptr != ',') {
+							if (*delim_pos != '\0' && *delim_pos != ',') {
 								/* Invalid character after number (e.g., "diff=200x") - reject */
 								pass_diff = 0;
 							}

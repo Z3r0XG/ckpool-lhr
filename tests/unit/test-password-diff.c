@@ -101,10 +101,13 @@ static double parse_password_diff(const char *password, double mindiff)
                         /* Failed to parse or invalid value (inf/nan) - reset to 0 */
                         pass_diff = 0;
                     } else {
-                        /* Parsing succeeded - verify it's followed by valid delimiter */
+                        /* Parsing succeeded - skip whitespace after number to find delimiter */
+                        const char *delim_pos = endptr;
+                        while (*delim_pos && (*delim_pos == ' ' || *delim_pos == '\t'))
+                            delim_pos++;
+
                         /* Valid delimiters: end of string (\0) or comma only */
-                        /* Whitespace after number is NOT valid (e.g., "diff=200 ,x" fails) */
-                        if (*endptr != '\0' && *endptr != ',') {
+                        if (*delim_pos != '\0' && *delim_pos != ',') {
                             /* Invalid delimiter after number - reject */
                             pass_diff = 0;
                         }
@@ -264,12 +267,12 @@ static void test_accept_valid_delimiters(void)
     result = parse_password_diff("diff=200\t", 1.0);
     assert_double_equal(result, 200.0, EPSILON_DIFF);
 
-    /* Space after number (before comma) is NOT a valid delimiter - should fail */
-    result = parse_password_diff("diff=200 ,x", 1.0);
-    assert_double_equal(result, 0.0, EPSILON_DIFF); /* Space is not valid delimiter */
+/* Space after number (before comma) is trimmed - should pass */
+	result = parse_password_diff("diff=200 ,x", 1.0);
+	assert_double_equal(result, 200.0, EPSILON_DIFF); /* Space before comma is trimmed */
 
-    result = parse_password_diff("diff=.1 ,f=9", 0.001);
-    assert_double_equal(result, 0.0, EPSILON_DIFF); /* Space after .1 is not valid delimiter */
+	result = parse_password_diff("diff=.1 ,f=9", 0.001);
+	assert_double_equal(result, 0.1, EPSILON_DIFF); /* Space before comma is trimmed */
 
     /* Test different value formats with proper delimiters */
     result = parse_password_diff("diff=.1", 0.001);
