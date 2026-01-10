@@ -317,6 +317,7 @@ struct stratum_instance {
 
 	double suggest_diff; /* Stratum client suggested diff */
 	double best_diff; /* Best share found by this instance */
+	bool password_diff_set; /* Was diff set via password field? Preferred over stratum suggest */
 
 	sdata_t *sdata; /* Which sdata this client is bound to */
 	proxy_t *proxy; /* Proxy this is bound to in proxy mode */
@@ -5675,6 +5676,111 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 	 * upstream pool to complete. */
 	if (!ckp->remote || ckp->btcsolo)
 		client_auth(ckp, client, user, ret);
+
+	/* Parse password for difficulty suggestion (e.g., "diff=0.001" or "x, diff=200, f=9") */
+	/* Needs to be entered with client holding a ref count (same as suggest_diff) */
+	bool password_diff_sent = false;
+	if (ret && client->password && client->authorised) {
+		double pass_diff = 0;
+		char *endptr;
+		char *diff_ptr;
+		char *pwd = client->password;
+		char pwd_normalized[65];
+		size_t i, j;
+		
+		/* Normalize: trim leading/trailing whitespace only */
+		i = 0;
+		while (pwd[i] && (pwd[i] == ' ' || pwd[i] == '\t'))
+			i++; /* Skip leading whitespace */
+		
+		j = 0;
+		while (pwd[i] && j < 64)
+			pwd_normalized[j++] = pwd[i++];
+		
+		/* Remove trailing whitespace from what we copied */
+		while (j > 0 && (pwd_normalized[j - 1] == ' ' || pwd_normalized[j - 1] == '\t'))
+			j--;
+		
+		pwd_normalized[j] = '\0';
+
+		/* Search for "diff=" in the normalized password string */
+		if (j > 0) {
+			diff_ptr = strstr(pwd_normalized, "diff=");
+			if (diff_ptr) {
+				/* Enforce word boundary: "diff" must be preceded by start-of-string or comma */
+				bool valid_prefix = (diff_ptr == pwd_normalized); /* Start of string */
+				if (!valid_prefix && diff_ptr > pwd_normalized) {
+					/* Skip backward over whitespace to find actual delimiter */
+					const char *check_pos = diff_ptr - 1;
+					while (check_pos >= pwd_normalized && (*check_pos == ' ' || *check_pos == '\t'))
+						check_pos--;
+					
+					/* Valid delimiter: comma or start (if we skipped to before start) */
+					if (check_pos < pwd_normalized)
+						valid_prefix = true; /* Whitespace from start to diff= */
+					else
+						valid_prefix = (*check_pos == ',');
+				}
+
+				if (valid_prefix) {
+					const char *value_start = diff_ptr + strlen("diff=");
+
+					/* Reject if there's a space immediately after "diff=" (e.g., "diff= 200") */
+					if (*value_start == ' ' || *value_start == '\t') {
+						pass_diff = 0;
+					} else {
+						/* Found "diff=" - parse the value after it */
+						pass_diff = strtod(value_start, &endptr);
+
+						/* Check if parsing succeeded and result is finite */
+						if (endptr == value_start || !isfinite(pass_diff)) {
+							/* Failed to parse or invalid value (inf/nan) - reset to 0 */
+							pass_diff = 0;
+						} else {
+							/* Parsing succeeded - skip whitespace after number to find delimiter */
+							const char *delim_pos = endptr;
+							while (*delim_pos && (*delim_pos == ' ' || *delim_pos == '\t'))
+								delim_pos++;
+
+							/* Valid: end of string or comma */
+							if (*delim_pos != '\0' && *delim_pos != ',') {
+								/* Invalid character after number (e.g., "diff=200x") - reject */
+								pass_diff = 0;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		/* If we got a valid positive number, apply it as difficulty suggestion */
+		if (pass_diff > 0) {
+			double sdiff = pass_diff;
+
+			/* Respect mindiff - clamp to pool minimum */
+			if (sdiff < ckp->mindiff)
+				sdiff = ckp->mindiff;
+			sdiff = normalize_pool_diff(sdiff);
+
+			/* Mark password diff as set immediately - blocks all stratum suggests in this session */
+			client->password_diff_set = true;
+
+			/* Optimization: skip value update if unchanged */
+			if (fabs(sdiff - client->suggest_diff) < DIFF_EPSILON)
+				goto skip_password_diff;
+			client->suggest_diff = sdiff;
+			if (fabs(client->diff - sdiff) < DIFF_EPSILON)
+				goto skip_password_diff;
+			client->diff_change_job_id = client->sdata->workbase_id + 1;
+			client->old_diff = client->diff;
+			client->diff = sdiff;
+			LOGINFO("Applied difficulty suggestion %.10f from password for client %s",
+				sdiff, client->identity);
+			stratum_send_diff(ckp->sdata, client);
+			password_diff_sent = true;
+		}
+	}
+skip_password_diff:
 out:
 	if (ckp->btcsolo && ret && !client->remote) {
 		sdata_t *sdata = ckp->sdata;
@@ -5696,9 +5802,11 @@ out:
 		wb->readcount--;
 		ck_wunlock(&sdata->workbase_lock);
 
-		LOGINFO(">>> Sending auth diff client=%s diff=%lf btcsolo=%d remote=%d", 
-			client->identity, client->diff, ckp->btcsolo, client->remote);
-		stratum_send_diff(sdata, client);
+		if (!password_diff_sent) {
+			LOGINFO(">>> Sending auth diff client=%s diff=%lf btcsolo=%d remote=%d",
+				client->identity, client->diff, ckp->btcsolo, client->remote);
+			stratum_send_diff(sdata, client);
+		}
 	}
 	return json_boolean(ret);
 }
@@ -6692,6 +6800,14 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 		LOGNOTICE("Attempted to suggest diff on unauthorised client %s", client->identity);
 		return;
 	}
+
+	/* Skip stratum suggest if password diff was set - password diff is preferred */
+	if (client->password_diff_set) {
+		LOGINFO("Ignoring mining.suggest_difficulty from client %s (password diff is preferred)",
+			client->identity);
+		return;
+	}
+
 	/* Parse suggest difficulty as double to support fractional values */
 	if (arr_val && json_is_number(arr_val))
 		sdiff = json_number_value(arr_val);

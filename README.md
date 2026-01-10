@@ -41,6 +41,7 @@ Con Kolivas's foundational work that made this fork possible.
 - Configurable custom coinbase signature
 - Configurable instant starting and minimum difficulty (including sub-1.0 for low hashrate miners)
 - Rapid vardiff adjustment with stable unlimited maximum difficulty handling
+- Password-based difficulty suggestion for clients without mining.suggest_difficulty support
 - New work generation on block changes incorporate full bitcoind transaction set without delay
 - Stratum messaging system to running clients
 - Accurate pool and per-client statistics with user agent tracking
@@ -303,7 +304,9 @@ src/ckpool -B
 Point mining hardware to the pool:
 - **URL**: `192.168.1.100:3333` (pool IP address, default port 3333)
 - **Username**: Your Bitcoin address, optionally with a worker name (e.g., `bc1q8qkesw5kyplv7hdxyseqls5m78w5tqdfd40lf5.worker1`)
-- **Password**: Anything (e.g., "x")
+- **Password**: `x, diff=200`
+    - `x` - Default password (any value accepted)
+    - `diff=X` - Suggest difficulty where `X` is numeric (e.g., `diff=200` or `diff=0.001`).
 
 Any valid Bitcoin address works as the username. Append `.workername` to track multiple miners separately.
 
