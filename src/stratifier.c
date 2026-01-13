@@ -2367,6 +2367,60 @@ static void __dec_worker(sdata_t *sdata, user_instance_t *user, worker_instance_
 		worker->last_connect = 0;
 }
 
+/* Recalculate and set the worker->useragent based on current active
+ * stratum instances attached to the worker. Called with instance_lock held.
+ * Device-count-first policy: if more than one active instance is attached
+ * to the worker, set useragent to "Other". If exactly one is attached,
+ * set to that client's UA. If zero attached, preserve persisted value.
+ */
+static void recalc_worker_useragent(sdata_t *sdata, user_instance_t *user, worker_instance_t *worker)
+{
+	stratum_instance_t *c;
+	int client_count = 0;
+	stratum_instance_t *last_client = NULL;
+
+	/* Iterate clients belonging to user and count those for this worker */
+	DL_FOREACH2(user->clients, c, user_next) {
+		if (c->worker_instance != worker)
+			continue;
+		client_count++;
+		last_client = c;
+		if (client_count > 1)
+			break;
+	}
+
+	if (client_count == 0) {
+		/* Keep historical persisted UA */
+		return;
+	}
+
+	if (client_count > 1) {
+		/* Multiple devices attached: set to Other */
+		if (!worker->useragent || strcmp(worker->useragent, "Other") != 0) {
+			if (worker->useragent)
+				free(worker->useragent);
+			worker->useragent = strdup("Other");
+			strncpy(worker->norm_useragent, "Other", sizeof(worker->norm_useragent)-1);
+			worker->norm_useragent[sizeof(worker->norm_useragent)-1] = '\0';
+		}
+		return;
+	}
+
+	/* Exactly one client attached: set worker UA to that client's UA */
+	if (last_client && last_client->useragent && strlen(last_client->useragent)) {
+		if (worker->useragent)
+			free(worker->useragent);
+		worker->useragent = strdup(last_client->useragent);
+		normalize_ua_buf(worker->useragent, worker->norm_useragent, sizeof(worker->norm_useragent));
+	} else {
+		/* Empty UA from client */
+		if (worker->useragent)
+			free(worker->useragent);
+		worker->useragent = ckzalloc(1); /* set to "" */
+		worker->norm_useragent[0] = '\0';
+	}
+}
+
 /* Age out disconnected sessions older than 600 seconds (10 minutes) */
 static void age_disconnected_sessions(sdata_t *sdata)
 {
@@ -2426,6 +2480,8 @@ static void __del_client(sdata_t *sdata, stratum_instance_t *client)
 	if (user) {
 		DL_DELETE2(user->clients, client, user_prev, user_next );
 		__dec_worker(sdata, user, client->worker_instance);
+		/* Recalculate worker UA after decrementing the instance count */
+		recalc_worker_useragent(sdata, user, client->worker_instance);
 	}
 }
 
@@ -5509,14 +5565,10 @@ static user_instance_t *generate_user(ckpool_t *ckp, stratum_instance_t *client,
 	client->user_instance = user;
 	client->worker_instance = worker;
 	/* record last-seen useragent on combined worker record */
-	if (client->useragent) {
-		if (worker->useragent)
-			free(worker->useragent);
-		worker->useragent = strdup(client->useragent);
-		normalize_ua_buf(worker->useragent, worker->norm_useragent, sizeof(worker->norm_useragent));
-	}
 	DL_APPEND2(user->clients, client, user_prev, user_next);
 	__inc_worker(sdata,user, worker);
+	/* Recalculate worker useragent based on current active instances */
+	recalc_worker_useragent(sdata, user, worker);
 	ck_wunlock(&sdata->instance_lock);
 
 	if (!ckp->proxy && (new_user || !user->btcaddress)) {
