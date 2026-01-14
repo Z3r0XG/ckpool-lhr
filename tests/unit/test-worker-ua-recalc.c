@@ -122,12 +122,46 @@ static void test_single_client_empty_ua_sets_empty(void **state)
     worker_instance_t worker = {0};
 
     worker.instance_count = 1;
-    /* Client with NULL useragent should result in empty worker UA */
+    /* Client with NULL useragent should result in "Other" norm UA */
     stratum_instance_t *c = alloc_client(&user, &worker, NULL);
 
     recalc_worker_useragent(NULL, &user, &worker);
     assert_string_equal(worker.useragent, "");
-    assert_string_equal(worker.norm_useragent, "");
+    assert_string_equal(worker.norm_useragent, "Other");
+
+    free_clients(&user);
+    free(worker.useragent);
+}
+
+static void test_single_client_whitespace_ua(void **state)
+{
+    user_instance_t user = {0};
+    worker_instance_t worker = {0};
+
+    worker.instance_count = 1;
+    /* Client with whitespace-only UA should normalize to "Other" */
+    stratum_instance_t *c = alloc_client(&user, &worker, "   \t  ");
+
+    recalc_worker_useragent(NULL, &user, &worker);
+    assert_string_equal(worker.useragent, "   \t  ");
+    assert_string_equal(worker.norm_useragent, "Other");
+
+    free_clients(&user);
+    free(worker.useragent);
+}
+
+static void test_single_client_versioned_ua(void **state)
+{
+    user_instance_t user = {0};
+    worker_instance_t worker = {0};
+
+    worker.instance_count = 1;
+    /* UA with version should normalize to base name */
+    stratum_instance_t *c = alloc_client(&user, &worker, "cgminer/4.5.15");
+
+    recalc_worker_useragent(NULL, &user, &worker);
+    assert_string_equal(worker.useragent, "cgminer/4.5.15");
+    assert_string_equal(worker.norm_useragent, "cgminer");
 
     free_clients(&user);
     free(worker.useragent);
@@ -139,6 +173,8 @@ int main(void)
         cmocka_unit_test(test_no_clients_preserve_persisted),
         cmocka_unit_test(test_single_client_sets_client_ua),
         cmocka_unit_test(test_single_client_empty_ua_sets_empty),
+        cmocka_unit_test(test_single_client_whitespace_ua),
+        cmocka_unit_test(test_single_client_versioned_ua),
         cmocka_unit_test(test_multiple_clients_sets_other),
         cmocka_unit_test(test_transition_1_to_2_to_1),
     };

@@ -5233,9 +5233,12 @@ static void read_userstats(ckpool_t *ckp, sdata_t *sdata, int tvsec_diff)
 				const char *ua = json_string_value(json_object_get(arr_val, "useragent"));
 				if (ua && strlen(ua)) {
 					worker->useragent = strdup(ua);
-					normalize_ua_buf(worker->useragent, worker->norm_useragent, sizeof(worker->norm_useragent));
+					const char *ua_key = get_normalized_ua_key(worker->useragent, worker->norm_useragent, sizeof(worker->norm_useragent));
+					if (ua_key != worker->norm_useragent)
+						strcpy(worker->norm_useragent, ua_key);
 				} else {
 					worker->useragent = NULL;
+					strcpy(worker->norm_useragent, UA_OTHER);
 				}
 			}
 			if (worker->best_diff > worker->best_ever)
