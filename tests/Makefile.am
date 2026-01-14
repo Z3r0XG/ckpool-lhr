@@ -39,6 +39,7 @@ check_PROGRAMS = \
 	unit/test-backwards-compatibility \
 	unit/test-ua-aggregation \
 	unit/test-worker-ua-recalc \
+	unit/test-persistent-ua-tracking \
 	unit/test-zombie-cleanup
 
 TESTS = $(check_PROGRAMS)
@@ -161,6 +162,10 @@ unit_test_network_diff_interactions_SOURCES = \
 # Backwards compatibility tests
 unit_test_backwards_compatibility_SOURCES = \
 	unit/test-backwards-compatibility.c
+
+# Persistent UA tracking tests
+unit_test_persistent_ua_tracking_SOURCES = \
+	unit/test-persistent-ua-tracking.c
 
 # Zombie cleanup logic tests
 unit_test_zombie_cleanup_SOURCES = \

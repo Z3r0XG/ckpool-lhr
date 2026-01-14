@@ -48,12 +48,14 @@ void recalc_worker_useragent(sdata_t *sdata, user_instance_t *user, worker_insta
 		if (worker->useragent)
 			free(worker->useragent);
 		worker->useragent = strdup(client->useragent);
-		normalize_ua_buf(worker->useragent, worker->norm_useragent, sizeof(worker->norm_useragent));
+		const char *ua_key = get_normalized_ua_key(worker->useragent, worker->norm_useragent, sizeof(worker->norm_useragent));
+		if (ua_key != worker->norm_useragent)
+			strcpy(worker->norm_useragent, ua_key);
 	} else {
-		/* Empty UA from client — record empty string */
+		/* Empty UA from client — map to Other */
 		if (worker->useragent)
 			free(worker->useragent);
 		worker->useragent = ckzalloc(1);
-		worker->norm_useragent[0] = '\0';
+		strcpy(worker->norm_useragent, UA_OTHER);
 	}
 }
