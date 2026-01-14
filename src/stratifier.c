@@ -8261,7 +8261,7 @@ static void *statsupdate(void *arg)
 		}
 
 		/* Use persistent UA map for accurate device counts (build snapshot for metrics) */
-		if (ckp->max_pool_useragents != 0) {
+		if (ckp->max_pool_useragents != 0 && sdata->ua_map != NULL) {
 			ck_rlock(&sdata->instance_lock);
 
 			/* First, copy persistent ua_map to snapshot ua_map (keep lock held) */
@@ -8280,17 +8280,19 @@ static void *statsupdate(void *arg)
 			}
 
 			/* Then, aggregate performance metrics from current connected clients */
-			stratum_instance_t *snap_client;
-			HASH_ITER(hh, sdata->stratum_instances, snap_client, tmp) {
-				if (!snap_client->authorised || !snap_client->useragent || !snap_client->useragent[0])
-					continue;
-				ua_item_t *ua_it_find = NULL;
-				HASH_FIND_STR(ua_map, snap_client->useragent, ua_it_find);
-				if (ua_it_find) {
-					/* Update performance metrics for this UA type */
-					ua_it_find->dsps5 += snap_client->dsps5;
-					if (snap_client->best_diff > ua_it_find->best_diff)
-						ua_it_find->best_diff = snap_client->best_diff;
+			if (ua_map != NULL) {
+				stratum_instance_t *snap_client;
+				HASH_ITER(hh, sdata->stratum_instances, snap_client, tmp) {
+					if (!snap_client->authorised || !snap_client->useragent || !snap_client->useragent[0])
+						continue;
+					ua_item_t *ua_it_find = NULL;
+					HASH_FIND_STR(ua_map, snap_client->useragent, ua_it_find);
+					if (ua_it_find) {
+						/* Update performance metrics for this UA type */
+						ua_it_find->dsps5 += snap_client->dsps5;
+						if (snap_client->best_diff > ua_it_find->best_diff)
+							ua_it_find->best_diff = snap_client->best_diff;
+					}
 				}
 			}
 			ck_runlock(&sdata->instance_lock);
