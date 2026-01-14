@@ -5,8 +5,36 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <ctype.h>
 
 #include "uthash.h"
+
+/* UA normalization (mirror of ua_utils.c) */
+static void normalize_ua_buf(const char *src, char *dst, int len)
+{
+	int i = 0;
+	if (!src || !dst || len <= 0) {
+		if (dst && len > 0)
+			dst[0] = '\0';
+		return;
+	}
+	/* Skip leading whitespace */
+	while (*src && isspace((unsigned char)*src)) src++;
+
+	while (*src && i < len - 1) {
+		if (*src == '/' || *src == '(')
+			break;
+		dst[i++] = (unsigned char)*src;
+		src++;
+	}
+	dst[i] = '\0';
+	
+	/* Strip trailing whitespace */
+	while (i > 0 && isspace((unsigned char)dst[i - 1])) {
+		i--;
+		dst[i] = '\0';
+	}
+}
 
 /* UA item struct matching stratifier.c definition */
 typedef struct ua_item {
@@ -17,22 +45,29 @@ typedef struct ua_item {
 	double best_diff;
 } ua_item_t;
 
-/* Helper: Add or increment UA in the persistent map */
+/* Helper: Add or increment UA in the persistent map (with normalization) */
 static void ua_tracking_add_client(ua_item_t **ua_map, const char *useragent)
 {
 	if (!useragent || !useragent[0])
 		return;
 
+	/* Normalize UA string */
+	char normalized_ua[256];
+	normalize_ua_buf(useragent, normalized_ua, sizeof(normalized_ua));
+	
+	if (!normalized_ua[0])  /* Skip if normalized to empty */
+		return;
+
 	ua_item_t *ua_it_find = NULL;
-	HASH_FIND_STR(*ua_map, useragent, ua_it_find);
+	HASH_FIND_STR(*ua_map, normalized_ua, ua_it_find);
 	if (ua_it_find) {
 		ua_it_find->count++;
 	} else {
 		ua_item_t *ua_new = malloc(sizeof(ua_item_t));
 		assert_non_null(ua_new);
-		ua_new->ua = malloc(strlen(useragent) + 1);
+		ua_new->ua = malloc(strlen(normalized_ua) + 1);
 		assert_non_null(ua_new->ua);
-		strcpy(ua_new->ua, useragent);
+		strcpy(ua_new->ua, normalized_ua);
 		ua_new->count = 1;
 		ua_new->dsps5 = 0;
 		ua_new->best_diff = 0;
@@ -46,8 +81,15 @@ static void ua_tracking_remove_client(ua_item_t **ua_map, const char *useragent)
 	if (!useragent || !useragent[0])
 		return;
 
+	/* Normalize UA to match what was added */
+	char normalized_ua[256];
+	normalize_ua_buf(useragent, normalized_ua, sizeof(normalized_ua));
+	
+	if (!normalized_ua[0])  /* Skip if normalized to empty */
+		return;
+
 	ua_item_t *ua_it_find = NULL;
-	HASH_FIND_STR(*ua_map, useragent, ua_it_find);
+	HASH_FIND_STR(*ua_map, normalized_ua, ua_it_find);
 	if (ua_it_find) {
 		ua_it_find->count--;
 		if (ua_it_find->count <= 0) {
@@ -58,11 +100,21 @@ static void ua_tracking_remove_client(ua_item_t **ua_map, const char *useragent)
 	}
 }
 
-/* Helper: Get count for a UA */
+/* Helper: Get count for a UA (with normalization) */
 static int ua_tracking_get_count(ua_item_t *ua_map, const char *useragent)
 {
+	if (!useragent || !useragent[0])
+		return 0;
+	
+	/* Normalize UA to match what was added */
+	char normalized_ua[256];
+	normalize_ua_buf(useragent, normalized_ua, sizeof(normalized_ua));
+	
+	if (!normalized_ua[0])  /* Empty after normalization */
+		return 0;
+	
 	ua_item_t *ua_it = NULL;
-	HASH_FIND_STR(ua_map, useragent, ua_it);
+	HASH_FIND_STR(ua_map, normalized_ua, ua_it);
 	return ua_it ? ua_it->count : 0;
 }
 
@@ -238,6 +290,35 @@ static void test_readd_after_removal(void **state)
 	ua_tracking_cleanup(&ua_map);
 }
 
+/* Test: UA normalization - different versions counted as same UA */
+static void test_ua_normalization(void **state)
+{
+	ua_item_t *ua_map = NULL;
+
+	/* Add clients with same UA but different version suffixes */
+	ua_tracking_add_client(&ua_map, "cpuminer-multi/1.3.7");
+	assert_int_equal(ua_tracking_get_count(ua_map, "cpuminer-multi/1.3.7"), 1);
+
+	/* Same UA with different version - should be counted as same */
+	ua_tracking_add_client(&ua_map, "cpuminer-multi/1.3.8");
+	assert_int_equal(ua_tracking_get_count(ua_map, "cpuminer-multi/1.3.7"), 2);
+	assert_int_equal(ua_tracking_get_count(ua_map, "cpuminer-multi/1.3.8"), 2);
+
+	/* Another version */
+	ua_tracking_add_client(&ua_map, "cpuminer-multi/1.4.0");
+	assert_int_equal(ua_tracking_get_count(ua_map, "cpuminer-multi/1.3.7"), 3);
+
+	/* With parenthesis also should normalize to same */
+	ua_tracking_add_client(&ua_map, "cpuminer-multi (custom build)");
+	assert_int_equal(ua_tracking_get_count(ua_map, "cpuminer-multi"), 4);
+
+	/* Remove one - should decrement shared counter */
+	ua_tracking_remove_client(&ua_map, "cpuminer-multi/1.3.7");
+	assert_int_equal(ua_tracking_get_count(ua_map, "cpuminer-multi/1.3.8"), 3);
+
+	ua_tracking_cleanup(&ua_map);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
@@ -247,6 +328,7 @@ int main(void)
 		cmocka_unit_test(test_null_empty_ua),
 		cmocka_unit_test(test_cascade_operations),
 		cmocka_unit_test(test_readd_after_removal),
+		cmocka_unit_test(test_ua_normalization),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);

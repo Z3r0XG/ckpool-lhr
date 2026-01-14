@@ -3168,8 +3168,12 @@ static void __drop_client(sdata_t *sdata, stratum_instance_t *client, bool lazil
 
 	/* Remove client UA from persistent tracking */
 	if (client->useragent && client->useragent[0]) {
+		/* Normalize UA to match what was added in parse_subscribe */
+		char normalized_ua[256];
+		normalize_ua_buf(client->useragent, normalized_ua, sizeof(normalized_ua));
+		
 		ua_item_t *ua_it_find = NULL;
-		HASH_FIND_STR(sdata->ua_map, client->useragent, ua_it_find);
+		HASH_FIND_STR(sdata->ua_map, normalized_ua, ua_it_find);
 		if (ua_it_find) {
 			ua_it_find->count--;
 			if (ua_it_find->count <= 0) {
@@ -4971,13 +4975,17 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 	/* Add client UA to persistent tracking (protected by instance_lock) */
 	if (client->useragent && client->useragent[0]) {
 		ck_wlock(&sdata->instance_lock);
+		/* Normalize UA to stable identifier (e.g., "cpuminer-multi" from "cpuminer-multi/1.3.7") */
+		char normalized_ua[256];
+		normalize_ua_buf(client->useragent, normalized_ua, sizeof(normalized_ua));
+		
 		ua_item_t *ua_it_find = NULL;
-		HASH_FIND_STR(sdata->ua_map, client->useragent, ua_it_find);
+		HASH_FIND_STR(sdata->ua_map, normalized_ua, ua_it_find);
 		if (ua_it_find) {
 			ua_it_find->count++;
 		} else {
 			ua_item_t *ua_new = ckalloc(sizeof(ua_item_t));
-			ua_new->ua = strdup(client->useragent);
+			ua_new->ua = strdup(normalized_ua);
 			if (ua_new->ua) {
 				ua_new->count = 1;
 				ua_new->dsps5 = 0;
@@ -8285,8 +8293,12 @@ static void *statsupdate(void *arg)
 				HASH_ITER(hh, sdata->stratum_instances, snap_client, tmp) {
 					if (!snap_client->authorised || !snap_client->useragent || !snap_client->useragent[0])
 						continue;
+					/* Normalize client UA to match snapshot keys */
+					char normalized_ua[256];
+					normalize_ua_buf(snap_client->useragent, normalized_ua, sizeof(normalized_ua));
+					
 					ua_item_t *ua_it_find = NULL;
-					HASH_FIND_STR(ua_map, snap_client->useragent, ua_it_find);
+					HASH_FIND_STR(ua_map, normalized_ua, ua_it_find);
 					if (ua_it_find) {
 						/* Update performance metrics for this UA type */
 						ua_it_find->dsps5 += snap_client->dsps5;
