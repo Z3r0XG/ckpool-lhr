@@ -5,7 +5,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/jansson-2.14/src \
 
 # Link against libckpool and jansson
 # JANSSON_LIBS is relative to src/, so we need to prepend src/ path
-LDADD = $(top_builddir)/src/libckpool.a $(top_builddir)/src/@JANSSON_LIBS@ @LIBS@ -lm
+LDADD = $(top_builddir)/src/libckpool.a $(top_builddir)/src/@JANSSON_LIBS@ @LIBS@ -lm -lcmocka
 
 # Unit tests
 check_PROGRAMS = \
@@ -38,12 +38,17 @@ check_PROGRAMS = \
 	unit/test-network-diff-interactions \
 	unit/test-backwards-compatibility \
 	unit/test-ua-aggregation \
+	unit/test-worker-ua-recalc \
 	unit/test-zombie-cleanup
 
 TESTS = $(check_PROGRAMS)
 # UA normalization/aggregation tests
 unit_test_ua_aggregation_SOURCES = \
 	unit/test-ua-aggregation.c
+
+# Worker UA recalculation tests
+unit_test_worker_ua_recalc_SOURCES = \
+	unit/test-worker-ua-recalc.c
 
 # Difficulty calculation tests
 unit_test_difficulty_SOURCES = \
