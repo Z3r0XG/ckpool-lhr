@@ -4968,8 +4968,9 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 
 	client->subscribed = true;
 
-	/* Add client UA to persistent tracking */
+	/* Add client UA to persistent tracking (protected by instance_lock) */
 	if (client->useragent && client->useragent[0]) {
+		ck_wlock(&sdata->instance_lock);
 		ua_item_t *ua_it_find = NULL;
 		HASH_FIND_STR(sdata->ua_map, client->useragent, ua_it_find);
 		if (ua_it_find) {
@@ -4986,6 +4987,7 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 				dealloc(ua_new);
 			}
 		}
+		ck_wunlock(&sdata->instance_lock);
 	}
 
 	return ret;
@@ -8275,9 +8277,8 @@ static void *statsupdate(void *arg)
 						ua_it_find->best_diff = snap_client->best_diff;
 				}
 			}
-			ck_runlock(&sdata->instance_lock);
 
-			/* Copy persistent ua_map to snapshot ua_map for reporting */
+			/* Copy persistent ua_map to snapshot ua_map for reporting (keep lock held) */
 			ua_item_t *ua_it_src, *ua_tmp_src;
 			HASH_ITER(hh, sdata->ua_map, ua_it_src, ua_tmp_src) {
 				ua_item_t *ua_new = ckalloc(sizeof(ua_item_t));
@@ -8291,10 +8292,10 @@ static void *statsupdate(void *arg)
 				ua_new->best_diff = ua_it_src->best_diff;
 				HASH_ADD_STR(ua_map, ua, ua_new);
 			}
+			ck_runlock(&sdata->instance_lock);
 		}
 
 		user = NULL;
-
 		while ((user = next_user(sdata, user)) != NULL) {
 			worker_instance_t *worker;
 			json_t *user_array;
