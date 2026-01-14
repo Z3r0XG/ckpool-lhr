@@ -3166,13 +3166,11 @@ static void __drop_client(sdata_t *sdata, stratum_instance_t *client, bool lazil
 {
 	user_instance_t *user = client->user_instance;
 
-/* Remove client UA from persistent tracking (only if it was successfully subscribed/added) */
+	/* Remove client UA from persistent tracking (only if it was successfully subscribed/added) */
 	if (client->subscribed && client->useragent && client->useragent[0]) {
 		/* Normalize UA to match what was added in parse_subscribe */
 		char normalized_ua[256];
-		normalize_ua_buf(client->useragent, normalized_ua, sizeof(normalized_ua));
-		/* Use "Other" for empty normalized UA (e.g., whitespace-only input) */
-		const char *ua_key = normalized_ua[0] != '\0' ? normalized_ua : UA_OTHER;
+		const char *ua_key = get_normalized_ua_key(client->useragent, normalized_ua, sizeof(normalized_ua));
 		
 		ua_item_t *ua_it_find = NULL;
 		HASH_FIND_STR(sdata->ua_map, ua_key, ua_it_find);
@@ -4979,9 +4977,7 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 		ck_wlock(&sdata->instance_lock);
 		/* Normalize UA to stable identifier (e.g., "cpuminer-multi" from "cpuminer-multi/1.3.7") */
 		char normalized_ua[256];
-		normalize_ua_buf(client->useragent, normalized_ua, sizeof(normalized_ua));
-		/* Use "Other" for empty normalized UA (e.g., whitespace-only input) */
-		const char *ua_key = normalized_ua[0] != '\0' ? normalized_ua : UA_OTHER;
+		const char *ua_key = get_normalized_ua_key(client->useragent, normalized_ua, sizeof(normalized_ua));
 		
 		ua_item_t *ua_it_find = NULL;
 		HASH_FIND_STR(sdata->ua_map, ua_key, ua_it_find);
@@ -8299,9 +8295,7 @@ static void *statsupdate(void *arg)
 						continue;
 					/* Normalize client UA to match snapshot keys */
 					char normalized_ua[256];
-					normalize_ua_buf(snap_client->useragent, normalized_ua, sizeof(normalized_ua));
-					/* Use "Other" for empty normalized UA (e.g., whitespace-only input) */
-					const char *ua_key = normalized_ua[0] != '\0' ? normalized_ua : UA_OTHER;
+					const char *ua_key = get_normalized_ua_key(snap_client->useragent, normalized_ua, sizeof(normalized_ua));
 					
 					ua_item_t *ua_it_find = NULL;
 					HASH_FIND_STR(ua_map, ua_key, ua_it_find);

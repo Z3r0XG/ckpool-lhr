@@ -38,6 +38,13 @@ static void normalize_ua_buf(const char *src, char *dst, int len)
 	}
 }
 
+/* Get normalized UA key with "Other" fallback (mirror of ua_utils.c) */
+static const char *get_normalized_ua_key(const char *useragent, char *buf, size_t len)
+{
+	normalize_ua_buf(useragent, buf, len);
+	return buf[0] != '\0' ? buf : UA_OTHER;
+}
+
 /* UA item struct matching stratifier.c definition */
 typedef struct ua_item {
 	UT_hash_handle hh;
@@ -55,9 +62,7 @@ static void ua_tracking_add_client(ua_item_t **ua_map, const char *useragent)
 
 	/* Normalize UA string */
 	char normalized_ua[256];
-	normalize_ua_buf(useragent, normalized_ua, sizeof(normalized_ua));
-	/* Use "Other" for empty normalized UA (e.g., whitespace-only input) */
-	const char *ua_key = normalized_ua[0] != '\0' ? normalized_ua : UA_OTHER;
+	const char *ua_key = get_normalized_ua_key(useragent, normalized_ua, sizeof(normalized_ua));
 
 	ua_item_t *ua_it_find = NULL;
 	HASH_FIND_STR(*ua_map, ua_key, ua_it_find);
@@ -84,9 +89,7 @@ static void ua_tracking_remove_client(ua_item_t **ua_map, const char *useragent)
 
 	/* Normalize UA to match what was added */
 	char normalized_ua[256];
-	normalize_ua_buf(useragent, normalized_ua, sizeof(normalized_ua));
-	/* Use "Other" for empty normalized UA (e.g., whitespace-only input) */
-	const char *ua_key = normalized_ua[0] != '\0' ? normalized_ua : UA_OTHER;
+	const char *ua_key = get_normalized_ua_key(useragent, normalized_ua, sizeof(normalized_ua));
 
 	ua_item_t *ua_it_find = NULL;
 	HASH_FIND_STR(*ua_map, ua_key, ua_it_find);
@@ -108,9 +111,7 @@ static int ua_tracking_get_count(ua_item_t *ua_map, const char *useragent)
 	
 	/* Normalize UA to match what was added */
 	char normalized_ua[256];
-	normalize_ua_buf(useragent, normalized_ua, sizeof(normalized_ua));
-	/* Use "Other" for empty normalized UA (e.g., whitespace-only input) */
-	const char *ua_key = normalized_ua[0] != '\0' ? normalized_ua : UA_OTHER;
+	const char *ua_key = get_normalized_ua_key(useragent, normalized_ua, sizeof(normalized_ua));
 	
 	ua_item_t *ua_it = NULL;
 	HASH_FIND_STR(ua_map, ua_key, ua_it);

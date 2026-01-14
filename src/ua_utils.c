@@ -27,3 +27,10 @@ void normalize_ua_buf(const char *src, char *dst, int len)
         dst[i] = '\0';
     }
 }
+
+/* Get normalized UA key with "Other" fallback for empty normalized UAs */
+const char *get_normalized_ua_key(const char *useragent, char *buf, size_t len)
+{
+    normalize_ua_buf(useragent, buf, len);
+    return buf[0] != '\0' ? buf : UA_OTHER;
+}
