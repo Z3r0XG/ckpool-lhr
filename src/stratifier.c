@@ -312,6 +312,9 @@ struct stratifier_data {
 	proxy_t *proxies; /* Hashlist of all proxies */
 	mutex_t proxy_lock; /* Protects all proxy data */
 	proxy_t *subproxy; /* Which subproxy this sdata belongs to in proxy mode */
+
+	/* Persistent UA tracking: incremented on subscribe, decremented on disconnect */
+	ua_item_t *ua_map;
 };
 
 typedef struct json_entry json_entry_t;
@@ -3163,6 +3166,20 @@ static void __drop_client(sdata_t *sdata, stratum_instance_t *client, bool lazil
 {
 	user_instance_t *user = client->user_instance;
 
+	/* Remove client UA from persistent tracking */
+	if (client->useragent && client->useragent[0]) {
+		ua_item_t *ua_it_find = NULL;
+		HASH_FIND_STR(sdata->ua_map, client->useragent, ua_it_find);
+		if (ua_it_find) {
+			ua_it_find->count--;
+			if (ua_it_find->count <= 0) {
+				HASH_DEL(sdata->ua_map, ua_it_find);
+				dealloc(ua_it_find->ua);
+				dealloc(ua_it_find);
+			}
+		}
+	}
+
 	if (unlikely(client->node))
 		DL_DELETE2(sdata->node_instances, client, node_prev, node_next);
 	else if (unlikely(client->trusted))
@@ -4950,6 +4967,26 @@ static json_t *parse_subscribe(stratum_instance_t *client, const int64_t client_
 	ck_runlock(&sdata->workbase_lock);
 
 	client->subscribed = true;
+
+	/* Add client UA to persistent tracking */
+	if (client->useragent && client->useragent[0]) {
+		ua_item_t *ua_it_find = NULL;
+		HASH_FIND_STR(sdata->ua_map, client->useragent, ua_it_find);
+		if (ua_it_find) {
+			ua_it_find->count++;
+		} else {
+			ua_item_t *ua_new = ckalloc(sizeof(ua_item_t));
+			ua_new->ua = strdup(client->useragent);
+			if (ua_new->ua) {
+				ua_new->count = 1;
+				ua_new->dsps5 = 0;
+				ua_new->best_diff = 0;
+				HASH_ADD_STR(sdata->ua_map, ua, ua_new);
+			} else {
+				dealloc(ua_new);
+			}
+		}
+	}
 
 	return ret;
 }
@@ -8221,38 +8258,39 @@ static void *statsupdate(void *arg)
 			ck_wunlock(&sdata->instance_lock);
 		}
 
-		/* Build UA aggregation from connected clients (for snapshot semantics) */
+		/* Use persistent UA map for accurate device counts (build snapshot for metrics) */
 		if (ckp->max_pool_useragents != 0) {
 			ck_rlock(&sdata->instance_lock);
-			HASH_ITER(hh, sdata->stratum_instances, client, tmp) {
-				if (!client->authorised || !client->worker_instance || !client->useragent || !client->useragent[0])
+			/* First, update snapshot metrics from current connected clients */
+			stratum_instance_t *snap_client;
+			HASH_ITER(hh, sdata->stratum_instances, snap_client, tmp) {
+				if (!snap_client->authorised || !snap_client->useragent || !snap_client->useragent[0])
 					continue;
-				worker_instance_t *w = client->worker_instance;
-				/* Use cached normalized UA from worker (should already be set when UA was assigned) */
-				char *norm = w->norm_useragent[0] ? w->norm_useragent : NULL;
-				if (norm && norm[0]) {
-					ua_item_t *ua_it_find = NULL;
-					HASH_FIND_STR(ua_map, norm, ua_it_find);
-					if (ua_it_find) {
-						ua_it_find->count++;
-						ua_it_find->dsps5 += client->dsps5;
-						if (client->best_diff > ua_it_find->best_diff)
-							ua_it_find->best_diff = client->best_diff;
-					} else {
-						ua_item_t *ua_new = ckalloc(sizeof(ua_item_t));
-						ua_new->ua = strdup(norm);
-						if (!ua_new->ua) {
-							dealloc(ua_new);
-							continue;
-						}
-						ua_new->count = 1;
-						ua_new->dsps5 = client->dsps5;
-						ua_new->best_diff = client->best_diff;
-						HASH_ADD_STR(ua_map, ua, ua_new);
-					}
+				ua_item_t *ua_it_find = NULL;
+				HASH_FIND_STR(ua_map, snap_client->useragent, ua_it_find);
+				if (ua_it_find) {
+					/* Update performance metrics for this UA type */
+					ua_it_find->dsps5 += snap_client->dsps5;
+					if (snap_client->best_diff > ua_it_find->best_diff)
+						ua_it_find->best_diff = snap_client->best_diff;
 				}
 			}
 			ck_runlock(&sdata->instance_lock);
+
+			/* Copy persistent ua_map to snapshot ua_map for reporting */
+			ua_item_t *ua_it_src, *ua_tmp_src;
+			HASH_ITER(hh, sdata->ua_map, ua_it_src, ua_tmp_src) {
+				ua_item_t *ua_new = ckalloc(sizeof(ua_item_t));
+				ua_new->ua = strdup(ua_it_src->ua);
+				if (!ua_new->ua) {
+					dealloc(ua_new);
+					continue;
+				}
+				ua_new->count = ua_it_src->count;
+				ua_new->dsps5 = ua_it_src->dsps5;
+				ua_new->best_diff = ua_it_src->best_diff;
+				HASH_ADD_STR(ua_map, ua, ua_new);
+			}
 		}
 
 		user = NULL;
