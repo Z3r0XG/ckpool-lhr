@@ -8263,7 +8263,23 @@ static void *statsupdate(void *arg)
 		/* Use persistent UA map for accurate device counts (build snapshot for metrics) */
 		if (ckp->max_pool_useragents != 0) {
 			ck_rlock(&sdata->instance_lock);
-			/* First, update snapshot metrics from current connected clients */
+
+			/* First, copy persistent ua_map to snapshot ua_map (keep lock held) */
+			ua_item_t *ua_it_src, *ua_tmp_src;
+			HASH_ITER(hh, sdata->ua_map, ua_it_src, ua_tmp_src) {
+				ua_item_t *ua_new = ckalloc(sizeof(ua_item_t));
+				ua_new->ua = strdup(ua_it_src->ua);
+				if (!ua_new->ua) {
+					dealloc(ua_new);
+					continue;
+				}
+				ua_new->count = ua_it_src->count;
+				ua_new->dsps5 = 0;  /* Will be aggregated from clients */
+				ua_new->best_diff = 0;  /* Will be aggregated from clients */
+				HASH_ADD_STR(ua_map, ua, ua_new);
+			}
+
+			/* Then, aggregate performance metrics from current connected clients */
 			stratum_instance_t *snap_client;
 			HASH_ITER(hh, sdata->stratum_instances, snap_client, tmp) {
 				if (!snap_client->authorised || !snap_client->useragent || !snap_client->useragent[0])
@@ -8276,21 +8292,6 @@ static void *statsupdate(void *arg)
 					if (snap_client->best_diff > ua_it_find->best_diff)
 						ua_it_find->best_diff = snap_client->best_diff;
 				}
-			}
-
-			/* Copy persistent ua_map to snapshot ua_map for reporting (keep lock held) */
-			ua_item_t *ua_it_src, *ua_tmp_src;
-			HASH_ITER(hh, sdata->ua_map, ua_it_src, ua_tmp_src) {
-				ua_item_t *ua_new = ckalloc(sizeof(ua_item_t));
-				ua_new->ua = strdup(ua_it_src->ua);
-				if (!ua_new->ua) {
-					dealloc(ua_new);
-					continue;
-				}
-				ua_new->count = ua_it_src->count;
-				ua_new->dsps5 = ua_it_src->dsps5;
-				ua_new->best_diff = ua_it_src->best_diff;
-				HASH_ADD_STR(ua_map, ua, ua_new);
 			}
 			ck_runlock(&sdata->instance_lock);
 		}
