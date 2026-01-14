@@ -3166,8 +3166,8 @@ static void __drop_client(sdata_t *sdata, stratum_instance_t *client, bool lazil
 {
 	user_instance_t *user = client->user_instance;
 
-	/* Remove client UA from persistent tracking */
-	if (client->useragent && client->useragent[0]) {
+/* Remove client UA from persistent tracking (only if it was successfully subscribed/added) */
+	if (client->subscribed && client->useragent && client->useragent[0]) {
 		/* Normalize UA to match what was added in parse_subscribe */
 		char normalized_ua[256];
 		normalize_ua_buf(client->useragent, normalized_ua, sizeof(normalized_ua));
