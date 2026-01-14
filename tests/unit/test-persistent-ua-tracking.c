@@ -67,7 +67,7 @@ static void ua_tracking_add_client(ua_item_t **ua_map, const char *useragent)
 		assert_non_null(ua_new);
 		ua_new->ua = malloc(strlen(normalized_ua) + 1);
 		assert_non_null(ua_new->ua);
-		strcpy(ua_new->ua, normalized_ua);
+		memcpy(ua_new->ua, normalized_ua, strlen(normalized_ua) + 1);
 		ua_new->count = 1;
 		ua_new->dsps5 = 0;
 		ua_new->best_diff = 0;
@@ -319,6 +319,31 @@ static void test_ua_normalization(void **state)
 	ua_tracking_cleanup(&ua_map);
 }
 
+/* Test: UA special characters like ++ are preserved */
+static void test_ua_special_chars(void **state)
+{
+	ua_item_t *ua_map = NULL;
+
+	/* Whatsminer with ++ should be preserved */
+	ua_tracking_add_client(&ua_map, "Whatsminer M30S++");
+	assert_int_equal(ua_tracking_get_count(ua_map, "Whatsminer M30S++"), 1);
+
+	/* Different variant with version should normalize to same */
+	ua_tracking_add_client(&ua_map, "Whatsminer M30S++ (v1.0)");
+	assert_int_equal(ua_tracking_get_count(ua_map, "Whatsminer M30S++"), 2);
+
+	/* NerdQAxe++ should also be preserved */
+	ua_tracking_add_client(&ua_map, "NerdQAxe++");
+	assert_int_equal(ua_tracking_get_count(ua_map, "NerdQAxe++"), 1);
+
+	/* Different model should NOT match */
+	ua_tracking_add_client(&ua_map, "NerdQAxe");
+	assert_int_equal(ua_tracking_get_count(ua_map, "NerdQAxe"), 1);
+	assert_int_equal(ua_tracking_get_count(ua_map, "NerdQAxe++"), 1);
+
+	ua_tracking_cleanup(&ua_map);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
@@ -329,6 +354,7 @@ int main(void)
 		cmocka_unit_test(test_cascade_operations),
 		cmocka_unit_test(test_readd_after_removal),
 		cmocka_unit_test(test_ua_normalization),
+		cmocka_unit_test(test_ua_special_chars),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
