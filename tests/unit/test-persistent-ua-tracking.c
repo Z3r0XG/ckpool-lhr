@@ -9,6 +9,8 @@
 
 #include "uthash.h"
 
+#define UA_OTHER "Other"
+
 /* UA normalization (mirror of ua_utils.c) */
 static void normalize_ua_buf(const char *src, char *dst, int len)
 {
@@ -54,20 +56,19 @@ static void ua_tracking_add_client(ua_item_t **ua_map, const char *useragent)
 	/* Normalize UA string */
 	char normalized_ua[256];
 	normalize_ua_buf(useragent, normalized_ua, sizeof(normalized_ua));
-	
-	if (!normalized_ua[0])  /* Skip if normalized to empty */
-		return;
+	/* Use "Other" for empty normalized UA (e.g., whitespace-only input) */
+	const char *ua_key = normalized_ua[0] != '\0' ? normalized_ua : UA_OTHER;
 
 	ua_item_t *ua_it_find = NULL;
-	HASH_FIND_STR(*ua_map, normalized_ua, ua_it_find);
+	HASH_FIND_STR(*ua_map, ua_key, ua_it_find);
 	if (ua_it_find) {
 		ua_it_find->count++;
 	} else {
 		ua_item_t *ua_new = malloc(sizeof(ua_item_t));
 		assert_non_null(ua_new);
-		ua_new->ua = malloc(strlen(normalized_ua) + 1);
+		ua_new->ua = malloc(strlen(ua_key) + 1);
 		assert_non_null(ua_new->ua);
-		memcpy(ua_new->ua, normalized_ua, strlen(normalized_ua) + 1);
+		memcpy(ua_new->ua, ua_key, strlen(ua_key) + 1);
 		ua_new->count = 1;
 		ua_new->dsps5 = 0;
 		ua_new->best_diff = 0;
@@ -84,12 +85,11 @@ static void ua_tracking_remove_client(ua_item_t **ua_map, const char *useragent)
 	/* Normalize UA to match what was added */
 	char normalized_ua[256];
 	normalize_ua_buf(useragent, normalized_ua, sizeof(normalized_ua));
-	
-	if (!normalized_ua[0])  /* Skip if normalized to empty */
-		return;
+	/* Use "Other" for empty normalized UA (e.g., whitespace-only input) */
+	const char *ua_key = normalized_ua[0] != '\0' ? normalized_ua : UA_OTHER;
 
 	ua_item_t *ua_it_find = NULL;
-	HASH_FIND_STR(*ua_map, normalized_ua, ua_it_find);
+	HASH_FIND_STR(*ua_map, ua_key, ua_it_find);
 	if (ua_it_find) {
 		ua_it_find->count--;
 		if (ua_it_find->count <= 0) {
@@ -109,12 +109,11 @@ static int ua_tracking_get_count(ua_item_t *ua_map, const char *useragent)
 	/* Normalize UA to match what was added */
 	char normalized_ua[256];
 	normalize_ua_buf(useragent, normalized_ua, sizeof(normalized_ua));
-	
-	if (!normalized_ua[0])  /* Empty after normalization */
-		return 0;
+	/* Use "Other" for empty normalized UA (e.g., whitespace-only input) */
+	const char *ua_key = normalized_ua[0] != '\0' ? normalized_ua : UA_OTHER;
 	
 	ua_item_t *ua_it = NULL;
-	HASH_FIND_STR(ua_map, normalized_ua, ua_it);
+	HASH_FIND_STR(ua_map, ua_key, ua_it);
 	return ua_it ? ua_it->count : 0;
 }
 
@@ -344,6 +343,40 @@ static void test_ua_special_chars(void **state)
 	ua_tracking_cleanup(&ua_map);
 }
 
+/* Test: Whitespace-only UA normalizes to "Other" */
+static void test_whitespace_ua_falls_back_to_other(void **state)
+{
+	ua_item_t *ua_map = NULL;
+
+	/* Whitespace-only should become "Other" */
+	ua_tracking_add_client(&ua_map, "   ");
+	
+	/* Debug: Check count */
+	int count_val = ua_tracking_get_count(ua_map, "Other");
+	/* Print to see what's happening (use assert_int_equal to display value) */
+	assert_int_equal(count_val, 1);
+
+	/* Add more whitespace UAs */
+	ua_tracking_add_client(&ua_map, "\t\t");
+	assert_int_equal(ua_tracking_get_count(ua_map, "Other"), 2);
+
+	/* Add normal UA for comparison */
+	ua_tracking_add_client(&ua_map, "cpuminer-multi");
+	assert_int_equal(ua_tracking_get_count(ua_map, "cpuminer-multi"), 1);
+	assert_int_equal(ua_tracking_get_count(ua_map, "Other"), 2);
+
+	/* Remove one whitespace UA */
+	ua_tracking_remove_client(&ua_map, "   ");
+	assert_int_equal(ua_tracking_get_count(ua_map, "Other"), 1);
+
+	/* Remove the last whitespace UA (should cleanup "Other") */
+	ua_tracking_remove_client(&ua_map, "\t\t");
+	assert_int_equal(ua_tracking_get_count(ua_map, "Other"), 0);
+	assert_int_equal(ua_tracking_get_count(ua_map, "cpuminer-multi"), 1);
+
+	ua_tracking_cleanup(&ua_map);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
@@ -355,6 +388,7 @@ int main(void)
 		cmocka_unit_test(test_readd_after_removal),
 		cmocka_unit_test(test_ua_normalization),
 		cmocka_unit_test(test_ua_special_chars),
+		cmocka_unit_test(test_whitespace_ua_falls_back_to_other),
 	};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
