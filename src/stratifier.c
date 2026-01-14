@@ -38,9 +38,6 @@
 #include "connector.h"
 #include "generator.h"
 
-/* Hardcoded UA truncation length; keep normalized tokens short and safe */
-#define UA_TRUNCATE_LEN 64
-
 /* normalize_ua_buf is provided by ua_utils.c */
 
 typedef struct ua_item {

@@ -19,9 +19,7 @@ typedef struct stratifier_data sdata_t;
 typedef struct proxy_base proxy_t;
 typedef struct ckpool_instance ckpool_t;
 
-/* Full definitions copied from stratifier.c for these instance types.
- * KEEP in sync with the main implementation in stratifier.c.
- */
+/* Struct definitions used by stratifier and tests */
 
 /* Combined data from users */
 struct user_instance {

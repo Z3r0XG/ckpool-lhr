@@ -33,6 +33,13 @@ static void free_clients(user_instance_t *user)
     }
 }
 
+static void free_single_client(stratum_instance_t *c)
+{
+    if (c->useragent)
+        free(c->useragent);
+    free(c);
+}
+
 static void test_no_clients_preserve_persisted(void **state)
 {
     user_instance_t user = {0};
@@ -58,7 +65,7 @@ static void test_single_client_sets_client_ua(void **state)
 
     recalc_worker_useragent(NULL, &user, &worker);
     assert_string_equal(worker.useragent, "ClientUA123");
-    assert_string_not_equal(worker.norm_useragent, "");
+    assert_string_equal(worker.norm_useragent, "ClientUA123");
 
     free_clients(&user);
     free(worker.useragent);
@@ -100,11 +107,27 @@ static void test_transition_1_to_2_to_1(void **state)
 
     /* Remove second client (simulate disconnect) */
     DL_DELETE2(user.clients, c2, user_prev, user_next);
-    free(c2->useragent);
-    free(c2);
+    free_single_client(c2);
     worker.instance_count = 1;
     recalc_worker_useragent(NULL, &user, &worker);
     assert_string_equal(worker.useragent, "UA1");
+
+    free_clients(&user);
+    free(worker.useragent);
+}
+
+static void test_single_client_empty_ua_sets_empty(void **state)
+{
+    user_instance_t user = {0};
+    worker_instance_t worker = {0};
+
+    worker.instance_count = 1;
+    /* Client with NULL useragent should result in empty worker UA */
+    stratum_instance_t *c = alloc_client(&user, &worker, NULL);
+
+    recalc_worker_useragent(NULL, &user, &worker);
+    assert_string_equal(worker.useragent, "");
+    assert_string_equal(worker.norm_useragent, "");
 
     free_clients(&user);
     free(worker.useragent);
@@ -115,6 +138,7 @@ int main(void)
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_no_clients_preserve_persisted),
         cmocka_unit_test(test_single_client_sets_client_ua),
+        cmocka_unit_test(test_single_client_empty_ua_sets_empty),
         cmocka_unit_test(test_multiple_clients_sets_other),
         cmocka_unit_test(test_transition_1_to_2_to_1),
     };
