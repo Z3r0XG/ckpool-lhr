@@ -422,6 +422,6 @@ All configuration options are listed below.
 
 ## Other Modes
 
-ckpool-lhr inherits pool and proxy modes from upstream CKPool, but this documentation focuses exclusively on solo mining mode (`-B`).
+While ckpool-lhr is optimized and documented for solo mining, it inherits all capabilities from upstream CKPool.
 
 For documentation on pool, proxy, and passthrough modes, please refer to the [original CKPool documentation](https://bitbucket.org/ckolivas/ckpool).
