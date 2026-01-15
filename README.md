@@ -299,7 +299,7 @@ Any valid Bitcoin address works as the username. Append `.workername` to track m
 
 ## Configuration Options
 
-All configuration options for solo mode are listed below.
+All configuration options are listed below.
 
 **"btcd"** : Bitcoind connection configuration. **REQUIRED**
 - Type: Array of objects
