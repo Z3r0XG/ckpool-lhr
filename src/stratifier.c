@@ -5631,6 +5631,10 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 			client->suggest_diff = sdiff;
 			if (fabs(client->diff - sdiff) < DIFF_EPSILON)
 				goto skip_password_diff;
+			LOGWARNING("DEBUG PASSWORD_DIFF: client=%s workbase_id=%ld current_wb_id=%ld setting_diff_change_job_id=%ld old_diff=%.10f new_diff=%.10f",
+				client->identity, client->sdata->workbase_id, 
+				client->sdata->current_workbase ? client->sdata->current_workbase->id : -1,
+				client->sdata->workbase_id + 1, client->diff, sdiff);
 			client->diff_change_job_id = client->sdata->workbase_id + 1;
 			client->old_diff = client->diff;
 			client->diff = sdiff;
@@ -6313,8 +6317,14 @@ out_put:
 out_nowb:
 
 	/* Accept shares of the old diff until the next update */
-	if (id < client->diff_change_job_id)
+	if (id < client->diff_change_job_id) {
+		LOGWARNING("DEBUG SHARE_EVAL: client=%s job_id=%ld < diff_change_job_id=%ld, using old_diff=%.10f instead of client->diff=%.10f",
+			client->identity, id, client->diff_change_job_id, client->old_diff, client->diff);
 		diff = client->old_diff;
+	} else {
+		LOGWARNING("DEBUG SHARE_EVAL: client=%s job_id=%ld >= diff_change_job_id=%ld, using client->diff=%.10f",
+			client->identity, id, client->diff_change_job_id, client->diff);
+	}
 	if (!invalid) {
 		char wdiffsuffix[16];
 		char sdiff_str[32], diff_str[32];
