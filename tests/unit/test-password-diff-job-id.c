@@ -55,12 +55,13 @@ static void test_invariant_current_job_uses_new_diff(void) {
 static void test_bug_violated_invariant(void) {
     /*
      * BUG: diff_change_job_id = workbase_id + 1
+     * In production: workbase_id = current_job + 1 (next job to be assigned)
      * This caused: (current_job_id < workbase_id + 1) = TRUE → uses old_diff ✗
      */
     
     int64_t current_job = 100;
-    int64_t workbase_id = 102;
-    int64_t diff_change_job_id_buggy = workbase_id + 1;  // 103
+    int64_t workbase_id = current_job + 1;
+    int64_t diff_change_job_id_buggy = workbase_id + 1;  // 102
     
     diff_selection_t result = evaluate_share_diff(current_job, diff_change_job_id_buggy);
     assert_int_equal(USES_OLD_DIFF, result);
@@ -149,11 +150,11 @@ static void test_production_values(void) {
     /*
      * Real values from production debug logs where bug was observed:
      * - current_workbase->id = 7595459095277076480
-     * - workbase_id = 7595459095277076481
+     * - workbase_id = 7595459095277076481 (current + 1, as expected)
      */
     
     int64_t current_job = 7595459095277076480LL;
-    int64_t workbase_id = 7595459095277076481LL;
+    int64_t workbase_id = 7595459095277076481LL;  // current_job + 1
     
     /* Fix: uses current_job */
     int64_t diff_change_job_id_fixed = current_job;
