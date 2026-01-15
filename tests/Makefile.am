@@ -29,6 +29,7 @@ check_PROGRAMS = \
 	unit/test-config \
 	unit/test-low-diff \
 	unit/test-password-diff \
+	unit/test-password-diff-job-id \
 	unit/test-fractional-stats \
 	unit/test-fractional-vardiff \
 	unit/test-fractional-config \
@@ -130,6 +131,10 @@ unit_test_low_diff_SOURCES = \
 # Password difficulty suggestion tests
 unit_test_password_diff_SOURCES = \
 	unit/test-password-diff.c
+
+# Password difficulty job ID assignment tests
+unit_test_password_diff_job_id_SOURCES = \
+	unit/test-password-diff-job-id.c
 
 # Fractional statistics accumulation tests
 unit_test_fractional_stats_SOURCES = \

@@ -5631,7 +5631,7 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 			client->suggest_diff = sdiff;
 			if (fabs(client->diff - sdiff) < DIFF_EPSILON)
 				goto skip_password_diff;
-			client->diff_change_job_id = client->sdata->workbase_id + 1;
+			client->diff_change_job_id = client->sdata->current_workbase->id;
 			client->old_diff = client->diff;
 			client->diff = sdiff;
 			LOGINFO("Applied difficulty suggestion %.10f from password for client %s",
