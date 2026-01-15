@@ -214,23 +214,7 @@ src/ckpool -B
 ### Configuration File
 
 **"btcd"** : Bitcoind connection configuration. **REQUIRED**
-- Type: Array of objects
-- Each entry: url (string, required), auth (string, required), pass (string, required),
-  cookie (string, optional), notify (boolean, optional)
-- Default: localhost:8332 with user "user" and password "pass" if not specified
-- Note: Cookie-based authentication can be used as an alternative to auth/pass by
-  specifying the cookie file path.
-- Example:
-```json
-"btcd" : [
-    {
-        "url" : "127.0.0.1:8332",
-        "auth" : "username",
-        "pass" : "password",
-        "notify" : true
-    }
-]
-```
+- See the [Configuration Options](#configuration-options) section below for detailed configuration.
 
 ---
 
@@ -313,9 +297,33 @@ Any valid Bitcoin address works as the username. Append `.workername` to track m
 
 ---
 
-## Optional Configuration Options
+## Configuration Options
 
-All configuration options relevant to solo mode are listed below.
+All configuration options are listed below.
+
+**"btcd"** : Bitcoind connection configuration. **REQUIRED**
+- Type: Array of objects
+- Purpose: Each object defines a bitcoind instance connection
+- Object fields:
+  - **"url"** (string, required): Bitcoind RPC endpoint (IP:port or hostname:port)
+  - **"auth"** (string, required): RPC username for authentication
+  - **"pass"** (string, required): RPC password for authentication
+  - **"cookie"** (string, optional): Path to bitcoind cookie file (alternative to auth/pass)
+  - **"notify"** (boolean, optional): Enable block template notifications from this node
+- Default: localhost:8332 with user "user" and password "pass" if not specified
+- Note: Cookie-based authentication can be used as an alternative to auth/pass by
+  specifying the cookie file path. Multiple bitcoind instances can be configured for redundancy.
+- Example:
+```json
+"btcd" : [
+    {
+        "url" : "127.0.0.1:8332",
+        "auth" : "username",
+        "pass" : "password",
+        "notify" : true
+    }
+]
+```
 
 **"donaddress"** : Bitcoin address for donation payments. **OPTIONAL**
 - Type: String
@@ -460,6 +468,7 @@ All configuration options relevant to solo mode are listed below.
 
 While ckpool-lhr is optimized and documented for solo mining, it inherits all capabilities from upstream CKPool and can also operate in the following modes:
 
+- **Pool mode** (no mode flags) - Traditional mining pool where miners mine to a pool-controlled payout address. Requires `btcaddress` configuration.
 - **Proxy mode** (`-p`) - Standard proxy appearing as a single user to upstream pool
 - **Passthrough mode** (`-P`) - Collates connections while retaining individual presence on master pool
 - **Node mode** (`-N`) - Passthrough node with local bitcoind for block submission
@@ -467,18 +476,18 @@ While ckpool-lhr is optimized and documented for solo mining, it inherits all ca
 - **Userproxy mode** (`-u`) - User-based proxy accepting username/password credentials
 
 > [!NOTE]
-> These modes are inherited from upstream CKPool but are not the primary focus of ckpool-lhr. For detailed documentation on proxy/passthrough modes, refer to the original CKPool documentation.
+> These modes are inherited from upstream CKPool but are not the primary focus of ckpool-lhr. For detailed documentation on pool/proxy/passthrough modes, refer to the original CKPool documentation.
 
 > [!WARNING]
 > Solo mode (`-B`) cannot be combined with any proxy modes.
 
 ---
 
-## Pool Mode Configuration Options
+## Pool Mode Differences
 
-The following configuration options apply to pool/proxy modes but are not used in solo mode (`-B`).
+When running in **pool mode** (without `-B` or any proxy flags), the following configuration is required:
 
-**"btcaddress"** : Pool payout address for pool mode. **REQUIRED**
+**"btcaddress"** : Pool payout address. **REQUIRED**
 - Type: String
 - Values: Any valid Bitcoin address
 - Default: None
