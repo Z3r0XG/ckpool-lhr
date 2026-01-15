@@ -37,6 +37,7 @@ config.h
 **/*.a
 **/*.so
 **/.libs/
+**/.dirstamp
 
 # Binaries built locally
 /src/ckpool
