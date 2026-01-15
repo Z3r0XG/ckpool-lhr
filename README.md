@@ -315,7 +315,8 @@ Any valid Bitcoin address works as the username. Append `.workername` to track m
 
 ## Optional Configuration Options
 
-All configuration options relevant to solo mode are listed below.
+All configuration options relevant to solo mode are listed below. The `btcaddress`
+option is ignored in solo mode (miners provide their own address as username).
 
 **"donaddress"** : Bitcoin address for donation payments. **OPTIONAL**
 - Type: String
@@ -471,15 +472,3 @@ While ckpool-lhr is optimized and documented for solo mining, it inherits all ca
 
 > [!WARNING]
 > Solo mode (`-B`) cannot be combined with any proxy modes.
-
----
-
-## Pool Mode Configuration Options
-
-The following configuration options apply to pool/proxy modes but are not used in solo mode (`-B`).
-
-**"btcaddress"** : Pool payout address for pool mode. **REQUIRED**
-- Type: String
-- Values: Any valid Bitcoin address
-- Default: None
-- Example: `"btcaddress" : "bc1q..."`
