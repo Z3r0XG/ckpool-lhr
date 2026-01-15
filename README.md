@@ -132,21 +132,11 @@ Reward sent directly to miner's address.
 
 ---
 
-## Required Options
+## Command Line Options
 
-### Command Line
-
-**`-B` or `--btcsolo`**: **REQUIRED** to start ckpool-lhr in solo mode.
-
-Example:
-```bash
-src/ckpool -B
-```
-
-### All Command Line Options
-
-**`-B | --btcsolo`**
-- Start ckpool in solo mode (required for solo mining)
+**`-B | --btcsolo`** **REQUIRED**
+- Start ckpool in solo mode
+- Example: `src/ckpool -B`
 
 **`-c CONFIG | --config CONFIG`**
 - Specify path to configuration file (default: ckpool.conf)
@@ -176,45 +166,11 @@ src/ckpool -B
 **`-n NAME | --name NAME`**
 - Set process name (default: ckpool, cknode, etc.)
 
-**`-N | --node`**
-- Run as a passthrough node (combines proxy + passthrough)
-- Cannot be combined with other proxy modes
-
-**`-P | --passthrough`**
-- Passthrough proxy mode (relays to upstream pool)
-- Cannot be combined with other proxy modes
-
-**`-p | --proxy`**
-- Standard proxy mode
-- Cannot be combined with other proxy modes
-
 **`-q | --quiet`**
 - Disable warnings and non-critical messages
 
-**`-R | --redirector`**
-- Redirector mode (minimal proxy that redirects clients)
-- Cannot be combined with other proxy modes
-
 **`-s SOCKDIR | --sockdir SOCKDIR`**
 - Directory for unix domain sockets
-
-**`-t | --trusted`**
-- Trusted remote mode (cannot be combined with proxy modes)
-
-**`-u | --userproxy`**
-- User-based proxy mode
-- Cannot be combined with other proxy modes
-
-> [!NOTE]
-> Most users only need `-B` for solo mining. Other options are for advanced configurations.
-
-> [!WARNING]
-> Proxy modes (`-p`, `-P`, `-N`, `-R`, `-u`) are mutually exclusive and cannot be combined with solo mode (`-B`).
-
-### Configuration File
-
-**"btcd"** : Bitcoind connection configuration. **REQUIRED**
-- See the [Configuration Options](#configuration-options) section below for detailed configuration.
 
 ---
 
@@ -466,29 +422,6 @@ All configuration options are listed below.
 
 ## Other Modes
 
-While ckpool-lhr is optimized and documented for solo mining, it inherits all capabilities from upstream CKPool and can also operate in the following modes:
+ckpool-lhr inherits pool and proxy modes from upstream CKPool, but this documentation focuses exclusively on solo mining mode (`-B`).
 
-- **Pool mode** (no mode flags) - Traditional mining pool where miners mine to a pool-controlled payout address. Requires `btcaddress` configuration.
-- **Proxy mode** (`-p`) - Standard proxy appearing as a single user to upstream pool
-- **Passthrough mode** (`-P`) - Collates connections while retaining individual presence on master pool
-- **Node mode** (`-N`) - Passthrough node with local bitcoind for block submission
-- **Redirector mode** (`-R`) - Front-end filter that redirects active miners
-- **Userproxy mode** (`-u`) - User-based proxy accepting username/password credentials
-
-> [!NOTE]
-> These modes are inherited from upstream CKPool but are not the primary focus of ckpool-lhr. For detailed documentation on pool/proxy/passthrough modes, refer to the original CKPool documentation.
-
-> [!WARNING]
-> Solo mode (`-B`) cannot be combined with any proxy modes.
-
----
-
-## Pool Mode Differences
-
-When running in **pool mode** (without `-B` or any proxy flags), the following configuration is required:
-
-**"btcaddress"** : Pool payout address. **REQUIRED**
-- Type: String
-- Values: Any valid Bitcoin address
-- Default: None
-- Example: `"btcaddress" : "bc1q..."`
+For documentation on pool, proxy, and passthrough modes, please refer to the [original CKPool documentation](https://bitbucket.org/ckolivas/ckpool).
