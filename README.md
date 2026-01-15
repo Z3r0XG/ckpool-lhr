@@ -474,13 +474,12 @@ While ckpool-lhr is optimized and documented for solo mining, it inherits all ca
 
 ---
 
-## Pool Mode Configuration
+## Pool Mode Configuration Options
 
-The following configuration options apply to pool/proxy modes but are not used in solo mode (`-B`):
+The following configuration options apply to pool/proxy modes but are not used in solo mode (`-B`).
 
-**"btcaddress"** : Pool payout address for pool mode. **REQUIRED for pool mode**
+**"btcaddress"** : Pool payout address for pool mode. **REQUIRED**
 - Type: String
 - Values: Any valid Bitcoin address
 - Default: None
-- Note: Not used in solo mode (`-B`). In solo mode, miners provide their own Bitcoin address as the username.
 - Example: `"btcaddress" : "bc1q..."`
