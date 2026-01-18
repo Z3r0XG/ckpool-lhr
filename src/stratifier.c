@@ -2169,26 +2169,17 @@ static void __inc_worker(sdata_t *sdata, user_instance_t *user, worker_instance_
 	if (!user->authorised) {
 		worker_instance_t *tmp;
 		int old_workers = user->workers;
-		LOGDEBUG("[PATH A] User %s first authorization: old_workers=%d, checking for stale data",
-			  user->username, old_workers);
 		
 		if (old_workers != 0) {
 			user->workers = 0;
-			int reset_count = 0;
 			DL_FOREACH(user->worker_instances, tmp) {
-				LOGDEBUG("[PATH A] Resetting worker %s last_connect from %ld to 0",
-					  tmp->workername, tmp->last_connect);
 				tmp->last_connect = 0;
-				reset_count++;
 			}
-			LOGDEBUG("[PATH A] RESET user %s: workers %d->0, reset %d worker timestamps",
-				  user->username, old_workers, reset_count);
 		} else {
 			user->workers = 0;
 			DL_FOREACH(user->worker_instances, tmp) {
 				tmp->last_connect = 0;
 			}
-			LOGDEBUG("[PATH A] User %s: no stale data (workers already 0)", user->username);
 		}
 	}
 
@@ -8480,19 +8471,14 @@ static void *statsupdate(void *arg)
 			}
 
 			/* Reset stale workers count - need write lock for thread safety */
-		LOGDEBUG("[LOOP 2] Checking user %s: authorised=%d, workers=%d",
-			  user->username, user->authorised, user->workers);
-		
 		ck_wlock(&sdata->instance_lock);
 		/* Re-check conditions after acquiring lock */
 		if (user->authorised || user->workers == 0) {
 			ck_wunlock(&sdata->instance_lock);
-			LOGDEBUG("[LOOP 2] Skipping user %s (authorised=%d, workers=%d)",
-				  user->username, user->authorised, user->workers);
 			continue;
 		}
 
-		LOGDEBUG("[LOOP 2] CORRECTING user %s: unauthorised with workers=%d (STALE)",
+		LOGINFO("Correcting stale worker count for unauthorised user %s: workers=%d (resetting to 0)",
 			  user->username, user->workers);
 		user->workers = 0;
 
@@ -8504,9 +8490,6 @@ static void *statsupdate(void *arg)
 			}
 		}
 		ck_wunlock(&sdata->instance_lock);
-		
-		LOGDEBUG("[LOOP 2] Adding log entry for user %s (workers=0, started=0)",
-			  user->username);
 			/* Build and write corrected user file */
 			JSON_CPACK(val, "{ss,ss,ss,ss,ss,si,si,sf,sf,sf,sI}",
 					"hashrate1m", "0",
