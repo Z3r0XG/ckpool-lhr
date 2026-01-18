@@ -2169,13 +2169,27 @@ static void __inc_worker(sdata_t *sdata, user_instance_t *user, worker_instance_
 	if (!user->authorised) {
 		worker_instance_t *tmp;
 		int old_workers = user->workers;
-		user->workers = 0;
-		DL_FOREACH(user->worker_instances, tmp) {
-			tmp->last_connect = 0;
+		LOGDEBUG("[PATH A] User %s first authorization: old_workers=%d, checking for stale data",
+			  user->username, old_workers);
+		
+		if (old_workers != 0) {
+			user->workers = 0;
+			int reset_count = 0;
+			DL_FOREACH(user->worker_instances, tmp) {
+				LOGDEBUG("[PATH A] Resetting worker %s last_connect from %ld to 0",
+					  tmp->workername, tmp->last_connect);
+				tmp->last_connect = 0;
+				reset_count++;
+			}
+			LOGDEBUG("[PATH A] RESET user %s: workers %d->0, reset %d worker timestamps",
+				  user->username, old_workers, reset_count);
+		} else {
+			user->workers = 0;
+			DL_FOREACH(user->worker_instances, tmp) {
+				tmp->last_connect = 0;
+			}
+			LOGDEBUG("[PATH A] User %s: no stale data (workers already 0)", user->username);
 		}
-		if (old_workers > 0)
-			LOGINFO("Reset stale worker data for user %s (workers %d->0)",
-				user->username, old_workers);
 	}
 
 	sdata->stats.workers++;
@@ -8465,17 +8479,34 @@ static void *statsupdate(void *arg)
 				continue;
 			}
 
-			/* Reset stale workers count */
-			LOGINFO("Correcting stale data for unauthorized user %s (workers %d->0)",
-				user->username, user->workers);
-			user->workers = 0;
+			/* Reset stale workers count - need write lock for thread safety */
+		LOGDEBUG("[LOOP 2] Checking user %s: authorised=%d, workers=%d",
+			  user->username, user->authorised, user->workers);
+		
+		ck_wlock(&sdata->instance_lock);
+		/* Re-check conditions after acquiring lock */
+		if (user->authorised || user->workers == 0) {
+			ck_wunlock(&sdata->instance_lock);
+			LOGDEBUG("[LOOP 2] Skipping user %s (authorised=%d, workers=%d)",
+				  user->username, user->authorised, user->workers);
+			continue;
+		}
 
-			/* Reset all workers' started times to 0 */
-			worker = NULL;
-			while ((worker = next_worker(sdata, user, worker)) != NULL) {
-				worker->last_connect = 0;
+		LOGDEBUG("[LOOP 2] CORRECTING user %s: unauthorised with workers=%d (STALE)",
+			  user->username, user->workers);
+		user->workers = 0;
+
+		/* Reset all workers' started times to 0 - use DL_FOREACH since we hold lock */
+		{
+			worker_instance_t *tmp;
+			DL_FOREACH(user->worker_instances, tmp) {
+				tmp->last_connect = 0;
 			}
-
+		}
+		ck_wunlock(&sdata->instance_lock);
+		
+		LOGDEBUG("[LOOP 2] Adding log entry for user %s (workers=0, started=0)",
+			  user->username);
 			/* Build and write corrected user file */
 			JSON_CPACK(val, "{ss,ss,ss,ss,ss,si,si,sf,sf,sf,sI}",
 					"hashrate1m", "0",
