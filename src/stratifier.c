@@ -2165,6 +2165,19 @@ static void __kill_instance(sdata_t *sdata, stratum_instance_t *client)
  * instance lock to avoid recursive locking. */
 static void __inc_worker(sdata_t *sdata, user_instance_t *user, worker_instance_t *worker)
 {
+	/* Reset stale data from file on first authorized worker */
+	if (!user->authorised) {
+		worker_instance_t *tmp;
+		int old_workers = user->workers;
+		user->workers = 0;
+		DL_FOREACH(user->worker_instances, tmp) {
+			tmp->last_connect = 0;
+		}
+		if (old_workers > 0)
+			LOGINFO("Reset stale worker data for user %s (workers %d->0)",
+				user->username, old_workers);
+	}
+
 	sdata->stats.workers++;
 	if (!user->workers++)
 		sdata->stats.users++;
@@ -5188,6 +5201,8 @@ static void read_userstats(ckpool_t *ckp, sdata_t *sdata, int tvsec_diff)
 		json_get_double(&user->best_ever, val, "bestever");
 		json_get_int64(&authorised, val, "authorised");
 		user->auth_time = authorised;
+		json_get_int64(&connected, val, "workers");
+		user->workers = connected;
 		if (user->best_diff > user->best_ever)
 			user->best_ever = user->best_diff;
 		LOGINFO("Successfully read user %s stats %f %f %f %f %f %f %f %ld", user->username,
@@ -8436,6 +8451,72 @@ static void *statsupdate(void *arg)
 			stats->remote_workers = remote_workers;
 			stats->remote_users = remote_users;
 			mutex_unlock(&sdata->stats_lock);
+		}
+
+		/* Loop 2: Handle unauthorized users with stale workers count from file */
+		user = NULL;
+		while ((user = next_user(sdata, user)) != NULL) {
+			worker_instance_t *worker;
+			json_t *user_array;
+			json_t *val;
+
+			/* Only process unauthorized users with non-zero workers (stale data) */
+			if (user->authorised || user->workers == 0) {
+				continue;
+			}
+
+			/* Reset stale workers count */
+			LOGINFO("Correcting stale data for unauthorized user %s (workers %d->0)",
+				user->username, user->workers);
+			user->workers = 0;
+
+			/* Reset all workers' started times to 0 */
+			worker = NULL;
+			while ((worker = next_worker(sdata, user, worker)) != NULL) {
+				worker->last_connect = 0;
+			}
+
+			/* Build and write corrected user file */
+			JSON_CPACK(val, "{ss,ss,ss,ss,ss,si,si,sf,sf,sf,sI}",
+					"hashrate1m", "0",
+					"hashrate5m", "0",
+					"hashrate1hr", "0",
+					"hashrate1d", "0",
+					"hashrate7d", "0",
+					"lastshare", user->last_share.tv_sec,
+					"workers", 0,
+					"shares", user->shares,
+					"bestshare", user->best_diff,
+					"bestever", user->best_ever,
+					"authorised", user->auth_time);
+
+			user_array = json_array();
+			worker = NULL;
+			while ((worker = next_worker(sdata, user, worker)) != NULL) {
+				json_t *wval;
+
+				JSON_CPACK(wval, "{ss,ss,ss,ss,ss,ss,si,si,sf,sf,sf,ss}",
+					"workername", worker->workername,
+					"hashrate1m", "0",
+					"hashrate5m", "0",
+					"hashrate1hr", "0",
+					"hashrate1d", "0",
+					"hashrate7d", "0",
+					"lastshare", worker->last_share.tv_sec,
+					"started", 0,
+					"shares", worker->shares,
+					"bestshare", worker->best_diff,
+					"bestever", worker->best_ever,
+					"useragent", worker->useragent ? worker->useragent : "");
+				json_array_append_new(user_array, wval);
+			}
+
+			json_object_set_new_nocheck(val, "worker", user_array);
+			ASPRINTF(&fname, "%s/users/%s", ckp->logdir, user->username);
+			s = json_dumps(val, JSON_NO_UTF8 | JSON_PRESERVE_ORDER | JSON_EOL |
+				JSON_REAL_PRECISION(16) | JSON_INDENT(1));
+			add_log_entry(&log_entries, &fname, &s);
+			json_decref(val);
 		}
 
 		/* Dump log entries out of instance_lock */
