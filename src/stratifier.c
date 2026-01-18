@@ -2171,6 +2171,8 @@ static void __inc_worker(sdata_t *sdata, user_instance_t *user, worker_instance_
 		int old_workers = user->workers;
 		
 		if (old_workers != 0) {
+			LOGINFO("Path A: First authorized user %s, resetting stale workers from %d to 0",
+				user->username, old_workers);
 			user->workers = 0;
 			DL_FOREACH(user->worker_instances, tmp) {
 				tmp->last_connect = 0;
