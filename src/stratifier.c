@@ -2165,24 +2165,18 @@ static void __kill_instance(sdata_t *sdata, stratum_instance_t *client)
  * instance lock to avoid recursive locking. */
 static void __inc_worker(sdata_t *sdata, user_instance_t *user, worker_instance_t *worker)
 {
-	/* Reset stale data from file on first authorized worker */
-	if (!user->authorised) {
+	/* Reset stale data from file on first worker connection (user->authorised is false until authorization completes in this session) */
+	if (!user->authorised && user->workers != 0) {
 		worker_instance_t *tmp;
 		int old_workers = user->workers;
-		
-		if (old_workers != 0) {
-			LOGDEBUG("Path A: First authorized user %s, resetting stale workers from %d to 0",
-				user->username, old_workers);
-			user->workers = 0;
-			DL_FOREACH(user->worker_instances, tmp) {
-				tmp->last_connect = 0;
-			}
-		} else {
-			user->workers = 0;
-			DL_FOREACH(user->worker_instances, tmp) {
-				tmp->last_connect = 0;
-			}
+		int reset_count = 0;
+		user->workers = 0;
+		DL_FOREACH(user->worker_instances, tmp) {
+			tmp->last_connect = 0;
+			reset_count++;
 		}
+		LOGDEBUG("Lazy reset: user %s first auth cleared stale workers=%d",
+			 user user->username, old_workers);
 	}
 
 	sdata->stats.workers++;
@@ -8460,71 +8454,104 @@ static void *statsupdate(void *arg)
 			mutex_unlock(&sdata->stats_lock);
 		}
 
-		/* Loop 2: Handle unauthorized users with stale workers count from file */
+		/* Loop 2: Handle unauthorised users with stale workers count from file */
 		user = NULL;
 		while ((user = next_user(sdata, user)) != NULL) {
 			worker_instance_t *worker;
 			json_t *user_array;
 			json_t *val;
 
-			/* Only process unauthorized users with non-zero workers (stale data) */
+			/* Only process unauthorised users with non-zero workers (stale data) */
 			if (user->authorised || user->workers == 0) {
 				continue;
 			}
 
-			/* Reset stale workers count - need write lock for thread safety */
-		ck_wlock(&sdata->instance_lock);
-		/* Re-check conditions after acquiring lock */
-		if (user->authorised || user->workers == 0) {
-			ck_wunlock(&sdata->instance_lock);
-			continue;
-		}
+        /* Reset stale workers count - need write lock for thread safety */
+        ck_wlock(&sdata->instance_lock);
+        /* Re-check conditions after acquiring lock */
+        if (user->authorised || user->workers == 0) {
+            ck_wunlock(&sdata->instance_lock);
+            continue;
+        }
 
-		LOGDEBUG("Correcting stale worker count for unauthorised user %s: workers=%d (resetting to 0)",
-			  user->username, user->workers);
-		user->workers = 0;
+			LOGDEBUG("Lazy reset: correcting unauthorised user %s with stale workers=%d",
+				 user->username, user->workers);
+			user->workers = 0;
 
-		/* Reset all workers' started times to 0 - use DL_FOREACH since we hold lock */
-		{
-			worker_instance_t *tmp;
-			DL_FOREACH(user->worker_instances, tmp) {
-				tmp->last_connect = 0;
+			/* Reset all workers' started times to 0 - use DL_FOREACH since we hold lock */
+			{
+				worker_instance_t *tmp;
+				DL_FOREACH(user->worker_instances, tmp) {
+					tmp->last_connect = 0;
+				}
 			}
-		}
-		ck_wunlock(&sdata->instance_lock);
+			ck_wunlock(&sdata->instance_lock);
+
+			/* Calculate hashrate strings from loaded dsps values (preserve existing rates) */
+			ghs = user->dsps1440 * nonces;
+			suffix_string(ghs, suffix1440, 16, 0);
+
+			ghs = user->dsps1 * nonces;
+			suffix_string(ghs, suffix1, 16, 0);
+
+			ghs = user->dsps5 * nonces;
+			suffix_string(ghs, suffix5, 16, 0);
+
+			ghs = user->dsps60 * nonces;
+			suffix_string(ghs, suffix60, 16, 0);
+
+			ghs = user->dsps10080 * nonces;
+			suffix_string(ghs, suffix10080, 16, 0);
+
 			/* Build and write corrected user file */
 			JSON_CPACK(val, "{ss,ss,ss,ss,ss,si,si,sf,sf,sf,sI}",
-					"hashrate1m", "0",
-					"hashrate5m", "0",
-					"hashrate1hr", "0",
-					"hashrate1d", "0",
-					"hashrate7d", "0",
-					"lastshare", user->last_share.tv_sec,
-					"workers", 0,
-					"shares", user->shares,
-					"bestshare", user->best_diff,
-					"bestever", user->best_ever,
-					"authorised", user->auth_time);
+				"hashrate1m", suffix1,
+				"hashrate5m", suffix5,
+				"hashrate1hr", suffix60,
+				"hashrate1d", suffix1440,
+				"hashrate7d", suffix10080,
+				"lastshare", user->last_share.tv_sec,
+				"workers", 0,
+				"shares", user->shares,
+				"bestshare", user->best_diff,
+				"bestever", user->best_ever,
+				"authorised", user->auth_time);
 
 			user_array = json_array();
 			worker = NULL;
 			while ((worker = next_worker(sdata, user, worker)) != NULL) {
-				json_t *wval;
+			json_t *wval;
 
-				JSON_CPACK(wval, "{ss,ss,ss,ss,ss,ss,si,si,sf,sf,sf,ss}",
-					"workername", worker->workername,
-					"hashrate1m", "0",
-					"hashrate5m", "0",
-					"hashrate1hr", "0",
-					"hashrate1d", "0",
-					"hashrate7d", "0",
-					"lastshare", worker->last_share.tv_sec,
-					"started", 0,
-					"shares", worker->shares,
-					"bestshare", worker->best_diff,
-					"bestever", worker->best_ever,
-					"useragent", worker->useragent ? worker->useragent : "");
-				json_array_append_new(user_array, wval);
+			/* Calculate worker hashrate strings from loaded dsps values (preserve existing rates) */
+			ghs = worker->dsps1440 * nonces;
+			suffix_string(ghs, suffix1440, 16, 0);
+
+			ghs = worker->dsps1 * nonces;
+			suffix_string(ghs, suffix1, 16, 0);
+
+			ghs = worker->dsps5 * nonces;
+			suffix_string(ghs, suffix5, 16, 0);
+
+			ghs = worker->dsps60 * nonces;
+			suffix_string(ghs, suffix60, 16, 0);
+
+			ghs = worker->dsps10080 * nonces;
+			suffix_string(ghs, suffix10080, 16, 0);
+
+			JSON_CPACK(wval, "{ss,ss,ss,ss,ss,ss,si,si,sf,sf,sf,ss}",
+				"workername", worker->workername,
+				"hashrate1m", suffix1,
+				"hashrate5m", suffix5,
+				"hashrate1hr", suffix60,
+				"hashrate1d", suffix1440,
+				"hashrate7d", suffix10080,
+				"lastshare", worker->last_share.tv_sec,
+				"started", 0,
+				"shares", worker->shares,
+				"bestshare", worker->best_diff,
+				"bestever", worker->best_ever,
+				"useragent", worker->useragent ? worker->useragent : "");
+			json_array_append_new(user_array, wval);
 			}
 
 			json_object_set_new_nocheck(val, "worker", user_array);
@@ -8639,7 +8666,7 @@ static void *statsupdate(void *arg)
 		/* Round to 4 significant digits */
 		percent = round(stats->accounted_diff_shares * 10000 / stats->network_diff) / 100;
 		JSON_CPACK(val, "{sf,sf,sf,sf,sf,sf,sf,sf,sf}",
-			        "diff", percent,
+			    "diff", percent,
 				"netdiff", stats->network_diff,
 				"accepted", stats->accounted_diff_shares,
 				"rejected", stats->accounted_rejects,
