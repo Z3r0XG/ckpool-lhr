@@ -2169,14 +2169,12 @@ static void __inc_worker(sdata_t *sdata, user_instance_t *user, worker_instance_
 	if (!user->authorised && user->workers != 0) {
 		worker_instance_t *tmp;
 		int old_workers = user->workers;
-		int reset_count = 0;
 		user->workers = 0;
 		DL_FOREACH(user->worker_instances, tmp) {
 			tmp->last_connect = 0;
-			reset_count++;
 		}
 		LOGDEBUG("Lazy reset: user %s first auth cleared stale workers=%d",
-			 user user->username, old_workers);
+			 user->username, old_workers);
 	}
 
 	sdata->stats.workers++;
@@ -8466,13 +8464,13 @@ static void *statsupdate(void *arg)
 				continue;
 			}
 
-        /* Reset stale workers count - need write lock for thread safety */
-        ck_wlock(&sdata->instance_lock);
-        /* Re-check conditions after acquiring lock */
-        if (user->authorised || user->workers == 0) {
-            ck_wunlock(&sdata->instance_lock);
-            continue;
-        }
+			/* Reset stale workers count - need write lock for thread safety */
+			ck_wlock(&sdata->instance_lock);
+			/* Re-check conditions after acquiring lock */
+			if (user->authorised || user->workers == 0) {
+				ck_wunlock(&sdata->instance_lock);
+				continue;
+			}
 
 			LOGDEBUG("Lazy reset: correcting unauthorised user %s with stale workers=%d",
 				 user->username, user->workers);
@@ -8520,38 +8518,38 @@ static void *statsupdate(void *arg)
 			user_array = json_array();
 			worker = NULL;
 			while ((worker = next_worker(sdata, user, worker)) != NULL) {
-			json_t *wval;
+				json_t *wval;
 
-			/* Calculate worker hashrate strings from loaded dsps values (preserve existing rates) */
-			ghs = worker->dsps1440 * nonces;
-			suffix_string(ghs, suffix1440, 16, 0);
+				/* Calculate worker hashrate strings from loaded dsps values (preserve existing rates) */
+				ghs = worker->dsps1440 * nonces;
+				suffix_string(ghs, suffix1440, 16, 0);
 
-			ghs = worker->dsps1 * nonces;
-			suffix_string(ghs, suffix1, 16, 0);
+				ghs = worker->dsps1 * nonces;
+				suffix_string(ghs, suffix1, 16, 0);
 
-			ghs = worker->dsps5 * nonces;
-			suffix_string(ghs, suffix5, 16, 0);
+				ghs = worker->dsps5 * nonces;
+				suffix_string(ghs, suffix5, 16, 0);
 
-			ghs = worker->dsps60 * nonces;
-			suffix_string(ghs, suffix60, 16, 0);
+				ghs = worker->dsps60 * nonces;
+				suffix_string(ghs, suffix60, 16, 0);
 
-			ghs = worker->dsps10080 * nonces;
-			suffix_string(ghs, suffix10080, 16, 0);
+				ghs = worker->dsps10080 * nonces;
+				suffix_string(ghs, suffix10080, 16, 0);
 
-			JSON_CPACK(wval, "{ss,ss,ss,ss,ss,ss,si,si,sf,sf,sf,ss}",
-				"workername", worker->workername,
-				"hashrate1m", suffix1,
-				"hashrate5m", suffix5,
-				"hashrate1hr", suffix60,
-				"hashrate1d", suffix1440,
-				"hashrate7d", suffix10080,
-				"lastshare", worker->last_share.tv_sec,
-				"started", 0,
-				"shares", worker->shares,
-				"bestshare", worker->best_diff,
-				"bestever", worker->best_ever,
-				"useragent", worker->useragent ? worker->useragent : "");
-			json_array_append_new(user_array, wval);
+				JSON_CPACK(wval, "{ss,ss,ss,ss,ss,ss,si,si,sf,sf,sf,ss}",
+					"workername", worker->workername,
+					"hashrate1m", suffix1,
+					"hashrate5m", suffix5,
+					"hashrate1hr", suffix60,
+					"hashrate1d", suffix1440,
+					"hashrate7d", suffix10080,
+					"lastshare", worker->last_share.tv_sec,
+					"started", 0,
+					"shares", worker->shares,
+					"bestshare", worker->best_diff,
+					"bestever", worker->best_ever,
+					"useragent", worker->useragent ? worker->useragent : "");
+				json_array_append_new(user_array, wval);
 			}
 
 			json_object_set_new_nocheck(val, "worker", user_array);
