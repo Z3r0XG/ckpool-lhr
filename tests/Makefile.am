@@ -41,9 +41,14 @@ check_PROGRAMS = \
 	unit/test-ua-aggregation \
 	unit/test-worker-ua-recalc \
 	unit/test-persistent-ua-tracking \
-	unit/test-zombie-cleanup
+	unit/test-zombie-cleanup \
+	unit/test-auth-rejection
 
 TESTS = $(check_PROGRAMS)
+# Auth rejection tests
+unit_test_auth_rejection_SOURCES = \
+	unit/test-auth-rejection.c
+
 # UA normalization/aggregation tests
 unit_test_ua_aggregation_SOURCES = \
 	unit/test-ua-aggregation.c
