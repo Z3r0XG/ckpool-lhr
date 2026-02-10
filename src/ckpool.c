@@ -1648,7 +1648,7 @@ int main(int argc, char **argv)
 		ckp.initial_args[ckp.args] = strdup(argv[ckp.args]);
 	ckp.initial_args[ckp.args] = NULL;
 
-	appname = basename(argv[0]);
+	/* appname = basename(argv[0]); */
 	/* BCH fork: Solo mode only */
 	// if (!strcmp(appname, "ckproxy"))
 	// 	ckp.proxy = true;
