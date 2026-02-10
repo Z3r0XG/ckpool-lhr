@@ -1594,14 +1594,14 @@ static struct option long_options[] = {
 	{"log-shares",	no_argument,		0,	'L'},
 	{"loglevel",	required_argument,	0,	'l'},
 	{"name",	required_argument,	0,	'n'},
-	{"node",	no_argument,		0,	'N'},
-	{"passthrough",	no_argument,		0,	'P'},
-	{"proxy",	no_argument,		0,	'p'},
+	// {"node",	no_argument,		0,	'N'},
+	// {"passthrough",	no_argument,		0,	'P'},
+	// {"proxy",	no_argument,		0,	'p'},
 	{"quiet",	no_argument,		0,	'q'},
-	{"redirector",	no_argument,		0,	'R'},
+	// {"redirector",	no_argument,		0,	'R'},
 	{"sockdir",	required_argument,	0,	's'},
-	{"trusted",	no_argument,		0,	't'},
-	{"userproxy",	no_argument,		0,	'u'},
+	// {"trusted",	no_argument,		0,	't'},
+	// {"userproxy",	no_argument,		0,	'u'},
 	{0, 0, 0, 0}
 };
 
@@ -1649,10 +1649,11 @@ int main(int argc, char **argv)
 	ckp.initial_args[ckp.args] = NULL;
 
 	appname = basename(argv[0]);
-	if (!strcmp(appname, "ckproxy"))
-		ckp.proxy = true;
+	/* BCH fork: Solo mode only */
+	// if (!strcmp(appname, "ckproxy"))
+	// 	ckp.proxy = true;
 
-	while ((c = getopt_long(argc, argv, "Bc:Dd:g:HhkLl:Nn:PpqRS:s:tu", long_options, &i)) != -1) {
+	while ((c = getopt_long(argc, argv, "Bc:Dd:g:HhkLl:n:qS:s:", long_options, &i)) != -1) {
 		switch (c) {
 			case 'B':
 				if (ckp.proxy)
@@ -1702,45 +1703,45 @@ int main(int argc, char **argv)
 					     LOG_EMERG, LOG_DEBUG, ckp.loglevel);
 				}
 				break;
-			case 'N':
-				if (ckp.proxy || ckp.redirector || ckp.userproxy || ckp.passthrough)
-					quit(1, "Cannot set another proxy type or redirector and node mode");
-				ckp.proxy = ckp.passthrough = ckp.node = true;
-				break;
+			// case 'N':
+			// 	if (ckp.proxy || ckp.redirector || ckp.userproxy || ckp.passthrough)
+			// 		quit(1, "Cannot set another proxy type or redirector and node mode");
+			// 	ckp.proxy = ckp.passthrough = ckp.node = true;
+			// 	break;
 			case 'n':
 				ckp.name = optarg;
 				break;
-			case 'P':
-				if (ckp.proxy || ckp.redirector || ckp.userproxy || ckp.node)
-					quit(1, "Cannot set another proxy type or redirector and passthrough mode");
-				ckp.proxy = ckp.passthrough = true;
-				break;
-			case 'p':
-				if (ckp.passthrough || ckp.redirector || ckp.userproxy || ckp.node)
-					quit(1, "Cannot set another proxy type or redirector and proxy mode");
-				ckp.proxy = true;
-				break;
+			// case 'P':
+			// 	if (ckp.proxy || ckp.redirector || ckp.userproxy || ckp.node)
+			// 		quit(1, "Cannot set another proxy type or redirector and passthrough mode");
+			// 	ckp.proxy = ckp.passthrough = true;
+			// 	break;
+			// case 'p':
+			// 	if (ckp.passthrough || ckp.redirector || ckp.userproxy || ckp.node)
+			// 		quit(1, "Cannot set another proxy type or redirector and proxy mode");
+			// 	ckp.proxy = true;
+			// 	break;
 			case 'q':
 				ckp.quiet = true;
 				break;
-			case 'R':
-				if (ckp.proxy || ckp.passthrough || ckp.userproxy || ckp.node)
-					quit(1, "Cannot set a proxy type or passthrough and redirector modes");
-				ckp.proxy = ckp.passthrough = ckp.redirector = true;
-				break;
+			// case 'R':
+			// 	if (ckp.proxy || ckp.passthrough || ckp.userproxy || ckp.node)
+			// 		quit(1, "Cannot set a proxy type or passthrough and redirector modes");
+			// 	ckp.proxy = ckp.passthrough = ckp.redirector = true;
+			// 	break;
 			case 's':
 				ckp.socket_dir = strdup(optarg);
 				break;
-			case 't':
-				if (ckp.proxy)
-					quit(1, "Cannot set a proxy type and trusted remote mode");
-				ckp.remote = true;
-				break;
-			case 'u':
-				if (ckp.proxy || ckp.redirector || ckp.passthrough || ckp.node)
-					quit(1, "Cannot set both userproxy and another proxy type or redirector");
-				ckp.userproxy = ckp.proxy = true;
-				break;
+			// case 't':
+			// 	if (ckp.proxy)
+			// 		quit(1, "Cannot set a proxy type and trusted remote mode");
+			// 	ckp.remote = true;
+			// 	break;
+			// case 'u':
+			// 	if (ckp.proxy || ckp.redirector || ckp.passthrough || ckp.node)
+			// 		quit(1, "Cannot set both userproxy and another proxy type or redirector");
+			// 	ckp.userproxy = ckp.proxy = true;
+			// 	break;
 		}
 	}
 

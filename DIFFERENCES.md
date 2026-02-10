@@ -8,6 +8,10 @@ and the CKPOOL-LHR fork.
 The CKPOOL-LHR fork includes modifications to support sub-"1" difficulty values for low hash rate miners,
 along with other enhancements and changes.
 
+## Operational Scope
+
+This fork operates in **solo mining mode only**. The following operational modes present in the original CKPOOL have been removed to focus on solo mining reliability: proxy, redirector, passthrough, node, and userproxy modes.
+
 ## Core Changes
 
 ### 1. Fractional Difficulty Support (LHR Feature)
