@@ -1656,8 +1656,8 @@ int main(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "Bc:Dd:g:HhkLl:n:qS:s:", long_options, &i)) != -1) {
 		switch (c) {
 			case 'B':
-				if (ckp.proxy)
-					quit(1, "Cannot set both proxy and btcsolo mode");
+				/* if (ckp.proxy)
+					quit(1, "Cannot set both proxy and btcsolo mode"); */
 				ckp.btcsolo = true;
 				break;
 			case 'c':
@@ -1746,7 +1746,7 @@ int main(int argc, char **argv)
 	}
 
 	if (!ckp.name) {
-		if (ckp.node)
+		/* if (ckp.node)
 			ckp.name = "cknode";
 		else if (ckp.redirector)
 			ckp.name = "ckredirector";
@@ -1754,7 +1754,7 @@ int main(int argc, char **argv)
 			ckp.name = "ckpassthrough";
 		else if (ckp.proxy)
 			ckp.name = "ckproxy";
-		else
+		else */
 			ckp.name = "ckpool";
 	}
 	snprintf(buf, 15, "%s", ckp.name);
@@ -1816,8 +1816,11 @@ int main(int argc, char **argv)
 	ckp.tndonaddress = "tb1q5fyv7tue73y4zxezh2c685qpwx0cfngfxlrgxh";
 	ckp.rtdonaddress = "bcrt1qlk935ze2fsu86zjp395uvtegztrkaezawxx0wf";
 
-	if (!ckp.btcaddress && !ckp.btcsolo && !ckp.proxy)
-		quit(0, "Non-solo mining must have a btcaddress in config, aborting!");
+	/* Original validation included proxy mode check - now solo mode only */
+	/* if (!ckp.btcaddress && !ckp.btcsolo && !ckp.proxy)
+		quit(0, "Non-solo mining must have a btcaddress in config, aborting!"); */
+	if (!ckp.btcaddress && !ckp.btcsolo)
+		quit(0, "Solo mining mode requires btcaddress or btcsolo in config");
 	if (!ckp.blockpoll)
 		ckp.blockpoll = 100;
 	if (!ckp.nonce1length)
@@ -1825,8 +1828,8 @@ int main(int argc, char **argv)
 	else if (ckp.nonce1length < 2 || ckp.nonce1length > 8)
 		quit(0, "Invalid nonce1length %d specified, must be 2~8", ckp.nonce1length);
 	if (!ckp.nonce2length) {
-		/* nonce2length is zero by default in proxy mode */
-		if (!ckp.proxy)
+		/* nonce2length is zero by default in proxy mode (proxy mode removed) */
+		/* if (!ckp.proxy) */
 			ckp.nonce2length = 8;
 	} else if (ckp.nonce2length < 2 || ckp.nonce2length > 8)
 		quit(0, "Invalid nonce2length %d specified, must be 2~8", ckp.nonce2length);
@@ -1856,10 +1859,12 @@ int main(int argc, char **argv)
 		ckp.logdir = strdup("logs");
 	if (!ckp.serverurls)
 		ckp.serverurl = ckzalloc(sizeof(char *));
-	if (ckp.proxy && !ckp.proxies)
+
+	/* Proxy/redirector modes removed - config validation no longer needed */
+	/* if (ckp.proxy && !ckp.proxies)
 		quit(0, "No proxy entries found in config file %s", ckp.config);
 	if (ckp.redirector && !ckp.redirecturls)
-		quit(0, "No redirect entries found in config file %s", ckp.config);
+		quit(0, "No redirect entries found in config file %s", ckp.config); */
 	if (!ckp.zmqblock)
 		ckp.zmqblock = "tcp://127.0.0.1:28332";
 
