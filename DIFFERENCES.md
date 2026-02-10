@@ -10,7 +10,8 @@ along with other enhancements and changes.
 
 ## Operational Scope
 
-This fork operates in **solo mining mode only**. The following operational modes present in the original CKPOOL have been removed to focus on solo mining reliability: proxy, redirector, passthrough, node, and userproxy modes.
+This fork is optimized for **solo mining mode only**. All other operational modes are disabled by default.
+
 
 ## Core Changes
 

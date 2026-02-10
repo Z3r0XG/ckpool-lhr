@@ -1352,7 +1352,8 @@ static bool parse_serverurls(ckpool_t *ckp, const json_t *arr_val)
 	ckp->serverurl = ckalloc(sizeof(char *) * arr_size);
 	ckp->server_highdiff = ckzalloc(sizeof(bool) * arr_size);
 	ckp->nodeserver = ckzalloc(sizeof(bool) * arr_size);
-	ckp->trusted = ckzalloc(sizeof(bool) * arr_size);
+	/* Trusted mode removed - solo mining only */
+	/* ckp->trusted = ckzalloc(sizeof(bool) * arr_size); */
 	for (i = 0; i < arr_size; i++) {
 		json_t *val = json_array_get(arr_val, i);
 
@@ -1382,7 +1383,8 @@ static void parse_nodeservers(ckpool_t *ckp, const json_t *arr_val)
 	total_urls = ckp->serverurls + arr_size;
 	ckp->serverurl = realloc(ckp->serverurl, sizeof(char *) * total_urls);
 	ckp->nodeserver = realloc(ckp->nodeserver, sizeof(bool) * total_urls);
-	ckp->trusted = realloc(ckp->trusted, sizeof(bool) * total_urls);
+	/* Trusted mode removed - solo mining only */
+	/* ckp->trusted = realloc(ckp->trusted, sizeof(bool) * total_urls); */
 	for (i = 0, j = ckp->serverurls; j < total_urls; i++, j++) {
 		json_t *val = json_array_get(arr_val, i);
 
@@ -1394,6 +1396,7 @@ static void parse_nodeservers(ckpool_t *ckp, const json_t *arr_val)
 	ckp->serverurls = total_urls;
 }
 
+/* Trusted mode removed - solo mining only
 static void parse_trusted(ckpool_t *ckp, const json_t *arr_val)
 {
 	int arr_size, i, j, total_urls;
@@ -1422,6 +1425,7 @@ static void parse_trusted(ckpool_t *ckp, const json_t *arr_val)
 	}
 	ckp->serverurls = total_urls;
 }
+*/
 
 
 static bool parse_redirecturls(ckpool_t *ckp, const json_t *arr_val)
@@ -1521,8 +1525,9 @@ static void parse_config(ckpool_t *ckp)
 	}
 	arr_val = json_object_get(json_conf, "nodeserver");
 	parse_nodeservers(ckp, arr_val);
-	arr_val = json_object_get(json_conf, "trusted");
-	parse_trusted(ckp, arr_val);
+	/* Trusted mode removed - solo mining only */
+	/* arr_val = json_object_get(json_conf, "trusted");
+	parse_trusted(ckp, arr_val); */
 	json_get_string(&ckp->upstream, json_conf, "upstream");
 	json_get_double(&ckp->mindiff, json_conf, "mindiff");
 	json_get_double(&ckp->startdiff, json_conf, "startdiff");
