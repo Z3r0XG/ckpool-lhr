@@ -20,7 +20,6 @@ check_PROGRAMS = \
 	unit/test-fulltest \
 	unit/test-serialization \
 	unit/test-endian \
-	unit/test-time-conversion \
 	unit/test-dropidle \
 	unit/test-vardiff \
 	unit/test-share-params \
@@ -95,10 +94,6 @@ unit_test_serialization_SOURCES = \
 # Endian conversion tests
 unit_test_endian_SOURCES = \
 	unit/test-endian.c
-
-# Time conversion tests
-unit_test_time_conversion_SOURCES = \
-	unit/test-time-conversion.c
 
 # dropidle feature tests
 unit_test_dropidle_SOURCES = \
