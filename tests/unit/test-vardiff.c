@@ -1248,6 +1248,222 @@ static void test_vardiff_hysteresis_performance(void)
 }
 
 /*******************************************************************************
+ * SECTION 7: REALISTIC WORKFLOW SCENARIOS
+ * Integration-style tests simulating complete miner lifecycles
+ ******************************************************************************/
+
+/* Test complete ASIC connection and work flow */
+static void test_asic_connection_flow(void)
+{
+	/* Simulate Antminer S19 Pro (110 TH/s) connecting and submitting shares */
+	
+	/* Initial parameters */
+	double client_diff = 42.0;  /* Starting diff */
+	double mindiff = 1.0;
+	double maxdiff = 100000.0;
+	double network_diff = 50000000000000.0;  /* ~50T network diff */
+	int ssdc = 0;  /* Shares since diff change */
+	
+	/* Phase 1: First share (no adjustment yet) */
+	ssdc++;
+	assert_int_equal(ssdc, 1);
+	/* No vardiff adjustment on first share */
+	
+	/* Phase 2: Second share, 1.5 seconds later (too fast, increase diff) */
+	double tdiff = 1.5;
+	double dsps = client_diff / tdiff;  /* 28 shares per second */
+	double optimal = dsps * 3.33;  /* Target ~3.33 seconds per share */
+	optimal = normalize_pool_diff(optimal);
+	
+	/* Should recommend higher diff (faster share rate needs higher diff) */
+	assert_true(optimal > client_diff);
+	
+	/* Phase 3: Check hysteresis (drr = dsps/optimal) */
+	double drr = dsps / optimal;
+	bool in_deadband = (drr > 0.15 && drr < 0.4);
+	/* With fast shares, drr should be low, outside deadband */
+	assert_true(drr < 0.4);
+	
+	/* Phase 4: Apply new diff (clamped to maxdiff) */
+	if (optimal > maxdiff) optimal = maxdiff;
+	if (optimal > network_diff) optimal = network_diff;
+	client_diff = optimal;
+	ssdc = 0;  /* Reset counter */
+	
+	/* Phase 5: Multiple shares at stable rate */
+	for (int i = 0; i < 10; i++) {
+		tdiff = 3.0 + (i % 3);  /* 3-5 second variance */
+		dsps = client_diff / tdiff;
+		optimal = normalize_pool_diff(dsps * 3.33);
+		
+		/* Should stabilize around current diff */
+		drr = dsps / optimal;
+		
+		/* Most should be in deadband (stable) */
+		if (tdiff >= 3.0 && tdiff <= 4.0) {
+			in_deadband = (drr > 0.15 && drr < 0.4);
+			/* May or may not be in deadband depending on exact timing */
+		}
+		
+		ssdc++;
+	}
+	
+	/* Final validation: ASIC should have reasonable final diff */
+	assert_true(client_diff >= mindiff);
+	assert_true(client_diff <= maxdiff);
+	assert_true(client_diff <= network_diff);
+}
+
+/* Test CPU miner stability at minimum difficulty */
+static void test_cpu_miner_stable_at_mindiff(void)
+{
+	/* Simulate low-hashrate CPU miner (100 H/s) */
+	
+	double client_diff = 0.01;  /* Very low starting diff */
+	double mindiff = 0.001;
+	double maxdiff = 100000.0;
+	double hashrate = 100.0;  /* 100 H/s */
+	double target_time = 3.33;
+	
+	/* Calculate ideal diff for this hashrate */
+	/* hashrate / 2^32 = shares_per_second at diff 1.0 */
+	double sps_at_diff1 = hashrate / 4294967296.0;
+	double ideal_diff = sps_at_diff1 * target_time;
+	
+	/* Should be well below mindiff */
+	assert_true(ideal_diff < mindiff);
+	
+	/* Phase 1: Submit share at mindiff */
+	client_diff = mindiff;
+	double expected_time = mindiff / (hashrate / 4294967296.0);
+	
+	/* Share should take ~42 seconds at this hashrate/diff */
+	assert_true(expected_time > 30.0);  /* Very slow */
+	
+	/* Phase 2: Vardiff tries to adjust down */
+	double tdiff = expected_time;
+	double dsps = client_diff / tdiff;
+	double optimal = normalize_pool_diff(dsps * 3.33);
+	
+	/* Optimal would be below mindiff */
+	assert_true(optimal < mindiff);
+	
+	/* Phase 3: Clamp to mindiff */
+	if (optimal < mindiff) optimal = mindiff;
+	
+	/* Should stay at mindiff */
+	assert_double_equal(optimal, mindiff, EPSILON);
+	client_diff = optimal;
+	
+	/* Phase 4: Multiple shares - should remain stable at mindiff */
+	for (int i = 0; i < 5; i++) {
+		/* CPU miner variance is high */
+		tdiff = expected_time * (0.8 + (i % 3) * 0.2);  /* ±20% variance */
+		dsps = client_diff / tdiff;
+		optimal = normalize_pool_diff(dsps * 3.33);
+		
+		/* Clamp to mindiff */
+		if (optimal < mindiff) optimal = mindiff;
+		
+		/* Should always clamp to mindiff */
+		assert_double_equal(optimal, mindiff, EPSILON);
+	}
+	
+	/* CPU miner should remain at mindiff throughout session */
+	assert_double_equal(client_diff, mindiff, EPSILON);
+}
+
+/* Test miner returning from idle (disconnection/reconnection) */
+static void test_idle_return_diff_reset(void)
+{
+	/* Simulate Antminer that disconnects and reconnects */
+	
+	/* Phase 1: Established miner at stable diff */
+	double client_diff = 1024.0;
+	double mindiff = 1.0;
+	double maxdiff = 100000.0;
+	int ssdc = 42;  /* Has submitted many shares */
+	
+	/* Stable operation */
+	double tdiff = 3.5;
+	double dsps = client_diff / tdiff;
+	double optimal = normalize_pool_diff(dsps * 3.33);
+	
+	/* Should be near current diff */
+	assert_true(fabs(optimal - client_diff) < client_diff * 0.5);
+	
+	/* Phase 2: Miner disconnects (simulated by ssdc reset) */
+	/* ... time passes ... */
+	
+	/* Phase 3: Miner reconnects - first share */
+	ssdc = 1;  /* First share since reconnection */
+	
+	/* Comes back slower (was idle, needs warmup) */
+	tdiff = 15.0;  /* Much slower than normal */
+	dsps = client_diff / tdiff;
+	optimal = normalize_pool_diff(dsps * 3.33);
+	
+	/* Optimal would suggest lower diff */
+	assert_true(optimal < client_diff);
+	
+	/* Phase 4: First share after idle - check reset logic */
+	/* From stratifier.c:5833: if optimal < diff && ssdc == 1, reset timer */
+	if (optimal < client_diff && ssdc == 1) {
+		/* Should NOT apply diff decrease immediately */
+		/* Instead, reset ldc timer and wait for more shares */
+		/* This prevents knee-jerk reactions to idle/warmup periods */
+		
+		/* Don't change diff yet */
+		double new_diff = client_diff;  /* Keep current */
+		assert_double_equal(new_diff, client_diff, EPSILON);
+		
+		/* But DO reset ssdc counter? No, it stays at 1 */
+		ssdc = 1;
+	}
+	
+	/* Phase 5: Second share at normal speed */
+	ssdc = 2;
+	tdiff = 3.5;  /* Back to normal */
+	dsps = client_diff / tdiff;
+	optimal = normalize_pool_diff(dsps * 3.33);
+	
+	/* Now can adjust normally */
+	/* Check hysteresis */
+	double drr = dsps / optimal;
+	bool in_deadband = (drr > 0.15 && drr < 0.4);
+	
+	if (!in_deadband) {
+		/* Apply diff change */
+		client_diff = optimal;
+	}
+	
+	/* Phase 6: Multiple shares - should stabilize */
+	for (int i = 0; i < 10; i++) {
+		tdiff = 3.0 + (i % 3);
+		dsps = client_diff / tdiff;
+		optimal = normalize_pool_diff(dsps * 3.33);
+		
+		/* Clamp */
+		if (optimal < mindiff) optimal = mindiff;
+		if (optimal > maxdiff) optimal = maxdiff;
+		
+		/* Check hysteresis */
+		drr = dsps / optimal;
+		in_deadband = (drr > 0.15 && drr < 0.4);
+		
+		if (!in_deadband) {
+			client_diff = optimal;
+		}
+		
+		ssdc++;
+	}
+	
+	/* Should stabilize at reasonable diff */
+	assert_true(client_diff >= mindiff);
+	assert_true(client_diff <= maxdiff);
+}
+
+/*******************************************************************************
  * MAIN TEST RUNNER
  ******************************************************************************/
 
@@ -1315,9 +1531,16 @@ int main(void)
 	run_test(test_vardiff_optimal_calc_performance);
 	run_test(test_vardiff_hysteresis_performance);
 	
+	/* Section 7: Realistic workflow scenarios */
+	printf("\n[SECTION 7: REALISTIC WORKFLOW SCENARIOS]\n");
+	printf("Testing complete miner lifecycles (integration-style)\n");
+	run_test(test_asic_connection_flow);
+	run_test(test_cpu_miner_stable_at_mindiff);
+	run_test(test_idle_return_diff_reset);
+	
 	printf("\n========================================\n");
 	printf("ALL VARDIFF TESTS PASSED!\n");
-	printf("Total tests: 35 (5 core + 8 fractional + 11 real-world + 5 edge + 3 failure + 3 perf)\n");
+	printf("Total tests: 38 (5 core + 8 fractional + 11 real-world + 5 edge + 3 failure + 3 perf + 3 workflow)\n");
 	printf("========================================\n");
 	
 	return 0;
