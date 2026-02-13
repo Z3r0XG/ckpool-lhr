@@ -31,9 +31,7 @@ check_PROGRAMS = \
 	unit/test-password-diff \
 	unit/test-password-diff-job-id \
 	unit/test-fractional-stats \
-	unit/test-fractional-vardiff \
 	unit/test-fractional-config \
-	unit/test-vardiff-comprehensive \
 	unit/test-share-orphan-prevention \
 	unit/test-adjustment-hysteresis \
 	unit/test-network-diff-interactions \
@@ -145,17 +143,9 @@ unit_test_password_diff_job_id_SOURCES = \
 unit_test_fractional_stats_SOURCES = \
 	unit/test-fractional-stats.c
 
-# Fractional variable difficulty tests
-unit_test_fractional_vardiff_SOURCES = \
-	unit/test-fractional-vardiff.c
-
 # Fractional configuration validation tests
 unit_test_fractional_config_SOURCES = \
 	unit/test-fractional-config.c
-
-# Comprehensive vardiff algorithm tests (real-world scenarios)
-unit_test_vardiff_comprehensive_SOURCES = \
-	unit/test-vardiff-comprehensive.c
 
 # Share orphan prevention tests
 unit_test_share_orphan_prevention_SOURCES = \

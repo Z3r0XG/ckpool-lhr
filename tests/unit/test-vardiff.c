@@ -1,7 +1,14 @@
 /*
- * Unit tests for vardiff (variable difficulty) logic
- * Tests optimal difficulty calculation, clamping, and edge cases
- * Critical for all operation modes
+ * Comprehensive unit tests for vardiff (variable difficulty) logic
+ * 
+ * This consolidated test suite covers:
+ * - Section 1: Core vardiff algorithm (time bias, optimal calculation, clamping, hysteresis)
+ * - Section 2: Fractional difficulty support (sub-1.0 diffs, normalization, mindiff)
+ * - Section 3: Real-world miner scenarios (CPU to ASIC, full hashrate spectrum)
+ * 
+ * Critical for all operation modes: solo, pool, proxy
+ * 
+ * Consolidated from: test-vardiff.c, test-fractional-vardiff.c, test-vardiff-comprehensive.c
  */
 
 #include <stdio.h>
@@ -9,10 +16,16 @@
 #include <string.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "config.h"
 #include "../test_common.h"
 #include "libckpool.h"
+
+/*******************************************************************************
+ * SECTION 1: CORE VARDIFF ALGORITHM TESTS
+ * Tests fundamental vardiff calculations, clamping, and hysteresis
+ ******************************************************************************/
 
 /* Test time_bias function - used in difficulty adjustment */
 static void test_time_bias(void)
@@ -179,17 +192,680 @@ static void test_vardiff_sub1_edge_case(void)
     /* This is expected behavior - vardiff won't go below 1 automatically */
 }
 
-int main(void)
+/*******************************************************************************
+ * SECTION 2: FRACTIONAL DIFFICULTY TESTS
+ * Tests vardiff algorithm support for difficulties below and above 1.0
+ ******************************************************************************/
+
+/* Test optimal diff calculation stays fractional only below 1.0 and is normalized when >= 1.0 */
+static void test_optimal_diff_normalization(void)
 {
-    printf("Running vardiff tests...\n");
-    
-    test_time_bias();
-    test_optimal_diff_calculation();
-    test_diff_clamping();
-    test_drr_hysteresis();
-    test_vardiff_sub1_edge_case();
-    
-    printf("All vardiff tests passed!\n");
-    return 0;
+	struct {
+		double dsps;
+		double multiplier;
+		double expected; /* expected after normalization for >=1 */
+		double raw;      /* expected raw before normalization */
+		bool expect_normalized;
+	} cases[] = {
+		{ 0.1,   3.33, 0.333, 0.333, false },
+		{ 0.3,   2.4,  0.72,  0.72,  false },
+		{ 1.0,   3.33, 3.0,   3.33,  true  },
+		{ 1.0,   2.4,  2.0,   2.4,   true  },
+		{ 10.0,  3.33, 33.0,  33.3,  true  },
+		{ 22.0,  2.4,  53.0,  52.8,  true  },
+		{ 100.5, 3.33, 335.0, 334.665, true },
+	};
+
+	int num = sizeof(cases) / sizeof(cases[0]);
+	for (int i = 0; i < num; i++) {
+		double optimal_raw = cases[i].dsps * cases[i].multiplier;
+		assert_double_equal(optimal_raw, cases[i].raw, EPSILON_DIFF);
+
+		double normalized = normalize_pool_diff(optimal_raw);
+		if (cases[i].expect_normalized)
+			assert_double_equal(normalized, cases[i].expected, EPSILON_DIFF);
+		else
+			assert_double_equal(normalized, optimal_raw, EPSILON_DIFF);
+	}
 }
 
+/* Test that lround truncation remains eliminated for sub-1 paths (preserve fractional) */
+static void test_lround_elimination_sub1_only(void)
+{
+	struct {
+		double dsps;
+		double multiplier;
+	} cases[] = {
+		{ 0.1, 3.33 },   /* 0.333 would become 0 with lround */
+		{ 0.2, 2.4 },    /* 0.48 would become 0 with lround */
+		{ 0.5, 3.33 },   /* 1.665 would normalize to 2; ensure raw still fractional pre-norm */
+	};
+
+	int num = sizeof(cases) / sizeof(cases[0]);
+	for (int i = 0; i < num; i++) {
+		double raw = cases[i].dsps * cases[i].multiplier;
+		long old_optimal = lround(raw);
+		double normalized = normalize_pool_diff(raw);
+
+		if (raw < 1.0) {
+			assert_true((double)old_optimal != raw);
+			assert_double_equal(normalized, raw, EPSILON_DIFF);
+		} else {
+			/* >=1 should normalize to a nearby whole number */
+			assert_true(fabs(normalized - raw) <= 1.0);
+		}
+	}
+}
+
+/* Test vardiff adjusting below 1.0 */
+static void test_vardiff_below_1(void)
+{
+	/* Low hashrate miner starting at diff=1.0
+	 * Should adjust down to 0.5, 0.25, 0.1, etc.
+	 */
+	
+	struct {
+		double dsps;
+		double mindiff;
+		double expected_min;
+		double expected_max;
+	} test_cases[] = {
+		{ 0.05, 0.001, 0.001, 0.2 },    /* Very low: 0.05 * 3.33 = 0.1665 */
+		{ 0.1,  0.01,  0.01,  0.5 },    /* Low: 0.1 * 3.33 = 0.333 */
+		{ 0.3,  0.1,   0.1,   1.0 },    /* Medium: 0.3 * 3.33 = 0.999, within valid range */
+	};
+	
+	int num_tests = sizeof(test_cases) / sizeof(test_cases[0]);
+	for (int i = 0; i < num_tests; i++) {
+		double dsps = test_cases[i].dsps;
+		double mindiff = test_cases[i].mindiff;
+		
+		/* Optimal without mindiff constraint */
+		double optimal = dsps * 3.33;
+		
+		/* Apply mindiff floor */
+		double clamped = optimal < mindiff ? mindiff : optimal;
+		
+		/* Result should be in valid range */
+		assert_true(clamped >= test_cases[i].expected_min);
+		assert_true(clamped <= test_cases[i].expected_max);
+	}
+}
+
+/* Test vardiff outputs >=1 get normalized to whole numbers */
+static void test_vardiff_above_1_normalized(void)
+{
+	struct {
+		double dsps;
+		double raw_expected;
+		double normalized_expected;
+	} cases[] = {
+		{ 1.5, 4.995, 5.0 },
+		{ 2.5, 8.325, 8.0 },
+		{ 10.5, 34.965, 35.0 },
+	};
+
+	int num = sizeof(cases) / sizeof(cases[0]);
+	for (int i = 0; i < num; i++) {
+		double raw = cases[i].dsps * 3.33;
+		assert_double_equal(raw, cases[i].raw_expected, EPSILON_DIFF);
+		double normalized = normalize_pool_diff(raw);
+		assert_double_equal(normalized, cases[i].normalized_expected, EPSILON_DIFF);
+	}
+}
+
+/* Test floor check (optimal <= 0) vs old check (optimal < 1) */
+static void test_floor_check_change(void)
+{
+	struct {
+		double optimal;
+		int old_check_would_return;  /* optimal < 1 */
+		int new_check_would_return;  /* optimal <= 0 */
+	} test_cases[] = {
+		{ -0.5, 1,  1  },   /* Invalid, both return */
+		{ 0.0,  1,  1  },   /* Zero, both return */
+		{ 0.001, 1, 0 },   /* Valid fractional, old returns, new allows */
+		{ 0.5,   1, 0 },   /* Valid fractional, old returns, new allows */
+		{ 0.999, 1, 0 },   /* Just below 1, old returns, new allows */
+		{ 1.0,   0, 0 },   /* Exactly 1, both allow */
+		{ 1.001, 0, 0 },   /* Fractional above 1, both allow */
+	};
+	
+	int num_tests = sizeof(test_cases) / sizeof(test_cases[0]);
+	for (int i = 0; i < num_tests; i++) {
+		double optimal = test_cases[i].optimal;
+		
+		/* Old check */
+		if (optimal < 1.0) {
+			assert_true(test_cases[i].old_check_would_return);
+		} else {
+			assert_true(!test_cases[i].old_check_would_return);
+		}
+		
+		/* New check */
+		if (optimal <= 0.0) {
+			assert_true(test_cases[i].new_check_would_return);
+		} else {
+			assert_true(!test_cases[i].new_check_would_return);
+		}
+	}
+}
+
+/* Test mindiff clamping with fractional values */
+static void test_mindiff_clamping_fractional(void)
+{
+	struct {
+		double optimal;
+		double mindiff;
+		double expected;
+	} test_cases[] = {
+		{ 0.0001, 0.001, 0.001 },  /* Clamp up to mindiff */
+		{ 0.005,  0.01,  0.01 },   /* Clamp up */
+		{ 0.1,    0.1,   0.1 },    /* Already at mindiff */
+		{ 0.5,    0.001, 0.5 },    /* Above mindiff, no change */
+		{ 1.5,    1.0,   1.5 },    /* Above mindiff, no change */
+	};
+	
+	int num_tests = sizeof(test_cases) / sizeof(test_cases[0]);
+	for (int i = 0; i < num_tests; i++) {
+		double optimal = test_cases[i].optimal;
+		double mindiff = test_cases[i].mindiff;
+		
+		/* Apply MAX clamping like vardiff does */
+		double clamped = optimal > mindiff ? optimal : mindiff;
+		
+		assert_double_equal(clamped, test_cases[i].expected, EPSILON_DIFF);
+	}
+}
+
+/* Test worker->mindiff as double (was int) */
+static void test_worker_mindiff_fractional(void)
+{
+	/* worker->mindiff should now accept fractional values */
+	double test_mindiffs[] = {
+		0.001, 0.01, 0.1, 0.5, 0.999, 1.0, 1.001, 1.5, 10.5
+	};
+	
+	int num_tests = sizeof(test_mindiffs) / sizeof(test_mindiffs[0]);
+	for (int i = 0; i < num_tests; i++) {
+		double worker_mindiff = test_mindiffs[i];
+		
+		/* Should be storable and retrievable without truncation */
+		double stored = worker_mindiff;
+		assert_double_equal(stored, test_mindiffs[i], EPSILON_DIFF);
+	}
+}
+
+/* Test sequence of vardiff adjustments */
+static void test_vardiff_adjustment_sequence(void)
+{
+	/* Simulate a miner's difficulty evolving over time
+	 * Start high, hashrate emerges, vardiff adjusts down smoothly
+	 */
+	
+	double current_diff = 10.0;
+	struct {
+		double dsps;
+		double expected_optimal;  /* Absolute optimal difficulty values (not multipliers) */
+	} adjustments[] = {
+		{ 0.5, 1.665 },    /* Very low dsps, diff should drop to ~1.665 */
+		{ 1.5, 4.995 },     /* Medium dsps, diff should go to ~4.995 */
+		{ 10.0, 33.3 },   /* High dsps, diff should go to ~33.3 */
+		{ 5.0, 16.65 },   /* Back down, diff should go to ~16.65 */
+	};
+	
+	int num_tests = sizeof(adjustments) / sizeof(adjustments[0]);
+	for (int i = 0; i < num_tests; i++) {
+		double dsps = adjustments[i].dsps;
+		double expected_new = adjustments[i].expected_optimal;
+		
+		/* Calculate new optimal */
+		double optimal = dsps * 3.33;
+		
+		/* Should be close to expected */
+		double error = fabs(optimal - expected_new) / expected_new;
+		assert_true(error < 0.1);  /* Allow 10% error for rounding */
+		
+		current_diff = optimal;
+	}
+}
+
+/*******************************************************************************
+ * SECTION 3: COMPREHENSIVE REAL-WORLD MINER TESTS
+ * Tests vardiff behavior across full spectrum of miners (CPU to ASIC)
+ ******************************************************************************/
+
+/* Test data structures */
+typedef struct {
+	const char *name;
+	double hashrate;        /* in H/s */
+	double expected_dsps;   /* diff_shares_per_second at optimal diff */
+	double optimal_diff_range_min;
+	double optimal_diff_range_max;
+} miner_profile_t;
+
+/* Real-world miner profiles */
+static const miner_profile_t miner_profiles[] = {
+	/* CPU/Software Mining (H/s) - These will be clamped to pool_mindiff */
+	{ "CPU miner (10 H/s)", 10.0, 0.0000000078, 0.001, 0.001 },
+	{ "Raspberry Pi (100 H/s)", 100.0, 0.0000000775, 0.001, 0.001 },
+	
+	/* FPGA Mining (KH/s) - Start hitting fractional diffs */
+	{ "FPGA (1 KH/s)", 1000.0, 0.000000775, 0.001, 0.001 },
+	{ "FPGA (10 KH/s)", 10000.0, 0.00000775, 0.001, 0.05 },
+	{ "FPGA (100 KH/s)", 100000.0, 0.0000775, 0.0001, 0.5 },
+	
+	/* GPU Mining (MH/s) */
+	{ "GPU miner (1 MH/s)", 1000000.0, 0.000775, 0.1, 5.0 },
+	{ "GPU cluster (10 MH/s)", 10000000.0, 0.00775, 1.0, 50.0 },
+	{ "GPU farm (100 MH/s)", 100000000.0, 0.0775, 10.0, 500.0 },
+	
+	/* ASIC Mining (GH/s to EH/s) */
+	{ "Small ASIC (10 GH/s)", 10000000000.0, 7.75, 100.0, 5000.0 },
+	{ "Mid ASIC (100 GH/s)", 100000000000.0, 77.5, 1000.0, 50000.0 },
+	{ "Large ASIC (1 TH/s)", 1000000000000.0, 775.0, 10000.0, 500000.0 },
+	{ "Mining pool (100 TH/s)", 100000000000000.0, 77500.0, 1000000.0, 50000000.0 },
+	{ "Mega pool (1 EH/s)", 1000000000000000.0, 7750000.0, 100000000.0, 500000000.0 },
+};
+
+/* Convert hashrate to DSPS assuming optimal is 3.33x dsps */
+static double hashrate_to_dsps(double hashrate)
+{
+	return hashrate / (double)(1UL << 32);
+}
+
+/* Test: Verify all miner types find appropriate starting difficulty */
+static void test_all_miner_types_initial_diff(void)
+{
+	const double network_diff = 1000000000.0;  /* Typical Bitcoin network diff */
+	const double pool_mindiff = 0.001;
+	const double pool_maxdiff = 0.0;  /* No max */
+	
+	printf("\n  Testing initial diff assignment for all miner types:\n");
+	
+	for (int i = 0; i < (int)(sizeof(miner_profiles) / sizeof(miner_profiles[0])); i++) {
+		const miner_profile_t *profile = &miner_profiles[i];
+		double dsps = hashrate_to_dsps(profile->hashrate);
+		
+		/* Without worker mindiff */
+		double optimal = dsps * 3.33;
+		double clamped = optimal;
+		
+		/* Apply constraints */
+		if (clamped < pool_mindiff)
+			clamped = pool_mindiff;
+		if (clamped > network_diff)
+			clamped = network_diff;
+		
+		printf("    %s: dsps=%.6e → diff=%.10f (range: %.10f-%.2f)\n",
+		       profile->name, dsps, clamped,
+		       profile->optimal_diff_range_min,
+		       profile->optimal_diff_range_max);
+		
+		/* Verify within expected range */
+		assert_true(clamped >= 0.001);  /* Pool minimum of 0.001 */
+		assert_true(clamped <= 1000000000.0);  /* Network max */
+	}
+}
+
+/* Test: Fractional difficulty support for low-hashrate miners */
+static void test_fractional_diff_low_hashrate(void)
+{
+	/* Low-hashrate devices need fractional diffs (< 1.0) */
+	struct {
+		const char *name;
+		double hashrate;
+		double expected_min_diff;
+		double expected_max_diff;
+	} low_rate_cases[] = {
+		{ "ESP32 (100 H/s)", 100.0, 0.00000001, 0.00001 },
+		{ "Raspberry Pi (200 H/s)", 200.0, 0.00000001, 0.0001 },
+		{ "Soft miner (10 H/s)", 10.0, 0.000000001, 0.001 },
+	};
+	
+	printf("\n  Testing fractional difficulty for low-hashrate miners:\n");
+	
+	for (int i = 0; i < (int)(sizeof(low_rate_cases) / sizeof(low_rate_cases[0])); i++) {
+		double dsps = hashrate_to_dsps(low_rate_cases[i].hashrate);
+		double optimal = dsps * 3.33;
+		
+		printf("    %s: dsps=%.10e → diff=%.10f\n",
+		       low_rate_cases[i].name, dsps, optimal);
+		
+		/* Must support fractional difficulties */
+		assert_true(optimal > 0.0);
+		assert_true(optimal >= low_rate_cases[i].expected_min_diff);
+		assert_true(optimal <= low_rate_cases[i].expected_max_diff);
+	}
+}
+
+/* Test: Integer difficulty support for typical miners */
+static void test_integer_diff_typical_miners(void)
+{
+	/* Typical miners work well with integer diffs >= 1.0 */
+	struct {
+		const char *name;
+		double hashrate;
+		double expected_min_diff;
+		double expected_max_diff;
+	} typical_cases[] = {
+		{ "GPU miner (1 MH/s)", 1000000.0, 0.0001, 5.0 },
+		{ "Small ASIC (10 GH/s)", 10000000000.0, 1.0, 5000.0 },
+		{ "Large ASIC (1 TH/s)", 1000000000000.0, 100.0, 500000.0 },
+	};
+	
+	printf("\n  Testing integer difficulty for typical miners:\n");
+	
+	for (int i = 0; i < (int)(sizeof(typical_cases) / sizeof(typical_cases[0])); i++) {
+		double dsps = hashrate_to_dsps(typical_cases[i].hashrate);
+		double optimal = dsps * 3.33;
+		
+		printf("    %s: dsps=%.6e → diff=%.2f\n",
+		       typical_cases[i].name, dsps, optimal);
+		
+		assert_true(optimal >= typical_cases[i].expected_min_diff);
+		assert_true(optimal <= typical_cases[i].expected_max_diff);
+	}
+}
+
+/* Test: High-hashrate miner difficulty caps */
+static void test_high_hashrate_maxdiff_enforcement(void)
+{
+	/* Mining pools need maxdiff enforcement for hardware limits */
+	printf("\n  Testing pool maxdiff enforcement:\n");
+	
+	struct {
+		const char *name;
+		double hashrate;
+		double pool_maxdiff;
+		bool should_cap;
+	} cases[] = {
+		{ "Small pool (100 TH/s) with 1M diff cap", 100000000000000.0, 1000000.0, true },
+		{ "Large pool (10 PH/s) uncapped", 10000000000000000.0, 0.0, false },
+	};
+	
+	for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
+		double dsps = hashrate_to_dsps(cases[i].hashrate);
+		double optimal = dsps * 3.33;
+		double clamped = optimal;
+		
+		if (cases[i].pool_maxdiff > 0 && clamped > cases[i].pool_maxdiff)
+			clamped = cases[i].pool_maxdiff;
+		
+		printf("    %s: raw_diff=%.0f → final_diff=%.0f\n",
+		       cases[i].name, optimal, clamped);
+		
+		if (cases[i].should_cap) {
+			assert_true(clamped <= cases[i].pool_maxdiff);
+		}
+	}
+}
+
+/* Test: Multi-miner pool scenario */
+static void test_mixed_miner_pool(void)
+{
+	/* Real pools have CPU, GPU, and ASIC miners simultaneously */
+	printf("\n  Testing mixed miner pool scenario:\n");
+	
+	struct {
+		const char *name;
+		double hashrate;
+		double expected_shares_per_hour;
+	} pool_miners[] = {
+		{ "CPU miner", 100.0, 0.084 },
+		{ "GPU miner", 10000000.0, 8400.0 },
+		{ "Small ASIC", 10000000000.0, 8400000.0 },
+	};
+	
+	double total_pool_hash = 0.0;
+	double total_shares_per_hour = 0.0;
+	
+	for (int i = 0; i < (int)(sizeof(pool_miners) / sizeof(pool_miners[0])); i++) {
+		double dsps = hashrate_to_dsps(pool_miners[i].hashrate);
+		double shares_per_hour = dsps * 3600.0;
+		
+		printf("    %s: dsps=%.6e shares/hr=%.2f\n",
+		       pool_miners[i].name, dsps, shares_per_hour);
+		
+		total_pool_hash += pool_miners[i].hashrate;
+		total_shares_per_hour += shares_per_hour;
+	}
+	
+	printf("    Total pool hashrate: %.2e H/s, shares/hr: %.2f\n",
+	       total_pool_hash, total_shares_per_hour);
+	
+	/* Pool should have reasonable share submission rate */
+	assert_true(total_shares_per_hour > 0.0);
+	assert_true(total_shares_per_hour < 1e9);  /* Not insane */
+}
+
+/* Test: Difficulty adjustment hysteresis across full range */
+static void test_hysteresis_across_ranges(void)
+{
+	printf("\n  Testing hysteresis stability across difficulty ranges:\n");
+	
+	struct {
+		const char *range;
+		double diff;
+		double target_dsps;
+	} ranges[] = {
+		{ "Fractional (0.001-1.0)", 0.5, 0.15 },
+		{ "Standard (1.0-1000)", 100.0, 30.0 },
+		{ "Large (1000+)", 100000.0, 30000.0 },
+	};
+	
+	for (int i = 0; i < (int)(sizeof(ranges) / sizeof(ranges[0])); i++) {
+		double diff = ranges[i].diff;
+		double target_dsps = ranges[i].target_dsps;
+		double drr = target_dsps / diff;
+		
+		printf("    %s: diff=%.2f dsps=%.2f drr=%.4f %s\n",
+		       ranges[i].range, diff, target_dsps, drr,
+		       (drr > 0.15 && drr < 0.4) ? "(stable)" : "(adjusting)");
+		
+		/* Hysteresis should work across entire range */
+		if (drr > 0.15 && drr < 0.4)
+			assert_true(1);  /* In stable zone */
+	}
+}
+
+/* Test: Network difficulty as absolute ceiling */
+static void test_network_diff_absolute_ceiling(void)
+{
+	printf("\n  Testing network difficulty as absolute ceiling:\n");
+	
+	struct {
+		const char *scenario;
+		double hashrate;
+		double network_diff;
+		bool should_cap;
+	} cases[] = {
+		{ "ASIC during high network diff", 1000000000000.0, 10000000.0, true },
+		{ "ASIC below network diff", 1000000000000.0, 1000000000.0, false },
+	};
+	
+	for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
+		double dsps = hashrate_to_dsps(cases[i].hashrate);
+		double optimal = dsps * 3.33;
+		double clamped = optimal < cases[i].network_diff ? optimal : cases[i].network_diff;
+		
+		printf("    %s: optimal=%.0f network=%.0f → final=%.0f\n",
+		       cases[i].scenario, optimal, cases[i].network_diff, clamped);
+		
+		assert_true(clamped <= cases[i].network_diff);
+	}
+}
+
+/* Test: Worker mindiff overrides apply across all miner types */
+static void test_worker_mindiff_enforcement(void)
+{
+	printf("\n  Testing worker mindiff enforcement across miner types:\n");
+	
+	struct {
+		const char *name;
+		double hashrate;
+		double worker_mindiff;
+	} cases[] = {
+		{ "Low-rate with mindiff=0.001", 100.0, 0.001 },
+		{ "Mid-rate with mindiff=1.0", 1000000.0, 1.0 },
+		{ "High-rate with mindiff=1000", 1000000000000.0, 1000.0 },
+	};
+	
+	for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
+		double dsps = hashrate_to_dsps(cases[i].hashrate);
+		double optimal = dsps * 3.33;
+		double final_diff = optimal < cases[i].worker_mindiff ? 
+			cases[i].worker_mindiff : optimal;
+		
+		printf("    %s: optimal=%.6f → mindiff=%.6f → final=%.6f\n",
+		       cases[i].name, optimal, cases[i].worker_mindiff, final_diff);
+		
+		assert_true(final_diff >= cases[i].worker_mindiff);
+	}
+}
+
+/* Test: Client suggest_difficulty overrides */
+static void test_client_suggest_diff_overrides(void)
+{
+	printf("\n  Testing client suggest_difficulty overrides:\n");
+	
+	struct {
+		const char *scenario;
+		double hashrate;
+		double suggest_diff;
+		bool expects_override;
+	} cases[] = {
+		{ "Client requests lower diff", 1000000.0, 0.5, true },
+		{ "Client requests higher diff", 1000000.0, 100.0, true },
+		{ "Client requests zero (disabled)", 1000000.0, 0.0, false },
+	};
+	
+	for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
+		double dsps = hashrate_to_dsps(cases[i].hashrate);
+		double optimal = dsps * 3.33;
+		double final_diff = cases[i].suggest_diff > 0.0 ? 
+			(cases[i].suggest_diff > optimal ? cases[i].suggest_diff : optimal) : optimal;
+		
+		printf("    %s: optimal=%.2f suggest=%.2f → final=%.2f\n",
+		       cases[i].scenario, optimal, cases[i].suggest_diff, final_diff);
+		
+		if (cases[i].expects_override && cases[i].suggest_diff > optimal) {
+			assert_true(final_diff >= cases[i].suggest_diff);
+		}
+	}
+}
+
+/* Test: Burst detection property - threshold and period selection
+ * Documents the burst detection behavior: at ssdc >= 72, use shorter period */
+static void test_burst_detection_property(void)
+{
+	printf("\n  Testing burst detection threshold property:\n");
+	
+	/* Test that threshold is exactly 72 shares */
+	int below_threshold = 71;
+	int at_threshold = 72;
+	int above_threshold = 100;
+	
+	/* Property: below threshold uses 5-min period, at/above uses 1-min */
+	bool should_burst_below = (below_threshold >= 72);
+	bool should_burst_at = (at_threshold >= 72);
+	bool should_burst_above = (above_threshold >= 72);
+	
+	assert_false(should_burst_below);  /* 71 < 72: normal mode */
+	assert_true(should_burst_at);      /* 72 >= 72: burst mode */
+	assert_true(should_burst_above);   /* 100 >= 72: burst mode */
+	
+	printf("    Below threshold (71 shares): normal mode ✓\n");
+	printf("    At threshold (72 shares): burst mode ✓\n");
+	printf("    Above threshold (100 shares): burst mode ✓\n");
+	
+	printf("    ✓ Burst detection correctly activates at ssdc=72\n");
+}
+
+/* Test: Extreme hashrate edge cases */
+static void test_extreme_hashrate_cases(void)
+{
+	printf("\n  Testing extreme hashrate edge cases:\n");
+	
+	struct {
+		const char *name;
+		double hashrate;
+		double pool_mindiff;
+		double pool_maxdiff;
+	} cases[] = {
+		{ "Minimum valid (1 H/s)", 1.0, 0.001, 0.0 },
+		{ "Maximum Bitcoin difficulty", 1000000000000000000.0, 1.0, 0.0 },
+	};
+	
+	for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
+		double dsps = hashrate_to_dsps(cases[i].hashrate);
+		double optimal = dsps * 3.33;
+		
+		/* Apply constraints */
+		if (optimal < cases[i].pool_mindiff)
+			optimal = cases[i].pool_mindiff;
+		if (cases[i].pool_maxdiff > 0 && optimal > cases[i].pool_maxdiff)
+			optimal = cases[i].pool_maxdiff;
+		
+		printf("    %s: dsps=%.10e → diff=%.10e\n",
+		       cases[i].name, dsps, optimal);
+		
+		/* Should not crash or produce invalid values */
+		assert_true(!isnan(optimal));
+		assert_true(!isinf(optimal));
+		assert_true(optimal > 0.0);
+	}
+}
+
+/*******************************************************************************
+ * MAIN TEST RUNNER
+ ******************************************************************************/
+
+int main(void)
+{
+	printf("========================================\n");
+	printf("COMPREHENSIVE VARDIFF TEST SUITE\n");
+	printf("3 sections: Core | Fractional | Real-world\n");
+	printf("========================================\n");
+	
+	/* Section 1: Core vardiff algorithm tests */
+	printf("\n[SECTION 1: CORE VARDIFF ALGORITHM]\n");
+	run_test(test_time_bias);
+	run_test(test_optimal_diff_calculation);
+	run_test(test_diff_clamping);
+	run_test(test_drr_hysteresis);
+	run_test(test_vardiff_sub1_edge_case);
+	
+	/* Section 2: Fractional difficulty tests */
+	printf("\n[SECTION 2: FRACTIONAL DIFFICULTY SUPPORT]\n");
+	run_test(test_optimal_diff_normalization);
+	run_test(test_lround_elimination_sub1_only);
+	run_test(test_vardiff_below_1);
+	run_test(test_vardiff_above_1_normalized);
+	run_test(test_floor_check_change);
+	run_test(test_mindiff_clamping_fractional);
+	run_test(test_worker_mindiff_fractional);
+	run_test(test_vardiff_adjustment_sequence);
+	
+	/* Section 3: Comprehensive real-world miner tests */
+	printf("\n[SECTION 3: REAL-WORLD MINER SCENARIOS]\n");
+	printf("Testing full miner spectrum: H/s to EH/s\n");
+	run_test(test_all_miner_types_initial_diff);
+	run_test(test_fractional_diff_low_hashrate);
+	run_test(test_integer_diff_typical_miners);
+	run_test(test_high_hashrate_maxdiff_enforcement);
+	run_test(test_mixed_miner_pool);
+	run_test(test_hysteresis_across_ranges);
+	run_test(test_network_diff_absolute_ceiling);
+	run_test(test_worker_mindiff_enforcement);
+	run_test(test_client_suggest_diff_overrides);
+	run_test(test_burst_detection_property);
+	run_test(test_extreme_hashrate_cases);
+	
+	printf("\n========================================\n");
+	printf("ALL VARDIFF TESTS PASSED!\n");
+	printf("Total tests: 24 (5 core + 8 fractional + 11 real-world)\n");
+	printf("========================================\n");
+	
+	return 0;
+}
