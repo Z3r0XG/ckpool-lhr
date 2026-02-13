@@ -24,6 +24,13 @@
 bool _validhex(const char *buf, const char *file, const char *func, const int line);
 bool _hex2bin(void *vp, const void *vhexstr, size_t len, const char *file, const char *func, const int line);
 
+static bool perf_tests_enabled(void)
+{
+    const char *val = getenv("CKPOOL_PERF_TESTS");
+
+    return val && val[0] == '1';
+}
+
 /*******************************************************************************
  * SECTION 1: HEX ENCODING/DECODING TESTS
  * Tests binary <-> hexadecimal string conversion functions
@@ -643,15 +650,22 @@ int main(void)
     run_test(test_encoding_null_pointer_handling);
     
     /* Section 5: Performance regression tests */
-    printf("\n[SECTION 5: PERFORMANCE REGRESSION TESTS]\n");
-    printf("Benchmarking encoding functions (lower is better)\n");
-    run_test(test_encoding_hex_encode_performance);
-    run_test(test_encoding_hex_decode_performance);
-    run_test(test_encoding_base64_performance);
+    if (perf_tests_enabled()) {
+        printf("\n[SECTION 5: PERFORMANCE REGRESSION TESTS]\n");
+        printf("BEGIN PERF TESTS: test-encoding\n");
+        printf("Benchmarking encoding functions (lower is better)\n");
+        run_test(test_encoding_hex_encode_performance);
+        run_test(test_encoding_hex_decode_performance);
+        run_test(test_encoding_base64_performance);
+        printf("END PERF TESTS: test-encoding\n");
+    } else {
+        printf("\n[SECTION 5: PERFORMANCE REGRESSION TESTS]\n");
+        printf("Perf tests skipped (enable with make check-perf)\n");
+    }
     
     printf("\n========================================\n");
     printf("ALL ENCODING TESTS PASSED!\n");
-    printf("Total tests: 22 (5 hex + 5 base58 + 6 base64 + 3 failure + 3 perf)\n");
+    printf("Total tests: 19 + 3 perf (optional)\n");
     printf("========================================\n");
     
     return 0;

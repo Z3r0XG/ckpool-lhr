@@ -10,10 +10,18 @@
 #include <stdbool.h>
 #include <math.h>
 #include <sys/time.h>
+#include <time.h>
 
 #include "config.h"
 #include "../test_common.h"
 #include "libckpool.h"
+
+static bool perf_tests_enabled(void)
+{
+    const char *val = getenv("CKPOOL_PERF_TESTS");
+
+    return val && val[0] == '1';
+}
 
 /* Test us_tvdiff - microseconds time difference
  * Limits to 60 seconds max
@@ -554,6 +562,34 @@ static void test_time_conversion_edge_cases(void)
     assert_int_equal(ts.tv_nsec, 567000000);
 }
 
+/* Performance test: time utils hot loops */
+static void test_time_utils_performance(void)
+{
+    tv_t start, end;
+    start.tv_sec = 1000;
+    start.tv_usec = 100;
+    end.tv_sec = 1001;
+    end.tv_usec = 900;
+
+    const int iterations = 2000000;
+    clock_t cstart = clock();
+    for (int i = 0; i < iterations; i++) {
+        (void)us_tvdiff(&end, &start);
+        (void)ms_tvdiff(&end, &start);
+        (void)tvdiff(&end, &start);
+    }
+    clock_t cend = clock();
+
+    double elapsed = (double)(cend - cstart) / CLOCKS_PER_SEC;
+    if (elapsed > 0.0) {
+        double ops_per_sec = (double)(iterations * 3) / elapsed;
+        printf("    time utils: %.2fM ops/sec (%.3f sec for %d ops)\n",
+               ops_per_sec / 1e6, elapsed, iterations * 3);
+    }
+
+    assert_true(elapsed < 5.0);
+}
+
 int main(void)
 {
     printf("Running time utility tests...\n\n");
@@ -577,6 +613,13 @@ int main(void)
     run_test(test_ms_to_ts);
     run_test(test_timeraddspec);
     run_test(test_time_conversion_edge_cases);
+
+    if (perf_tests_enabled()) {
+        printf("\n[PERFORMANCE REGRESSION TESTS]\n");
+        printf("BEGIN PERF TESTS: test-time-utils\n");
+        run_test(test_time_utils_performance);
+        printf("END PERF TESTS: test-time-utils\n");
+    }
     
     printf("\nAll time utility tests passed!\n");
     return 0;

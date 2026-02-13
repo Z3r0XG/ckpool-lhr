@@ -39,6 +39,16 @@ check_PROGRAMS = \
 	unit/test-auth-rejection
 
 TESTS = $(check_PROGRAMS)
+
+.PHONY: check-perf
+
+check-perf:
+	CKPOOL_PERF_TESTS=1 $(MAKE) check
+	@echo ""
+	@echo "==== PERF RESULTS (from logs) ===="
+	@for f in unit/*.log; do \
+		awk '/BEGIN PERF TESTS/{p=1} p{print} /END PERF TESTS/{p=0}' "$$f"; \
+	done
 # Auth rejection tests
 unit_test_auth_rejection_SOURCES = \
 	unit/test-auth-rejection.c

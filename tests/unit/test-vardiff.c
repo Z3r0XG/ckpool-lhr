@@ -1142,6 +1142,13 @@ static void test_vardiff_clock_backwards_handling(void)
  * Ensures critical functions remain fast
  ******************************************************************************/
 
+static bool perf_tests_enabled(void)
+{
+	const char *val = getenv("CKPOOL_PERF_TESTS");
+
+	return val && val[0] == '1';
+}
+
 /* Test normalize_pool_diff performance */
 static void test_vardiff_normalize_performance(void)
 {
@@ -1525,11 +1532,18 @@ int main(void)
 	run_test(test_vardiff_clock_backwards_handling);
 	
 	/* Section 6: Performance regression tests */
-	printf("\n[SECTION 6: PERFORMANCE REGRESSION TESTS]\n");
-	printf("Benchmarking critical functions (lower is better)\n");
-	run_test(test_vardiff_normalize_performance);
-	run_test(test_vardiff_optimal_calc_performance);
-	run_test(test_vardiff_hysteresis_performance);
+	if (perf_tests_enabled()) {
+		printf("\n[SECTION 6: PERFORMANCE REGRESSION TESTS]\n");
+		printf("BEGIN PERF TESTS: test-vardiff\n");
+		printf("Benchmarking critical functions (lower is better)\n");
+		run_test(test_vardiff_normalize_performance);
+		run_test(test_vardiff_optimal_calc_performance);
+		run_test(test_vardiff_hysteresis_performance);
+		printf("END PERF TESTS: test-vardiff\n");
+	} else {
+		printf("\n[SECTION 6: PERFORMANCE REGRESSION TESTS]\n");
+		printf("Perf tests skipped (enable with make check-perf)\n");
+	}
 	
 	/* Section 7: Realistic workflow scenarios */
 	printf("\n[SECTION 7: REALISTIC WORKFLOW SCENARIOS]\n");
@@ -1540,7 +1554,7 @@ int main(void)
 	
 	printf("\n========================================\n");
 	printf("ALL VARDIFF TESTS PASSED!\n");
-	printf("Total tests: 38 (5 core + 8 fractional + 11 real-world + 5 edge + 3 failure + 3 perf + 3 workflow)\n");
+	printf("Total tests: 35 + 3 perf (optional)\n");
 	printf("========================================\n");
 	
 	return 0;
