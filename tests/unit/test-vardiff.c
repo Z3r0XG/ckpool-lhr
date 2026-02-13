@@ -32,11 +32,36 @@
 static void test_time_bias(void)
 {
     /* time_bias formula: 1.0 - 1.0 / exp(tdiff / period) */
-    /* With period = 300, test various time differences */
+    /* Test all 3 vardiff periods: 15s (ultra-fast), 60s (fast), 300s (normal) */
     
-    double period = 300.0;
-    double tdiff;
-    double bias, expected;
+    double period, tdiff, bias, expected;
+    
+    /* Test period=15 (ultra-fast tier: 144+ shares in <15s) */
+    period = 15.0;
+    tdiff = 5.0;
+    bias = 1.0 - 1.0 / exp(tdiff / period);
+    expected = 1.0 - 1.0 / exp(5.0 / 15.0);
+    assert_double_equal(bias, expected, EPSILON);
+    
+    tdiff = 10.0;
+    bias = 1.0 - 1.0 / exp(tdiff / period);
+    expected = 1.0 - 1.0 / exp(10.0 / 15.0);
+    assert_double_equal(bias, expected, EPSILON);
+    
+    /* Test period=60 (fast tier: 72+ shares) */
+    period = 60.0;
+    tdiff = 20.0;
+    bias = 1.0 - 1.0 / exp(tdiff / period);
+    expected = 1.0 - 1.0 / exp(20.0 / 60.0);
+    assert_double_equal(bias, expected, EPSILON);
+    
+    tdiff = 45.0;
+    bias = 1.0 - 1.0 / exp(tdiff / period);
+    expected = 1.0 - 1.0 / exp(45.0 / 60.0);
+    assert_double_equal(bias, expected, EPSILON);
+    
+    /* Test period=300 (normal tier: <72 shares) */
+    period = 300.0;
     
     /* Short time (should be close to 0) */
     tdiff = 10.0;
@@ -756,31 +781,87 @@ static void test_client_suggest_diff_overrides(void)
 	}
 }
 
-/* Test: Burst detection property - threshold and period selection
- * Documents the burst detection behavior: at ssdc >= 72, use shorter period */
+/* Test: 3-tier vardiff threshold detection and period selection
+ * Documents the 3-tier vardiff behavior:
+ * - Normal: ssdc < 72 → 5-minute period
+ * - Fast: ssdc >= 72 (but not ultra-fast) → 1-minute period
+ * - Ultra-fast: ssdc >= 144 AND tdiff < 15 → 15-second period */
 static void test_burst_detection_property(void)
 {
-	printf("\n  Testing burst detection threshold property:\n");
+	printf("\n  Testing 3-tier vardiff threshold detection:\n");
 	
-	/* Test that threshold is exactly 72 shares */
-	int below_threshold = 71;
-	int at_threshold = 72;
-	int above_threshold = 100;
+	/* Test tier boundaries */
+	int ssdc;
+	double tdiff;
+	bool is_ultra_fast, is_fast, is_normal;
 	
-	/* Property: below threshold uses 5-min period, at/above uses 1-min */
-	bool should_burst_below = (below_threshold >= 72);
-	bool should_burst_at = (at_threshold >= 72);
-	bool should_burst_above = (above_threshold >= 72);
+	/* Normal tier: ssdc < 72 */
+	ssdc = 71;
+	tdiff = 10.0;
+	is_ultra_fast = (ssdc >= 144 && tdiff < 15);
+	is_fast = (ssdc >= 72 && !is_ultra_fast);
+	is_normal = !is_fast && !is_ultra_fast;
+	assert_true(is_normal);
+	assert_false(is_fast);
+	assert_false(is_ultra_fast);
+	printf("    ssdc=71, tdiff=10s: normal tier (5m period) ✓\n");
 	
-	assert_false(should_burst_below);  /* 71 < 72: normal mode */
-	assert_true(should_burst_at);      /* 72 >= 72: burst mode */
-	assert_true(should_burst_above);   /* 100 >= 72: burst mode */
+	/* Fast tier: ssdc >= 72 but not ultra-fast conditions */
+	ssdc = 72;
+	tdiff = 20.0;
+	is_ultra_fast = (ssdc >= 144 && tdiff < 15);
+	is_fast = (ssdc >= 72 && !is_ultra_fast);
+	is_normal = !is_fast && !is_ultra_fast;
+	assert_false(is_normal);
+	assert_true(is_fast);
+	assert_false(is_ultra_fast);
+	printf("    ssdc=72, tdiff=20s: fast tier (1m period) ✓\n");
 	
-	printf("    Below threshold (71 shares): normal mode ✓\n");
-	printf("    At threshold (72 shares): burst mode ✓\n");
-	printf("    Above threshold (100 shares): burst mode ✓\n");
+	/* Fast tier: ssdc >= 144 but tdiff >= 15 (not ultra-fast) */
+	ssdc = 144;
+	tdiff = 15.0;
+	is_ultra_fast = (ssdc >= 144 && tdiff < 15);
+	is_fast = (ssdc >= 72 && !is_ultra_fast);
+	is_normal = !is_fast && !is_ultra_fast;
+	assert_false(is_normal);
+	assert_true(is_fast);
+	assert_false(is_ultra_fast);
+	printf("    ssdc=144, tdiff=15.0s: fast tier (1m period) ✓\n");
 	
-	printf("    ✓ Burst detection correctly activates at ssdc=72\n");
+	/* Ultra-fast tier: ssdc >= 144 AND tdiff < 15 */
+	ssdc = 144;
+	tdiff = 14.9;
+	is_ultra_fast = (ssdc >= 144 && tdiff < 15);
+	is_fast = (ssdc >= 72 && !is_ultra_fast);
+	is_normal = !is_fast && !is_ultra_fast;
+	assert_false(is_normal);
+	assert_false(is_fast);
+	assert_true(is_ultra_fast);
+	printf("    ssdc=144, tdiff=14.9s: ultra-fast tier (15s period) ✓\n");
+	
+	/* Ultra-fast tier boundary: ssdc=143 should NOT be ultra-fast */
+	ssdc = 143;
+	tdiff = 10.0;
+	is_ultra_fast = (ssdc >= 144 && tdiff < 15);
+	is_fast = (ssdc >= 72 && !is_ultra_fast);
+	is_normal = !is_fast && !is_ultra_fast;
+	assert_false(is_normal);
+	assert_true(is_fast);
+	assert_false(is_ultra_fast);
+	printf("    ssdc=143, tdiff=10s: fast tier (1m period, not ultra-fast) ✓\n");
+	
+	/* Ultra-fast tier: well above threshold */
+	ssdc = 200;
+	tdiff = 12.0;
+	is_ultra_fast = (ssdc >= 144 && tdiff < 15);
+	is_fast = (ssdc >= 72 && !is_ultra_fast);
+	is_normal = !is_fast && !is_ultra_fast;
+	assert_false(is_normal);
+	assert_false(is_fast);
+	assert_true(is_ultra_fast);
+	printf("    ssdc=200, tdiff=12s: ultra-fast tier (15s period) ✓\n");
+	
+	printf("    ✓ All 3 tiers correctly detected with proper boundaries\n");
 }
 
 /* Test: Extreme hashrate edge cases */
