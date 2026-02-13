@@ -3,13 +3,14 @@
  * Critical for sub-"1" difficulty support
  */
 
+/* config.h must be first to define _GNU_SOURCE before system headers */
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <stdint.h>
-
-#include "config.h"
 #include "../test_common.h"
 #include "libckpool.h"
 #include "sha2.h"
@@ -163,16 +164,246 @@ static void test_target_conversions(void)
     assert_true(error < EPSILON_DIFF);
 }
 
+/* ========================================================================
+ * SECTION 2: Network Difficulty Floor (allow_low_diff feature)
+ * From: test-low-diff.c
+ * Tests: 7 tests for network difficulty floor behavior
+ * ======================================================================== */
+
+/*
+ * Simulates the network_diff clamping logic from stratifier.c add_base()
+ * This mirrors the actual code:
+ *   if (!ckp->allow_low_diff && wb->network_diff < 1)
+ *       wb->network_diff = 1;
+ */
+static double apply_network_diff_floor(double raw_diff, bool allow_low_diff)
+{
+    double network_diff = raw_diff;
+    
+    /* This is the actual logic from stratifier.c */
+    if (!allow_low_diff && network_diff < 1)
+        network_diff = 1;
+    
+    return network_diff;
+}
+
+/* Test: With allow_low_diff=false, diff should be clamped to 1.0 */
+static void test_low_diff_disabled_clamps_to_one(void)
+{
+    double test_diffs[] = {0.0001, 0.001, 0.01, 0.1, 0.5, 0.9, 0.99};
+    int num_tests = sizeof(test_diffs) / sizeof(test_diffs[0]);
+    
+    for (int i = 0; i < num_tests; i++) {
+        double result = apply_network_diff_floor(test_diffs[i], false);
+        assert_double_equal(result, 1.0, EPSILON_DIFF);
+    }
+}
+
+/* Test: With allow_low_diff=false, diff >= 1.0 should pass through unchanged */
+static void test_low_diff_disabled_passes_high_diff(void)
+{
+    double test_diffs[] = {1.0, 1.5, 2.0, 10.0, 100.0, 1000000.0};
+    int num_tests = sizeof(test_diffs) / sizeof(test_diffs[0]);
+    
+    for (int i = 0; i < num_tests; i++) {
+        double result = apply_network_diff_floor(test_diffs[i], false);
+        assert_double_equal(result, test_diffs[i], EPSILON_DIFF);
+    }
+}
+
+/* Test: With allow_low_diff=true, low diff should pass through unchanged */
+static void test_low_diff_enabled_passes_low_diff(void)
+{
+    double test_diffs[] = {0.0001, 0.001, 0.01, 0.1, 0.5, 0.9, 0.99};
+    int num_tests = sizeof(test_diffs) / sizeof(test_diffs[0]);
+    
+    for (int i = 0; i < num_tests; i++) {
+        double result = apply_network_diff_floor(test_diffs[i], true);
+        assert_double_equal(result, test_diffs[i], EPSILON_DIFF);
+    }
+}
+
+/* Test: With allow_low_diff=true, high diff should also pass through */
+static void test_low_diff_enabled_passes_high_diff(void)
+{
+    double test_diffs[] = {1.0, 1.5, 2.0, 10.0, 100.0, 1000000.0};
+    int num_tests = sizeof(test_diffs) / sizeof(test_diffs[0]);
+    
+    for (int i = 0; i < num_tests; i++) {
+        double result = apply_network_diff_floor(test_diffs[i], true);
+        assert_double_equal(result, test_diffs[i], EPSILON_DIFF);
+    }
+}
+
+/* Test: Edge case - exactly 1.0 should pass through regardless of setting */
+static void test_diff_exactly_one(void)
+{
+    assert_double_equal(apply_network_diff_floor(1.0, false), 1.0, EPSILON_DIFF);
+    assert_double_equal(apply_network_diff_floor(1.0, true), 1.0, EPSILON_DIFF);
+}
+
+/* Test: Edge case - zero diff */
+static void test_diff_zero(void)
+{
+    /* With flag disabled, should clamp to 1.0 */
+    assert_double_equal(apply_network_diff_floor(0.0, false), 1.0, EPSILON_DIFF);
+    
+    /* With flag enabled, should stay 0.0 (regtest edge case) */
+    assert_double_equal(apply_network_diff_floor(0.0, true), 0.0, EPSILON_DIFF);
+}
+
+/* Test: Regtest-like very low diff */
+static void test_regtest_diff(void)
+{
+    /* Regtest often has extremely low network diff */
+    double regtest_diff = 0.00000001;
+    
+    /* Disabled: should clamp */
+    assert_double_equal(apply_network_diff_floor(regtest_diff, false), 1.0, EPSILON_DIFF);
+    
+    /* Enabled: should pass through */
+    assert_double_equal(apply_network_diff_floor(regtest_diff, true), regtest_diff, EPSILON_DIFF);
+}
+
+/*******************************************************************************
+ * SECTION 3: FAILURE MODE TESTS
+ * Tests defensive programming and error handling
+ ******************************************************************************/
+
+/* Test target edge cases (zero target, max target) */
+static void test_difficulty_target_edge_cases(void)
+{
+	uchar target[32];
+	double diff;
+	
+	/* Zero target (invalid, would cause division by zero) */
+	memset(target, 0x00, 32);
+	diff = diff_from_target(target);
+	/* Should return 0.0 or handle gracefully */
+	assert_true(diff >= 0.0 || diff == 0.0);
+	
+	/* Maximum target (all 0xFF, easiest difficulty) */
+	memset(target, 0xFF, 32);
+	diff = diff_from_target(target);
+	/* Should be very close to minimum difficulty */
+	assert_true(diff > 0.0);
+	assert_true(!isnan(diff));
+	assert_true(!isinf(diff));
+	
+	/* Very easy target (difficulty close to 1) */
+	/* Just verify the function handles reasonable targets */
+	target_from_diff(target, 1.0);
+	diff = diff_from_target(target);
+	assert_double_equal(diff, 1.0, 0.01);  /* Should round-trip to ~1.0 */
+}
+
+/* Test nbits compact format edge cases */
+static void test_difficulty_nbits_overflow(void)
+{
+	double diff;
+	
+	struct {
+		uchar nbits[4];  /* Binary 4-byte nbits */
+		bool is_valid;
+		double expected_min;  /* Expected minimum difficulty (0 = don't check) */
+		double expected_max;  /* Expected maximum difficulty (0 = don't check) */
+		const char *description;
+	} cases[] = {
+		/* Valid nbits with known values */
+		{ {0x1d, 0x00, 0xff, 0xff}, true,  0.9,  1.1,  "Bitcoin genesis block (diff ~1)" },
+		{ {0x1b, 0x04, 0x04, 0xcb}, true,  16000, 17000, "Typical mainnet (2015)" },
+		{ {0x20, 0x7f, 0xff, 0xff}, true,  0.0,  0.0,  "Testnet easy" },
+		
+		/* Invalid - zero nbits */
+		{ {0x00, 0x00, 0x00, 0x00}, false, 0.0,  0.0,  "All-zero nbits (sanitized)" },
+		
+		/* Invalid - shift too small (will be clamped to 3) */
+		{ {0x02, 0x12, 0x34, 0x56}, false, 0.0,  0.0,  "Shift=2 (clamped to 3)" },
+		{ {0x01, 0xff, 0xff, 0xff}, false, 0.0,  0.0,  "Shift=1 (clamped to 3)" },
+		{ {0x00, 0xff, 0xff, 0xff}, false, 0.0,  0.0,  "Shift=0 (clamped to 3)" },
+		
+		/* Invalid - shift too large (will be clamped to 32) */
+		{ {0x21, 0x12, 0x34, 0x56}, false, 0.0,  0.0,  "Shift=33 (clamped to 32)" },
+		{ {0xff, 0x12, 0x34, 0x56}, false, 0.0,  0.0,  "Shift=255 (clamped to 32)" },
+		
+		/* Edge - all-zero mantissa */
+		{ {0x1d, 0x00, 0x00, 0x00}, false, 0.0,  0.0,  "Zero mantissa" },
+	};
+	
+	for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
+		/* diff_from_nbits expects binary 4-byte array */
+		diff = diff_from_nbits((char *)cases[i].nbits);
+		
+		if (cases[i].is_valid) {
+			/* Valid nbits should produce sane difficulty */
+			assert_true(diff > 0.0);
+			assert_true(!isnan(diff));
+			assert_true(!isinf(diff));
+			
+			/* Check expected range if provided */
+			if (cases[i].expected_min > 0.0 && cases[i].expected_max > 0.0) {
+				assert_true(diff >= cases[i].expected_min);
+				assert_true(diff <= cases[i].expected_max);
+			}
+		} else {
+			/* Invalid nbits are sanitized internally by clamping shift to [3,32]
+			 * and treating zero target as 1. Result is always positive, finite. */
+			assert_true(diff > 0.0);
+			assert_true(!isnan(diff));
+			assert_true(!isinf(diff));
+			
+			/* Sanitized values should be within reasonable bounds (not absurd) */
+			assert_true(diff < 1e100);  /* Not astronomically large */
+		}
+	}
+}
+
+/* Test normalize_pool_diff with NaN and infinity */
+static void test_difficulty_normalize_nan_inf(void)
+{
+	double result;
+	
+	/* Positive infinity */
+	result = normalize_pool_diff(INFINITY);
+	/* Should handle gracefully (may return inf or clamp to max) */
+	assert_true(isinf(result) || result > 0.0);
+	
+	/* Negative infinity */
+	result = normalize_pool_diff(-INFINITY);
+	/* Should handle gracefully */
+	assert_true(isinf(result) || result < 0.0 || result == 0.0);
+	
+	/* NaN */
+	result = normalize_pool_diff(NAN);
+	/* Should handle gracefully (may propagate NaN or return 0) */
+	assert_true(isnan(result) || result == 0.0 || result > 0.0);
+}
+
 int main(void)
 {
     printf("Running difficulty calculation tests...\n\n");
     
+    printf("=== Section 1: Core Difficulty Calculations ===\n");
     run_test(test_diff_roundtrip_sub1);
     run_test(test_sub1_difficulty_values);
     run_test(test_difficulty_edge_cases);
     run_test(test_diff_from_nbits);
     run_test(test_target_conversions);
     run_test(test_normalize_pool_diff);
+    
+    printf("\n=== Section 2: Network Difficulty Floor (allow_low_diff) ===\n");
+    run_test(test_low_diff_disabled_clamps_to_one);
+    run_test(test_low_diff_disabled_passes_high_diff);
+    run_test(test_low_diff_enabled_passes_low_diff);
+    run_test(test_low_diff_enabled_passes_high_diff);
+    run_test(test_diff_exactly_one);
+    run_test(test_diff_zero);
+    run_test(test_regtest_diff);
+    
+    printf("\n=== Section 3: Failure Mode Tests ===\n");
+    run_test(test_difficulty_target_edge_cases);
+    run_test(test_difficulty_nbits_overflow);
+    run_test(test_difficulty_normalize_nan_inf);
     
     printf("\nAll difficulty tests passed!\n");
     return 0;

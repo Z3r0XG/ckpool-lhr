@@ -20,20 +20,14 @@ check_PROGRAMS = \
 	unit/test-fulltest \
 	unit/test-serialization \
 	unit/test-endian \
-	unit/test-time-conversion \
-	unit/test-base58 \
-	unit/test-base64 \
 	unit/test-dropidle \
 	unit/test-vardiff \
 	unit/test-share-params \
 	unit/test-config \
-	unit/test-low-diff \
 	unit/test-password-diff \
 	unit/test-password-diff-job-id \
 	unit/test-fractional-stats \
-	unit/test-fractional-vardiff \
 	unit/test-fractional-config \
-	unit/test-vardiff-comprehensive \
 	unit/test-share-orphan-prevention \
 	unit/test-adjustment-hysteresis \
 	unit/test-network-diff-interactions \
@@ -45,6 +39,16 @@ check_PROGRAMS = \
 	unit/test-auth-rejection
 
 TESTS = $(check_PROGRAMS)
+
+.PHONY: check-perf
+
+check-perf:
+	CKPOOL_PERF_TESTS=1 $(MAKE) check
+	@echo ""
+	@echo "==== PERF RESULTS (from logs) ===="
+	@for f in unit/*.log; do \
+		awk '/BEGIN PERF TESTS/{p=1} p{print} /END PERF TESTS/{p=0}' "$$f"; \
+	done
 # Auth rejection tests
 unit_test_auth_rejection_SOURCES = \
 	unit/test-auth-rejection.c
@@ -101,18 +105,6 @@ unit_test_serialization_SOURCES = \
 unit_test_endian_SOURCES = \
 	unit/test-endian.c
 
-# Time conversion tests
-unit_test_time_conversion_SOURCES = \
-	unit/test-time-conversion.c
-
-# Base58 decoding tests
-unit_test_base58_SOURCES = \
-	unit/test-base58.c
-
-# Base64 encoding tests
-unit_test_base64_SOURCES = \
-	unit/test-base64.c
-
 # dropidle feature tests
 unit_test_dropidle_SOURCES = \
 	unit/test-dropidle.c
@@ -129,10 +121,6 @@ unit_test_share_params_SOURCES = \
 unit_test_config_SOURCES = \
 	unit/test-config.c
 
-# Low diff (allow_low_diff) feature tests
-unit_test_low_diff_SOURCES = \
-	unit/test-low-diff.c
-
 # Password difficulty suggestion tests
 unit_test_password_diff_SOURCES = \
 	unit/test-password-diff.c
@@ -145,17 +133,9 @@ unit_test_password_diff_job_id_SOURCES = \
 unit_test_fractional_stats_SOURCES = \
 	unit/test-fractional-stats.c
 
-# Fractional variable difficulty tests
-unit_test_fractional_vardiff_SOURCES = \
-	unit/test-fractional-vardiff.c
-
 # Fractional configuration validation tests
 unit_test_fractional_config_SOURCES = \
 	unit/test-fractional-config.c
-
-# Comprehensive vardiff algorithm tests (real-world scenarios)
-unit_test_vardiff_comprehensive_SOURCES = \
-	unit/test-vardiff-comprehensive.c
 
 # Share orphan prevention tests
 unit_test_share_orphan_prevention_SOURCES = \

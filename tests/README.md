@@ -15,25 +15,23 @@ This directory contains unit tests for CKPOOL-LHR.
 9. **test-fulltest.c** - Hash vs target validation
 10. **test-serialization.c** - Number serialization for transactions
 11. **test-endian.c** - Endian conversion functions
-12. **test-time-conversion.c** - Time conversion functions
-13. **test-base58.c** - Base58 decoding
-14. **test-base64.c** - Base64 encoding
-15. **test-dropidle.c** - dropidle feature (idle client management)
-16. **test-vardiff.c** - Variable difficulty adjustment logic
-17. **test-share-params.c** - Share submission parameter validation
-18. **test-config.c** - Configuration parsing and validation
-19. **test-adjustment-hysteresis.c** - Difficulty adjustment hysteresis
-20. **test-backwards-compatibility.c** - Backwards compatibility checks
-21. **test-fractional-config.c** - Fractional difficulty configuration (fork feature)
-22. **test-fractional-stats.c** - Fractional difficulty statistics (fork feature)
-23. **test-fractional-vardiff.c** - Fractional difficulty vardiff behavior (fork feature)
-24. **test-low-diff.c** - Low difficulty share handling (fork feature)
-25. **test-network-diff-interactions.c** - Network difficulty interactions
-26. **test-share-orphan-prevention.c** - Share orphan prevention
-27. **test-ua-aggregation.c** - Useragent aggregation (fork feature)
-28. **test-vardiff-comprehensive.c** - Comprehensive vardiff testing
-29. **test-zombie-cleanup.c** - Zombie/ghost cleanup and refcount invariants (fork feature)
-30. **test-password-diff.c** - Password field difficulty suggestion parsing
+12. **test-dropidle.c** - dropidle feature (idle client management)
+13. **test-vardiff.c** - Variable difficulty adjustment logic
+14. **test-share-params.c** - Share submission parameter validation
+15. **test-config.c** - Configuration parsing and validation
+16. **test-password-diff.c** - Password field difficulty suggestion parsing
+17. **test-password-diff-job-id.c** - Password diff job ID assignment
+18. **test-fractional-stats.c** - Fractional difficulty statistics (fork feature)
+19. **test-fractional-config.c** - Fractional difficulty configuration (fork feature)
+20. **test-share-orphan-prevention.c** - Share orphan prevention
+21. **test-adjustment-hysteresis.c** - Difficulty adjustment hysteresis
+22. **test-network-diff-interactions.c** - Network difficulty interactions
+23. **test-backwards-compatibility.c** - Backwards compatibility checks
+24. **test-ua-aggregation.c** - Useragent aggregation (fork feature)
+25. **test-worker-ua-recalc.c** - Worker UA recalculation
+26. **test-persistent-ua-tracking.c** - Persistent UA tracking
+27. **test-zombie-cleanup.c** - Zombie/ghost cleanup and refcount invariants (fork feature)
+28. **test-auth-rejection.c** - Share rejection during auth window
 
 ## Building and Running Tests
 
@@ -53,6 +51,9 @@ This directory contains unit tests for CKPOOL-LHR.
 
 # Build and run all tests
 make check
+
+# Run all tests with opt-in performance sections enabled
+make check-perf
 ```
 
 ### Run Individual Unit Tests
@@ -69,9 +70,6 @@ make check
 ./tests/unit/test-fulltest
 ./tests/unit/test-serialization
 ./tests/unit/test-endian
-./tests/unit/test-time-conversion
-./tests/unit/test-base58
-./tests/unit/test-base64
 ./tests/unit/test-dropidle
 ./tests/unit/test-vardiff
 ./tests/unit/test-share-params
@@ -80,13 +78,14 @@ make check
 ./tests/unit/test-backwards-compatibility
 ./tests/unit/test-fractional-config
 ./tests/unit/test-fractional-stats
-./tests/unit/test-fractional-vardiff
-./tests/unit/test-low-diff
 ./tests/unit/test-network-diff-interactions
 ./tests/unit/test-share-orphan-prevention
 ./tests/unit/test-ua-aggregation
-./tests/unit/test-vardiff-comprehensive
+./tests/unit/test-worker-ua-recalc
+./tests/unit/test-persistent-ua-tracking
 ./tests/unit/test-password-diff
+./tests/unit/test-password-diff-job-id
+./tests/unit/test-auth-rejection
 ```
 
 ## Test Framework
@@ -121,6 +120,7 @@ The test suite covers:
 - Configuration parsing and validation
 - Encoding/decoding functions (hex, Base58, Base64, address encoding)
 - Utility functions (string operations, time conversions, number serialization)
+- UA normalization, aggregation, and persistence
 - Edge cases and error handling
 
 ## Troubleshooting
@@ -140,3 +140,4 @@ The test suite covers:
 > **Test failures?**
 > - Check `tests/test-suite.log` for detailed error messages
 > - Run individual test binaries for more verbose output
+> - Each unit test writes its own `tests/unit/*.log` and `tests/unit/*.trs`

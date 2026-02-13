@@ -108,4 +108,7 @@ bool suggest_diff_apply_for_test(double mindiff, double requested, double curren
 				 double *out_diff, double *out_suggest, int64_t *out_job_id,
 				 double *out_old_diff);
 
+/* Exported for unit testing */
+double time_bias(const double tdiff, const double period);
+
 #endif /* STRATIFIER_H */

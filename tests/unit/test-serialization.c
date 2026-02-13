@@ -3,15 +3,24 @@
  * Tests ser_number() and get_sernumber() for Bitcoin transaction scripts
  */
 
+/* config.h must be first to define _GNU_SOURCE before system headers */
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
-
-#include "config.h"
+#include <time.h>
 #include "../test_common.h"
 #include "libckpool.h"
+
+static bool perf_tests_enabled(void)
+{
+    const char *val = getenv("CKPOOL_PERF_TESTS");
+
+    return val && val[0] == '1';
+}
 
 /* Test ser_number() - serialize numbers for Bitcoin scripts
  * Returns number of bytes used (1-5 bytes)
@@ -246,6 +255,35 @@ static void test_ser_number_various_values(void)
     }
 }
 
+/* Performance test: ser_number/get_sernumber hot loop */
+static void test_serialization_performance(void)
+{
+    uchar buf[5];
+    int32_t values[] = {
+        0, 1, 42, 255, 256, 1000, 0x7FFF, 0x8000, 65536, 0x7FFFFF,
+        0x800000, 16777216, 0x7FFFFFFF
+    };
+    const int values_count = sizeof(values) / sizeof(values[0]);
+    const int iterations = 1000000;
+    clock_t start = clock();
+
+    for (int i = 0; i < iterations; i++) {
+        int32_t v = values[i % values_count];
+        (void)ser_number(buf, v);
+        (void)get_sernumber(buf);
+    }
+
+    clock_t end = clock();
+    double elapsed = (double)(end - start) / CLOCKS_PER_SEC;
+    if (elapsed > 0.0) {
+        double ops_per_sec = (double)iterations / elapsed;
+        printf("    ser_number/get_sernumber: %.2fM ops/sec (%.3f sec for %d ops)\n",
+               ops_per_sec / 1e6, elapsed, iterations);
+    }
+
+    assert_true(elapsed < 5.0);
+}
+
 int main(void)
 {
     printf("Running number serialization tests...\n\n");
@@ -258,6 +296,13 @@ int main(void)
     run_test(test_get_sernumber_edge_cases);
     run_test(test_get_sernumber_invalid_length);
     run_test(test_ser_number_various_values);
+
+    if (perf_tests_enabled()) {
+        printf("\n[PERFORMANCE REGRESSION TESTS]\n");
+        printf("BEGIN PERF TESTS: test-serialization\n");
+        run_test(test_serialization_performance);
+        printf("END PERF TESTS: test-serialization\n");
+    }
     
     printf("\nAll number serialization tests passed!\n");
     return 0;

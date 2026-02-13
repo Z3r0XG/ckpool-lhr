@@ -153,7 +153,7 @@ static inline void flip_80(void *dest_p, const void *src_p)
 /* Epsilon for floating-point difficulty comparisons */
 #define DIFF_EPSILON 1e-6
 
-static inline double normalize_pool_diff(const double diff)
+inline double normalize_pool_diff(const double diff)
 {
 	if (diff >= 1.0)
 		return round(diff);
@@ -264,6 +264,7 @@ void logmsg(int loglevel, const char *fmt, ...);
 #define UNIX_READ_TIMEOUT 5
 #define UNIX_WRITE_TIMEOUT 10
 
+#define SEC15	15
 #define MIN1	60
 #define MIN5	300
 #define MIN15	900

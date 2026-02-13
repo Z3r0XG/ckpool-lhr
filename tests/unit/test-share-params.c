@@ -4,14 +4,23 @@
  * Critical for preventing invalid share submissions
  */
 
+/* config.h must be first to define _GNU_SOURCE before system headers */
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-
-#include "config.h"
+#include <time.h>
 #include "../test_common.h"
 #include "libckpool.h"
+
+static int perf_tests_enabled(void)
+{
+    const char *val = getenv("CKPOOL_PERF_TESTS");
+
+    return val && val[0] == '1';
+}
 
 /* Test validhex function - used for nonce, ntime validation */
 static void test_validhex(void)
@@ -145,6 +154,35 @@ static void test_params_array_size(void)
     assert_true(6 >= min_params);
 }
 
+static void test_share_params_performance(void)
+{
+    const char *samples[] = {
+        "0123456789abcdef",
+        "ABCDEF",
+        "00ff",
+        "deadbeef",
+        "12345678",
+        "1234567890abcdef"
+    };
+    const int samples_count = sizeof(samples) / sizeof(samples[0]);
+    const int iterations = 2000000;
+    clock_t start = clock();
+
+    for (int i = 0; i < iterations; i++) {
+        (void)validhex(samples[i % samples_count]);
+    }
+
+    clock_t end = clock();
+    double elapsed = (double)(end - start) / CLOCKS_PER_SEC;
+    if (elapsed > 0.0) {
+        double ops_per_sec = (double)iterations / elapsed;
+        printf("    validhex: %.2fM ops/sec (%.3f sec for %d ops)\n",
+               ops_per_sec / 1e6, elapsed, iterations);
+    }
+
+    assert_true(elapsed < 5.0);
+}
+
 int main(void)
 {
     printf("Running share parameter validation tests...\n");
@@ -155,6 +193,13 @@ int main(void)
     test_job_id_validation();
     test_workername_validation();
     test_params_array_size();
+
+    if (perf_tests_enabled()) {
+        printf("[PERFORMANCE REGRESSION TESTS]\n");
+        printf("BEGIN PERF TESTS: test-share-params\n");
+        test_share_params_performance();
+        printf("END PERF TESTS: test-share-params\n");
+    }
     
     printf("All share parameter validation tests passed!\n");
     return 0;
