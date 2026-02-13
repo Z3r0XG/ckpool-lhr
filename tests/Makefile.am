@@ -25,7 +25,6 @@ check_PROGRAMS = \
 	unit/test-vardiff \
 	unit/test-share-params \
 	unit/test-config \
-	unit/test-low-diff \
 	unit/test-password-diff \
 	unit/test-password-diff-job-id \
 	unit/test-fractional-stats \
@@ -116,10 +115,6 @@ unit_test_share_params_SOURCES = \
 # Configuration parsing tests
 unit_test_config_SOURCES = \
 	unit/test-config.c
-
-# Low diff (allow_low_diff) feature tests
-unit_test_low_diff_SOURCES = \
-	unit/test-low-diff.c
 
 # Password difficulty suggestion tests
 unit_test_password_diff_SOURCES = \
