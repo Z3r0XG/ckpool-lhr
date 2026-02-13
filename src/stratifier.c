@@ -5054,6 +5054,7 @@ static void decay_client(stratum_instance_t *client, double diff, tv_t *now_t)
 	diff += client->uadiff;
 	client->uadiff = 0;
 	decay_time(&client->dsps1, diff, tdiff, MIN1);
+	decay_time(&client->dsps15s, diff, tdiff, SEC15);
 	decay_time(&client->dsps5, diff, tdiff, MIN5);
 	decay_time(&client->dsps60, diff, tdiff, HOUR);
 	decay_time(&client->dsps1440, diff, tdiff, DAY);
@@ -5072,6 +5073,7 @@ static void decay_worker(worker_instance_t *worker, double diff, tv_t *now_t)
 	diff += worker->uadiff;
 	worker->uadiff = 0;
 	decay_time(&worker->dsps1, diff, tdiff, MIN1);
+	decay_time(&worker->dsps15s, diff, tdiff, SEC15);
 	decay_time(&worker->dsps5, diff, tdiff, MIN5);
 	decay_time(&worker->dsps60, diff, tdiff, HOUR);
 	decay_time(&worker->dsps1440, diff, tdiff, DAY);
@@ -5090,6 +5092,7 @@ static void decay_user(user_instance_t *user, double diff, tv_t *now_t)
 	diff += user->uadiff;
 	user->uadiff = 0;
 	decay_time(&user->dsps1, diff, tdiff, MIN1);
+	decay_time(&user->dsps15s, diff, tdiff, SEC15);
 	decay_time(&user->dsps5, diff, tdiff, MIN5);
 	decay_time(&user->dsps60, diff, tdiff, HOUR);
 	decay_time(&user->dsps1440, diff, tdiff, DAY);
@@ -5765,21 +5768,44 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 
 	client->ssdc++;
 	bdiff = sane_tdiff(&now_t, &client->first_share);
-	bias = time_bias(bdiff, 300);
 	tdiff = sane_tdiff(&now_t, &client->ldc);
 
-	/* Check the difficulty every 240 seconds or as many shares as we
-	 * should have had in that time, whichever comes first. */
-	if (client->ssdc < 72 && tdiff < 240)
+	/* Check difficulty if any condition is met:
+	 * 1. Ultra-fast: 144+ shares in <15 seconds since last change
+	 * 2. Fast: 72+ shares at any time
+	 * 3. Time: 240 seconds elapsed since last change */
+	if (client->ssdc >= 144 && tdiff < 15) {
+		/* Ultra-fast threshold met - proceed with check */
+	} else if (client->ssdc < 72 && tdiff < 240) {
+		/* Neither fast nor time threshold met - return early */
 		return;
+	}
 
 	if (diff != client->diff) {
 		client->ssdc = 0;
 		return;
 	}
 
-	/* Diff rate ratio */
-	dsps = client->dsps5 / bias;
+	/* Diff rate ratio.
+	 * Use different time windows based on share submission rate:
+	 * - Ultra-fast (144+ shares in <15s): 15-second rolling average
+	 * - Fast (72+ shares): 60-second rolling average
+	 * - Normal: 5-minute rolling average for stable tracking */
+	bool ultra_fast_path = false;
+	if (client->ssdc >= 144 && tdiff < 15) {
+		/* Ultra-fast path: 15-second EMA with time bias compensation */
+		bias = time_bias(bdiff, 15);
+		dsps = client->dsps15s / bias;
+		ultra_fast_path = true;
+	} else if (client->ssdc >= 72) {
+		/* Fast path: 60-second EMA with time bias compensation */
+		bias = time_bias(bdiff, 60);
+		dsps = client->dsps1 / bias;
+	} else {
+		/* Normal path: 5-minute rolling average */
+		bias = time_bias(bdiff, 300);
+		dsps = client->dsps5 / bias;
+	}
 	drr = dsps / (double)client->diff;
 
 	/* Optimal rate product is 0.3, allow some hysteresis. */

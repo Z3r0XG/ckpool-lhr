@@ -51,6 +51,7 @@ struct user_instance {
 	double uadiff; /* Shares not yet accounted for in hashmeter */
 
 	double dsps1; /* Diff shares per second, 1 minute rolling average */
+	double dsps15s; /* ... 15 second ... */
 	double dsps5; /* ... 5 minute ... */
 	double dsps60;/* etc */
 	double dsps1440;
@@ -84,6 +85,7 @@ struct worker_instance {
 	double uadiff; /* Shares not yet accounted for in hashmeter */
 
 	double dsps1;
+	double dsps15s;
 	double dsps5;
 	double dsps60;
 	double dsps1440;
@@ -141,6 +143,7 @@ struct stratum_instance {
 	double uadiff; /* Shares not yet accounted for in hashmeter */
 
 	double dsps1; /* Diff shares per second, 1 minute rolling average */
+	double dsps15s; /* ... 15 second ... */
 	double dsps5; /* ... 5 minute ... */
 	double dsps60;/* etc */
 	double dsps1440;
