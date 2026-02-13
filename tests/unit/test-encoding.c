@@ -155,45 +155,12 @@ static void test_b58tobin_known_addresses(void)
     }
 }
 
-/* Test b58tobin() with various address lengths */
-static void test_b58tobin_address_lengths(void)
-{
-    char b58bin[25];
-    
-    /* Test: Short address (all 1's - minimum) */
-    memset(b58bin, 0, 25);
-    b58tobin(b58bin, "1");
-    /* Single character "1" decodes to a very small value, may be in later bytes */
-    /* Just verify it doesn't crash and produces some non-zero output somewhere */
-    bool has_data1 = false;
-    for (int j = 0; j < 25; j++) {
-        if (b58bin[j] != 0) {
-            has_data1 = true;
-            break;
-        }
-    }
-    /* Note: "1" decodes to a very small value, might be all zeros in first bytes */
-    /* The function should not crash at least */
-    
-    /* Test: Standard P2PKH address length */
-    memset(b58bin, 0, 25);
-    b58tobin(b58bin, "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa");
-    /* Should produce output - check if any byte is non-zero */
-    /* Note: First byte might be 0x00 (version byte for P2PKH) */
-    bool has_data2 = false;
-    for (int j = 0; j < 25; j++) {
-        if (b58bin[j] != 0) {
-            has_data2 = true;
-            break;
-        }
-    }
-    assert_true(has_data2);
-}
-
-/* Test b58tobin() edge cases */
+/* Test b58tobin() edge cases - both valid boundaries and invalid input */
 static void test_b58tobin_edge_cases(void)
 {
     char b58bin[25];
+    
+    /* Valid edge cases - boundary inputs that should work */
     
     /* Test: Single character (valid Base58) */
     memset(b58bin, 0, 25);
@@ -202,7 +169,7 @@ static void test_b58tobin_edge_cases(void)
     /* The output may be all zeros or have data in later bytes */
     /* Just verify it doesn't crash */
     
-    /* Test: All same character */
+    /* Test: All same character (valid but repetitive) */
     memset(b58bin, 0, 25);
     b58tobin(b58bin, "1111111111111111111114oLvT2");
     /* Should produce output - check if any byte is non-zero */
@@ -214,6 +181,30 @@ static void test_b58tobin_edge_cases(void)
         }
     }
     assert_true(has_data);
+    
+    /* Invalid/malformed edge cases - ensure robustness */
+    
+    /* Test: Empty string - should not crash */
+    memset(b58bin, 0, 25);
+    b58tobin(b58bin, "");
+    
+    /* Test: Invalid Base58 characters - should not crash */
+    memset(b58bin, 0, 25);
+    b58tobin(b58bin, "I0Ol!");  /* contains invalid chars for Base58 */
+    
+    /* Test: Very long input - should not crash or overflow buffer */
+    memset(b58bin, 0, 25);
+    b58tobin(b58bin, "1111111111111111111111111111111111111111111111111111111111111111");
+    
+    /* Test: Determinism - same input produces same output */
+    memset(b58bin, 0, 25);
+    b58tobin(b58bin, "abc123");
+    char snapshot[25];
+    memcpy(snapshot, b58bin, 25);
+    
+    memset(b58bin, 0, 25);
+    b58tobin(b58bin, "abc123");
+    assert_memory_equal(b58bin, snapshot, 25);
 }
 
 /* Test b58tobin() integration with address_to_txn */
@@ -325,28 +316,6 @@ static void test_http_base64_various_sizes(void)
     result = http_base64("ABCD");
     assert_non_null(result);
     assert_string_equal(result, "QUJDRA==");
-    free(result);
-}
-
-/* Test http_base64() with binary data */
-static void test_http_base64_binary_data(void)
-{
-    char *result;
-    uchar binary_data[4] = {0x01, 0x02, 0x03, 0x04}; // Non-zero data
-    
-    result = http_base64((const char *)binary_data);
-    assert_non_null(result);
-    /* Should produce valid Base64 output */
-    assert_true(strlen(result) > 0);
-    free(result);
-    
-    /* Test with null bytes (strlen will stop at first null) */
-    uchar binary_with_null[4] = {0x41, 0x42, 0x00, 0x44}; // "AB\0D"
-    result = http_base64((const char *)binary_with_null);
-    assert_non_null(result);
-    /* Result should encode all 4 bytes, even with null in middle */
-    /* The function uses strlen internally, so it will only encode up to first null */
-    assert_true(strlen(result) >= 0); // May be 0 if input is treated as "AB"
     free(result);
 }
 
@@ -629,7 +598,6 @@ int main(void)
     /* Section 2: Base58 decoding tests */
     printf("\n[SECTION 2: BASE58 DECODING]\n");
     run_test(test_b58tobin_known_addresses);
-    run_test(test_b58tobin_address_lengths);
     run_test(test_b58tobin_edge_cases);
     run_test(test_b58tobin_integration);
     run_test(test_b58tobin_p2sh_addresses);
@@ -638,7 +606,6 @@ int main(void)
     printf("\n[SECTION 3: BASE64 ENCODING]\n");
     run_test(test_http_base64_known_vectors);
     run_test(test_http_base64_various_sizes);
-    run_test(test_http_base64_binary_data);
     run_test(test_http_base64_edge_cases);
     run_test(test_http_base64_output_length);
     run_test(test_http_base64_various_characters);
