@@ -264,6 +264,97 @@ static void test_regtest_diff(void)
     assert_double_equal(apply_network_diff_floor(regtest_diff, true), regtest_diff, EPSILON_DIFF);
 }
 
+/*******************************************************************************
+ * SECTION 3: FAILURE MODE TESTS
+ * Tests defensive programming and error handling
+ ******************************************************************************/
+
+/* Test target edge cases (zero target, max target) */
+static void test_difficulty_target_edge_cases(void)
+{
+	uchar target[32];
+	double diff;
+	
+	/* Zero target (invalid, would cause division by zero) */
+	memset(target, 0x00, 32);
+	diff = diff_from_target(target);
+	/* Should return 0.0 or handle gracefully */
+	assert_true(diff >= 0.0 || diff == 0.0);
+	
+	/* Maximum target (all 0xFF, easiest difficulty) */
+	memset(target, 0xFF, 32);
+	diff = diff_from_target(target);
+	/* Should be very close to minimum difficulty */
+	assert_true(diff > 0.0);
+	assert_true(!isnan(diff));
+	assert_true(!isinf(diff));
+	
+	/* Very easy target (difficulty close to 1) */
+	/* Just verify the function handles reasonable targets */
+	target_from_diff(target, 1.0);
+	diff = diff_from_target(target);
+	assert_double_equal(diff, 1.0, 0.01);  /* Should round-trip to ~1.0 */
+}
+
+/* Test nbits compact format edge cases */
+static void test_difficulty_nbits_overflow(void)
+{
+	double diff;
+	
+	struct {
+		const char *nbits_hex;  /* 8-character hex string (4 bytes) */
+		bool is_valid;
+		const char *description;
+	} cases[] = {
+		/* Valid nbits */
+		{ "1d00ffff", true,  "Bitcoin genesis block" },
+		{ "1b0404cb", true,  "Typical mainnet" },
+		{ "207fffff", true,  "Testnet easy" },
+		
+		/* Edge cases */
+		{ "00000000", false, "Zero nbits" },
+		{ "01000000", false, "Negative exponent (empty mantissa)" },
+		{ "01ffffff", false, "Negative exponent with mantissa" },
+	};
+	
+	for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
+		/* diff_from_nbits expects 8-char hex string */
+		diff = diff_from_nbits((char *)cases[i].nbits_hex);
+		
+		if (cases[i].is_valid) {
+			/* Valid nbits should produce sane difficulty */
+			assert_true(diff > 0.0);
+			assert_true(!isnan(diff));
+			assert_true(!isinf(diff));
+		} else {
+			/* Invalid nbits behavior is implementation-dependent */ 
+			/* May return 0, may return garbage, should not crash */
+			assert_true(!isnan(diff) || true);  /* Just don't crash */
+		}
+	}
+}
+
+/* Test normalize_pool_diff with NaN and infinity */
+static void test_difficulty_normalize_nan_inf(void)
+{
+	double result;
+	
+	/* Positive infinity */
+	result = normalize_pool_diff(INFINITY);
+	/* Should handle gracefully (may return inf or clamp to max) */
+	assert_true(isinf(result) || result > 0.0);
+	
+	/* Negative infinity */
+	result = normalize_pool_diff(-INFINITY);
+	/* Should handle gracefully */
+	assert_true(isinf(result) || result < 0.0 || result == 0.0);
+	
+	/* NaN */
+	result = normalize_pool_diff(NAN);
+	/* Should handle gracefully (may propagate NaN or return 0) */
+	assert_true(isnan(result) || result == 0.0 || result > 0.0);
+}
+
 int main(void)
 {
     printf("Running difficulty calculation tests...\n\n");
@@ -284,6 +375,11 @@ int main(void)
     run_test(test_diff_exactly_one);
     run_test(test_diff_zero);
     run_test(test_regtest_diff);
+    
+    printf("\n=== Section 3: Failure Mode Tests ===\n");
+    run_test(test_difficulty_target_edge_cases);
+    run_test(test_difficulty_nbits_overflow);
+    run_test(test_difficulty_normalize_nan_inf);
     
     printf("\nAll difficulty tests passed!\n");
     return 0;

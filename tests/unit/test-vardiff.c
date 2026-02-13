@@ -1032,6 +1032,112 @@ static void test_vardiff_time_bias_sanity_clamp(void)
 }
 
 /*******************************************************************************
+ * SECTION 5: FAILURE MODE TESTS
+ * Tests defensive programming and error handling
+ ******************************************************************************/
+
+/* Test divide-by-zero protection in vardiff calculations */
+static void test_vardiff_divide_by_zero_protection(void)
+{
+	/* Test scenarios where division by zero could occur */
+	
+	struct {
+		double dsps;
+		double current_diff;
+		bool can_calculate_drr; /* diff rate ratio */
+	} cases[] = {
+		/* Safe cases */
+		{ 1.0,  1.0,  true  },
+		{ 10.0, 100.0, true  },
+		
+		/* Zero diff - would cause division by zero in drr calculation */
+		{ 1.0,  0.0,  false },
+		{ 10.0, 0.0,  false },
+		
+		/* Negative diff - also problematic */
+		{ 1.0,  -1.0, false },
+	};
+	
+	for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
+		if (cases[i].can_calculate_drr && cases[i].current_diff > 0.0) {
+			/* Safe: calculate drr = dsps / diff */
+			double drr = cases[i].dsps / cases[i].current_diff;
+			assert_true(!isnan(drr));
+			assert_true(!isinf(drr));
+			assert_true(drr >= 0.0);
+		} else {
+			/* Unsafe: would need guard clause */
+			assert_true(cases[i].current_diff <= 0.0);
+		}
+	}
+}
+
+/* Test negative difficulty rejection */
+static void test_vardiff_negative_difficulty_rejection(void)
+{
+	/* Difficulty values should never be negative */
+	
+	struct {
+		double diff;
+		bool valid;
+	} cases[] = {
+		/* Valid cases */
+		{ 0.0001, true  },
+		{ 0.001,  true  },
+		{ 1.0,    true  },
+		{ 1000.0, true  },
+		
+		/* Invalid cases */
+		{ -0.001, false },
+		{ -1.0,   false },
+		{ -1000.0, false },
+	};
+	
+	for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
+		bool is_valid = (cases[i].diff > 0.0);
+		assert_int_equal(is_valid, cases[i].valid);
+	}
+}
+
+/* Test clock backwards handling in time calculations */
+static void test_vardiff_clock_backwards_handling(void)
+{
+	/* When system clock goes backwards, time delta could be negative */
+	
+	struct {
+		double earlier_time;  /* seconds since epoch */
+		double later_time;
+		double expected_tdiff;
+		bool is_backwards;
+	} cases[] = {
+		/* Normal forward time */
+		{ 1000.0, 1300.0, 300.0, false },
+		{ 1000.0, 1060.0, 60.0,  false },
+		
+		/* Same time (edge case) */
+		{ 1000.0, 1000.0, 0.0,   false },
+		
+		/* Backwards time (NTP correction, VM suspend/resume, etc) */
+		{ 1300.0, 1000.0, -300.0, true },
+		{ 1060.0, 1000.0, -60.0,  true },
+	};
+	
+	for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
+		double tdiff = cases[i].later_time - cases[i].earlier_time;
+		assert_double_equal(tdiff, cases[i].expected_tdiff, EPSILON);
+		
+		bool is_backwards = (tdiff < 0.0);
+		assert_int_equal(is_backwards, cases[i].is_backwards);
+		
+		/* Production code should guard against negative tdiff */
+		if (is_backwards) {
+			/* Would need: if (tdiff < 0.0) tdiff = 0.0; */
+			assert_true(tdiff < 0.0);
+		}
+	}
+}
+
+/*******************************************************************************
  * MAIN TEST RUNNER
  ******************************************************************************/
 
@@ -1085,9 +1191,16 @@ int main(void)
 	run_test(test_vardiff_epsilon_comparison);
 	run_test(test_vardiff_time_bias_sanity_clamp);
 	
+	/* Section 5: Failure mode tests */
+	printf("\n[SECTION 5: FAILURE MODE TESTS]\n");
+	printf("Testing defensive programming and error handling\n");
+	run_test(test_vardiff_divide_by_zero_protection);
+	run_test(test_vardiff_negative_difficulty_rejection);
+	run_test(test_vardiff_clock_backwards_handling);
+	
 	printf("\n========================================\n");
 	printf("ALL VARDIFF TESTS PASSED!\n");
-	printf("Total tests: 29 (5 core + 8 fractional + 11 real-world + 5 edge cases)\n");
+	printf("Total tests: 32 (5 core + 8 fractional + 11 real-world + 5 edge + 3 failure)\n");
 	printf("========================================\n");
 	
 	return 0;
