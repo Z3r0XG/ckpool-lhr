@@ -1138,6 +1138,116 @@ static void test_vardiff_clock_backwards_handling(void)
 }
 
 /*******************************************************************************
+ * SECTION 6: PERFORMANCE REGRESSION TESTS
+ * Ensures critical functions remain fast
+ ******************************************************************************/
+
+/* Test normalize_pool_diff performance */
+static void test_vardiff_normalize_performance(void)
+{
+	/* Test that normalize_pool_diff is fast enough for high-throughput pools */
+	tv_t start, end;
+	const int iterations = 10000000;  /* 10M calls */
+	
+	tv_time(&start);
+	for (int i = 0; i < iterations; i++) {
+		double test_vals[] = {0.5, 1.0, 1.5, 10.5, 100.5, 1000.5};
+		for (int j = 0; j < 6; j++) {
+			(void)normalize_pool_diff(test_vals[j]);
+		}
+	}
+	tv_time(&end);
+	
+	double elapsed = tvdiff(&end, &start);
+	
+	if (elapsed < 0.001) {
+		printf("    normalize_pool_diff: TOO FAST to measure accurately (< 1ms for 60M calls)\n");
+	} else {
+		double calls_per_sec = (iterations * 6) / elapsed;
+		printf("    normalize_pool_diff: %.2fM calls/sec (%.3f sec for %dM calls)\n",
+		       calls_per_sec / 1e6, elapsed, iterations * 6 / 1000000);
+	}
+	
+	/* Should complete in reasonable time (< 10 seconds even on slow hardware) */
+	assert_true(elapsed < 10.0);
+}
+
+/* Test optimal diff calculations performance */
+static void test_vardiff_optimal_calc_performance(void)
+{
+	/* Simulate vardiff adjustment calculations under load */
+	tv_t start, end;
+	const int iterations = 1000000;  /* 1M adjustments */
+	
+	tv_time(&start);
+	for (int i = 0; i < iterations; i++) {
+		/* Typical vardiff calculation sequence */
+		double dsps = 10.0 + (i % 1000);
+		double optimal = dsps * 3.33;
+		
+		/* Apply clamping */
+		double mindiff = 1.0;
+		double maxdiff = 10000.0;
+		if (optimal < mindiff) optimal = mindiff;
+		if (optimal > maxdiff) optimal = maxdiff;
+		
+		/* Normalize */
+		double final_diff = normalize_pool_diff(optimal);
+		
+		/* Prevent optimization */
+		if (final_diff < 0.0) break;
+	}
+	tv_time(&end);
+	
+	double elapsed = tvdiff(&end, &start);
+	
+	if (elapsed < 0.001) {
+		printf("    Optimal diff calculations: TOO FAST to measure accurately (< 1ms for 1M calcs)\n");
+	} else {
+		double calcs_per_sec = iterations / elapsed;
+		printf("    Optimal diff calculations: %.2fM calcs/sec (%.3f sec for %dM calcs)\n",
+		       calcs_per_sec / 1e6, elapsed, iterations / 1000000);
+	}
+	
+	/* Should handle 1M calculations in < 5 seconds */
+	assert_true(elapsed < 5.0);
+}
+
+/* Test hysteresis check performance */
+static void test_vardiff_hysteresis_performance(void)
+{
+	/* Hysteresis checks happen for every share submission */
+	tv_t start, end;
+	const int iterations = 10000000;  /* 10M checks */
+	
+	tv_time(&start);
+	for (int i = 0; i < iterations; i++) {
+		/* Typical drr values across the spectrum */
+		double drr = 0.1 + (i % 100) * 0.01;  /* 0.1 to 1.0 */
+		
+		/* Hysteresis check: drr > 0.15 && drr < 0.4 */
+		bool in_deadband = (drr > 0.15 && drr < 0.4);
+		
+		/* Prevent optimization */
+		if (in_deadband && drr < 0.0) break;
+	}
+	tv_time(&end);
+	
+	double elapsed = tvdiff(&end, &start);
+	
+	if (elapsed < 0.001) {
+		printf("    Hysteresis checks: TOO FAST to measure accurately (< 1ms for 10M checks)\n");
+	} else {
+		double checks_per_sec = iterations / elapsed;
+		printf("    Hysteresis checks: %.2fM checks/sec (%.3f sec for %dM checks)\n",
+		       checks_per_sec / 1e6, elapsed, iterations / 1000000);
+	}
+	
+	/* Should complete 10M checks in < 5 seconds */
+	assert_true(elapsed < 5.0);
+}
+
+/*******************************************************************************
  * MAIN TEST RUNNER
  ******************************************************************************/
 
@@ -1198,9 +1308,16 @@ int main(void)
 	run_test(test_vardiff_negative_difficulty_rejection);
 	run_test(test_vardiff_clock_backwards_handling);
 	
+	/* Section 6: Performance regression tests */
+	printf("\n[SECTION 6: PERFORMANCE REGRESSION TESTS]\n");
+	printf("Benchmarking critical functions (lower is better)\n");
+	run_test(test_vardiff_normalize_performance);
+	run_test(test_vardiff_optimal_calc_performance);
+	run_test(test_vardiff_hysteresis_performance);
+	
 	printf("\n========================================\n");
 	printf("ALL VARDIFF TESTS PASSED!\n");
-	printf("Total tests: 32 (5 core + 8 fractional + 11 real-world + 5 edge + 3 failure)\n");
+	printf("Total tests: 35 (5 core + 8 fractional + 11 real-world + 5 edge + 3 failure + 3 perf)\n");
 	printf("========================================\n");
 	
 	return 0;

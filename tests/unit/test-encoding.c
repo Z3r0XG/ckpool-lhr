@@ -512,6 +512,95 @@ static void test_encoding_null_pointer_handling(void)
 }
 
 /*******************************************************************************
+ * SECTION 5: PERFORMANCE REGRESSION TESTS
+ * Ensures encoding functions remain fast
+ ******************************************************************************/
+
+/* Test hex encoding performance */
+static void test_encoding_hex_encode_performance(void)
+{
+	/* Test hex encoding speed (common operation for share submissions) */
+	tv_t start, end;
+	const int iterations = 100000;  /* 100K encodings */
+	
+	unsigned char test_data[32] = {
+		0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+		0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
+		0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+		0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff
+	};
+	
+	tv_time(&start);
+	for (int i = 0; i < iterations; i++) {
+		char *hex = (char *)bin2hex(test_data, 32);
+		free(hex);
+	}
+	tv_time(&end);
+	
+	double elapsed = tvdiff(&end, &start);
+	double ops_per_sec = iterations / elapsed;
+	
+	printf("    Hex encoding (32 bytes): %.2fK ops/sec (%.3f sec for %dK ops)\n",
+	       ops_per_sec / 1e3, elapsed, iterations / 1000);
+	
+	/* Should handle 100K encodings in < 1 second */
+	assert_true(elapsed < 1.0);
+}
+
+/* Test hex decoding performance */
+static void test_encoding_hex_decode_performance(void)
+{
+	/* Test hex decoding speed (common for work validation) */
+	tv_t start, end;
+	const int iterations = 100000;  /* 100K decodings */
+	
+	const char *hex = "0123456789abcdeffedcba9876543210"
+	                  "00112233445566778899aabbccddeeff";
+	unsigned char decoded[32];
+	
+	tv_time(&start);
+	for (int i = 0; i < iterations; i++) {
+		_hex2bin(decoded, hex, 32, __FILE__, __func__, __LINE__);
+	}
+	tv_time(&end);
+	
+	double elapsed = tvdiff(&end, &start);
+	double ops_per_sec = iterations / elapsed;
+	
+	printf("    Hex decoding (32 bytes): %.2fK ops/sec (%.3f sec for %dK ops)\n",
+	       ops_per_sec / 1e3, elapsed, iterations / 1000);
+	
+	/* Should handle 100K decodings in < 1 second */
+	assert_true(elapsed < 1.0);
+}
+
+/* Test base64 encoding performance */
+static void test_encoding_base64_performance(void)
+{
+	/* Test base64 encoding speed (used for HTTP auth) */
+	tv_t start, end;
+	const int iterations = 50000;  /* 50K encodings */
+	
+	const char *test_string = "username:password123";
+	
+	tv_time(&start);
+	for (int i = 0; i < iterations; i++) {
+		char *encoded = http_base64(test_string);
+		free(encoded);
+	}
+	tv_time(&end);
+	
+	double elapsed = tvdiff(&end, &start);
+	double ops_per_sec = iterations / elapsed;
+	
+	printf("    Base64 encoding: %.2fK ops/sec (%.3f sec for %dK ops)\n",
+	       ops_per_sec / 1e3, elapsed, iterations / 1000);
+	
+	/* Should handle 50K encodings in < 1 second */
+	assert_true(elapsed < 1.0);
+}
+
+/*******************************************************************************
  * MAIN TEST RUNNER
  ******************************************************************************/
 
@@ -553,9 +642,16 @@ int main(void)
     run_test(test_encoding_buffer_overflow_protection);
     run_test(test_encoding_null_pointer_handling);
     
+    /* Section 5: Performance regression tests */
+    printf("\n[SECTION 5: PERFORMANCE REGRESSION TESTS]\n");
+    printf("Benchmarking encoding functions (lower is better)\n");
+    run_test(test_encoding_hex_encode_performance);
+    run_test(test_encoding_hex_decode_performance);
+    run_test(test_encoding_base64_performance);
+    
     printf("\n========================================\n");
     printf("ALL ENCODING TESTS PASSED!\n");
-    printf("Total tests: 19 (5 hex + 5 base58 + 6 base64 + 3 failure)\n");
+    printf("Total tests: 22 (5 hex + 5 base58 + 6 base64 + 3 failure + 3 perf)\n");
     printf("========================================\n");
     
     return 0;
