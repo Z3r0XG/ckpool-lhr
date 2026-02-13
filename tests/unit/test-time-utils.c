@@ -3,6 +3,9 @@
  * Tests time difference calculations and decay functions
  */
 
+/* config.h must be first to define _GNU_SOURCE before system headers */
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,8 +14,6 @@
 #include <math.h>
 #include <sys/time.h>
 #include <time.h>
-
-#include "config.h"
 #include "../test_common.h"
 #include "libckpool.h"
 

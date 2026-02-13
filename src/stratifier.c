@@ -5791,20 +5791,22 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	 * - Ultra-fast (144+ shares in <15s): 15-second rolling average
 	 * - Fast (72+ shares): 60-second rolling average
 	 * - Normal: 5-minute rolling average for stable tracking */
-	bool ultra_fast_path = false;
+	const char *adjustment_tier;
 	if (client->ssdc >= 144 && tdiff < 15) {
 		/* Ultra-fast path: 15-second EMA with time bias compensation */
 		bias = time_bias(bdiff, 15);
 		dsps = client->dsps15s / bias;
-		ultra_fast_path = true;
+		adjustment_tier = "15s";
 	} else if (client->ssdc >= 72) {
 		/* Fast path: 60-second EMA with time bias compensation */
 		bias = time_bias(bdiff, 60);
 		dsps = client->dsps1 / bias;
+		adjustment_tier = "1m";
 	} else {
 		/* Normal path: 5-minute rolling average */
 		bias = time_bias(bdiff, 300);
 		dsps = client->dsps5 / bias;
+		adjustment_tier = "5m";
 	}
 	drr = dsps / (double)client->diff;
 
@@ -5861,10 +5863,12 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	if (fabs(client->diff - new_diff) < DIFF_EPSILON)
 		return;
 
-	client->ssdc = 0;
-
 	LOGINFO("Client %s biased dsps %.2f dsps %.2f drr %.2f adjust diff from %lf to: %lf ",
 		client->identity, dsps, client->dsps5, drr, client->diff, new_diff);
+	LOGDEBUG("Client %s tier %s ssdc %.0f tdiff %.1fs dsps15s %.2f dsps1 %.2f dsps5 %.2f",
+		client->identity, adjustment_tier, client->ssdc, tdiff, client->dsps15s, client->dsps1, client->dsps5);
+
+	client->ssdc = 0;
 
 	copy_tv(&client->ldc, &now_t);
 	client->diff_change_job_id = next_blockid;

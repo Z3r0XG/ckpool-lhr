@@ -9,13 +9,14 @@
  * Consolidated from: test-encoding.c, test-base58.c, test-base64.c
  */
 
+/* config.h must be first to define _GNU_SOURCE before system headers */
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
-
-#include "config.h"
 #include "../test_common.h"
 #include "libckpool.h"
 #include "sha2.h"

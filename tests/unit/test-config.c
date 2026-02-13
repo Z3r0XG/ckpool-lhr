@@ -4,13 +4,14 @@
  * Critical for preventing config parsing bugs
  */
 
+/* config.h must be first to define _GNU_SOURCE before system headers */
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <jansson.h>
-
-#include "config.h"
 #include "../test_common.h"
 #include "libckpool.h"
 

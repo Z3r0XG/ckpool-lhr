@@ -3,13 +3,14 @@
  * Tests the decision logic: when to clean up zombie clients vs when to send drop messages
  */
 
+/* config.h must be first to define _GNU_SOURCE before system headers */
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
-
-#include "config.h"
 #include "../test_common.h"
 #include "libckpool.h"
 
