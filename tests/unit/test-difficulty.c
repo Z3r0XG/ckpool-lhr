@@ -302,34 +302,57 @@ static void test_difficulty_nbits_overflow(void)
 	double diff;
 	
 	struct {
-		const char *nbits_hex;  /* 8-character hex string (4 bytes) */
+		uchar nbits[4];  /* Binary 4-byte nbits */
 		bool is_valid;
+		double expected_min;  /* Expected minimum difficulty (0 = don't check) */
+		double expected_max;  /* Expected maximum difficulty (0 = don't check) */
 		const char *description;
 	} cases[] = {
-		/* Valid nbits */
-		{ "1d00ffff", true,  "Bitcoin genesis block" },
-		{ "1b0404cb", true,  "Typical mainnet" },
-		{ "207fffff", true,  "Testnet easy" },
+		/* Valid nbits with known values */
+		{ {0x1d, 0x00, 0xff, 0xff}, true,  0.9,  1.1,  "Bitcoin genesis block (diff ~1)" },
+		{ {0x1b, 0x04, 0x04, 0xcb}, true,  16000, 17000, "Typical mainnet (2015)" },
+		{ {0x20, 0x7f, 0xff, 0xff}, true,  0.0,  0.0,  "Testnet easy" },
 		
-		/* Edge cases */
-		{ "00000000", false, "Zero nbits" },
-		{ "01000000", false, "Negative exponent (empty mantissa)" },
-		{ "01ffffff", false, "Negative exponent with mantissa" },
+		/* Invalid - zero nbits */
+		{ {0x00, 0x00, 0x00, 0x00}, false, 0.0,  0.0,  "All-zero nbits (sanitized)" },
+		
+		/* Invalid - shift too small (will be clamped to 3) */
+		{ {0x02, 0x12, 0x34, 0x56}, false, 0.0,  0.0,  "Shift=2 (clamped to 3)" },
+		{ {0x01, 0xff, 0xff, 0xff}, false, 0.0,  0.0,  "Shift=1 (clamped to 3)" },
+		{ {0x00, 0xff, 0xff, 0xff}, false, 0.0,  0.0,  "Shift=0 (clamped to 3)" },
+		
+		/* Invalid - shift too large (will be clamped to 32) */
+		{ {0x21, 0x12, 0x34, 0x56}, false, 0.0,  0.0,  "Shift=33 (clamped to 32)" },
+		{ {0xff, 0x12, 0x34, 0x56}, false, 0.0,  0.0,  "Shift=255 (clamped to 32)" },
+		
+		/* Edge - all-zero mantissa */
+		{ {0x1d, 0x00, 0x00, 0x00}, false, 0.0,  0.0,  "Zero mantissa" },
 	};
 	
 	for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
-		/* diff_from_nbits expects 8-char hex string */
-		diff = diff_from_nbits((char *)cases[i].nbits_hex);
+		/* diff_from_nbits expects binary 4-byte array */
+		diff = diff_from_nbits((char *)cases[i].nbits);
 		
 		if (cases[i].is_valid) {
 			/* Valid nbits should produce sane difficulty */
 			assert_true(diff > 0.0);
 			assert_true(!isnan(diff));
 			assert_true(!isinf(diff));
+			
+			/* Check expected range if provided */
+			if (cases[i].expected_min > 0.0 && cases[i].expected_max > 0.0) {
+				assert_true(diff >= cases[i].expected_min);
+				assert_true(diff <= cases[i].expected_max);
+			}
 		} else {
-			/* Invalid nbits behavior is implementation-dependent */ 
-			/* May return 0, may return garbage, should not crash */
-			assert_true(!isnan(diff) || true);  /* Just don't crash */
+			/* Invalid nbits are sanitized internally by clamping shift to [3,32]
+			 * and treating zero target as 1. Result is always positive, finite. */
+			assert_true(diff > 0.0);
+			assert_true(!isnan(diff));
+			assert_true(!isinf(diff));
+			
+			/* Sanitized values should be within reasonable bounds (not absurd) */
+			assert_true(diff < 1e100);  /* Not astronomically large */
 		}
 	}
 }
