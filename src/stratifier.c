@@ -8553,17 +8553,6 @@ static void *statsupdate(void *arg)
 		fprintf(fp, "%s\n", s);
 		dealloc(s);
 
-		/* Cleanup transient UA map */
-		if (ua_map) {
-			ua_it = NULL;
-			HASH_ITER(hh, ua_map, ua_it, ua_tmp) {
-				HASH_DEL(ua_map, ua_it);
-				free(ua_it->ua);
-				dealloc(ua_it);
-			}
-			ua_map = NULL;
-		}
-
 		JSON_CPACK(val, "{ss,ss,ss,ss,ss,ss,ss}",
 				"hashrate1m", suffix1,
 				"hashrate5m", suffix5,
@@ -8597,6 +8586,17 @@ static void *statsupdate(void *arg)
 		dealloc(s);
 		fclose(fp);
 out_status:
+		/* Cleanup transient UA map */
+		if (ua_map) {
+			ua_it = NULL;
+			HASH_ITER(hh, ua_map, ua_it, ua_tmp) {
+				HASH_DEL(ua_map, ua_it);
+				free(ua_it->ua);
+				dealloc(ua_it);
+			}
+			ua_map = NULL;
+		}
+
 		if (ckp->proxy && sdata->proxy) {
 			proxy_t *proxy, *proxytmp, *subproxy, *subtmp;
 
