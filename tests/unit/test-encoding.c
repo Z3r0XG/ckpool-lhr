@@ -424,42 +424,77 @@ static void test_encoding_buffer_overflow_protection(void)
 {
 	/* Test that hex2bin doesn't write beyond buffer bounds */
 	
+#define GUARD_BYTE 0xCC
+	
 	struct {
 		const char *hex;
 		size_t buf_len;  /* Buffer size in bytes */
-		bool should_fit;
+		bool should_succeed;
+		uchar expected[4];  /* Expected decoded bytes (for success cases) */
 	} cases[] = {
-		/* Fits exactly */
-		{ "00",       1,  true  },
-		{ "0011",     2,  true  },
-		{ "001122",   3,  true  },
+		/* Empty string edge case */
+		{ "",         0,  true,  {0} },
 		
-		/* Doesn't fit */
-		{ "0011",     1,  false },  /* 2 bytes of hex, 1 byte buffer */
-		{ "001122",   2,  false },  /* 3 bytes of hex, 2 byte buffer */
-		{ "00112233", 3,  false },  /* 4 bytes of hex, 3 byte buffer */
+		/* Exact size match (required by _hex2bin) */
+		{ "00",       1,  true,  {0x00} },
+		{ "0011",     2,  true,  {0x00, 0x11} },
+		{ "001122",   3,  true,  {0x00, 0x11, 0x22} },
+		{ "00112233", 4,  true,  {0x00, 0x11, 0x22, 0x33} },
+		
+		/* Buffer too small (should fail) */
+		{ "0011",     1,  false, {0} },  /* 2 bytes hex, 1 byte buffer */
+		{ "001122",   2,  false, {0} },  /* 3 bytes hex, 2 byte buffer */
+		{ "00112233", 3,  false, {0} },  /* 4 bytes hex, 3 byte buffer */
+		
+		/* Buffer too large (should fail - _hex2bin requires exact match) */
+		{ "00",       2,  false, {0} },
+		{ "0011",     3,  false, {0} },
+		
+		/* Odd-length hex strings (should fail - can't decode half a byte) */
+		{ "0",        1,  false, {0} },
+		{ "001",      2,  false, {0} },
+		{ "00112",    3,  false, {0} },
 	};
 	
 	for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
 		size_t hex_len = strlen(cases[i].hex);
 		size_t required_bytes = hex_len / 2;
 		
-		/* Allocate exact buffer size (not more) */
-		uchar *buf = calloc(1, cases[i].buf_len);
-		assert_non_null(buf);
+		/* Allocate buffer with guard bytes before and after */
+		uchar *alloc = malloc(cases[i].buf_len + 2);
+		assert_non_null(alloc);
+		
+		/* Set guard bytes */
+		alloc[0] = GUARD_BYTE;
+		alloc[cases[i].buf_len + 1] = GUARD_BYTE;
+		
+		/* Actual buffer starts at alloc[1] */
+		uchar *buf = &alloc[1];
+		memset(buf, 0, cases[i].buf_len);
 		
 		bool result = _hex2bin(buf, cases[i].hex, cases[i].buf_len, __FILE__, __func__, __LINE__);
 		
-		if (cases[i].should_fit) {
-			/* Should succeed when buffer is large enough */
-			assert_true(result || required_bytes > cases[i].buf_len);
+		if (cases[i].should_succeed) {
+			/* Should succeed */
+			assert_true(result);
+			
+			/* Verify decoded content matches expected */
+			if (required_bytes > 0) {
+				assert_memory_equal(buf, cases[i].expected, required_bytes);
+			}
 		} else {
-			/* Should fail (or at least not overflow) when buffer too small */
-			assert_true(required_bytes > cases[i].buf_len);
+			/* Should fail */
+			assert_false(result);
 		}
 		
-		free(buf);
+		/* Verify guard bytes unchanged (no buffer overrun) */
+		assert_int_equal(alloc[0], GUARD_BYTE);
+		assert_int_equal(alloc[cases[i].buf_len + 1], GUARD_BYTE);
+		
+		free(alloc);
 	}
+	
+#undef GUARD_BYTE
 }
 
 /* Test NULL pointer handling */
