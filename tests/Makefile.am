@@ -21,8 +21,6 @@ check_PROGRAMS = \
 	unit/test-serialization \
 	unit/test-endian \
 	unit/test-time-conversion \
-	unit/test-base58 \
-	unit/test-base64 \
 	unit/test-dropidle \
 	unit/test-vardiff \
 	unit/test-share-params \
@@ -102,14 +100,6 @@ unit_test_endian_SOURCES = \
 # Time conversion tests
 unit_test_time_conversion_SOURCES = \
 	unit/test-time-conversion.c
-
-# Base58 decoding tests
-unit_test_base58_SOURCES = \
-	unit/test-base58.c
-
-# Base64 encoding tests
-unit_test_base64_SOURCES = \
-	unit/test-base64.c
 
 # dropidle feature tests
 unit_test_dropidle_SOURCES = \
