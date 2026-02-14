@@ -7012,21 +7012,19 @@ static void parse_method(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t *clie
 		return;
 	}
 
-	/* Handle mining.extranonce.subscribe - client requesting dynamic extranonce support.
-	 * Respond false as we don't implement mining.set_extranonce push notifications.
-	 * Solo pools don't need this (no backend switching like NiceHash marketplace). */
 	if (cmdmatch(method, "mining.extranonce")) {
-		json_t *json_msg = json_object();
-		json_t *err_array = json_array();
+		json_t *val, *err_array;
 
+		err_array = json_array();
 		json_array_append_new(err_array, json_integer(20));
 		json_array_append_new(err_array, json_string("Not supported."));
 		json_array_append_new(err_array, json_null());
 
-		json_object_set_new_nocheck(json_msg, "result", json_false());
-		json_object_set_new_nocheck(json_msg, "error", err_array);
-		json_object_set(json_msg, "id", id_val);
-		stratum_add_send(sdata, json_msg, client_id, SM_EXTRANONCERESULT);
+		val = json_object();
+		json_object_set_new_nocheck(val, "result", json_false());
+		json_object_set_new_nocheck(val, "error", err_array);
+		json_object_set_nocheck(val, "id", id_val);
+		stratum_add_send(sdata, val, client_id, SM_EXTRANONCERESULT);
 		return;
 	}
 
