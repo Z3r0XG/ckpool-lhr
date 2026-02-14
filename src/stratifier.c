@@ -7021,7 +7021,7 @@ static void parse_method(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t *clie
 		json_array_append_new(err_array, json_null());
 
 		val = json_object();
-		json_object_set_new_nocheck(val, "result", json_false());
+		json_object_set_new_nocheck(val, "result", json_null());
 		json_object_set_new_nocheck(val, "error", err_array);
 		json_object_set_nocheck(val, "id", id_val);
 		stratum_add_send(sdata, val, client_id, SM_EXTRANONCERESULT);
