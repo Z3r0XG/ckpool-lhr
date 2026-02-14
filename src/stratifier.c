@@ -7012,6 +7012,22 @@ static void parse_method(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t *clie
 		return;
 	}
 
+	if (cmdmatch(method, "mining.extranonce.subscribe")) {
+		json_t *val, *err_array;
+
+		err_array = json_array();
+		json_array_append_new(err_array, json_integer(20));
+		json_array_append_new(err_array, json_string("Not supported."));
+		json_array_append_new(err_array, json_null());
+
+		val = json_object();
+		json_object_set_new_nocheck(val, "result", json_null());
+		json_object_set_new_nocheck(val, "error", err_array);
+		json_object_set_nocheck(val, "id", id_val);
+		stratum_add_send(sdata, val, client_id, SM_EXTRANONCERESULT);
+		return;
+	}
+
 	/* Unhandled message here */
 	LOGINFO("Unhandled client %s %s method %s", client->identity, client->address, method);
 	return;
