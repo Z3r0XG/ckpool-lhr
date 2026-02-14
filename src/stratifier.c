@@ -7012,7 +7012,7 @@ static void parse_method(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t *clie
 		return;
 	}
 
-	if (cmdmatch(method, "mining.extranonce")) {
+	if (cmdmatch(method, "mining.extranonce.subscribe")) {
 		json_t *val, *err_array;
 
 		err_array = json_array();

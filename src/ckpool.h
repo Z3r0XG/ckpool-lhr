@@ -329,7 +329,7 @@ static const char __maybe_unused *stratum_msgs[] = {
 	"message",
 	"update",
 	"error",
-	"extranonce.result",
+	"extranonce.subscribe.result",
 	"subscribe",
 	"subscribe.result",
 	"share",
