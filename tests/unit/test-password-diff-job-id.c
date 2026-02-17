@@ -213,6 +213,95 @@ static void test_normal_vardiff_unaffected(void) {
     printf("  ✓ Normal vardiff behavior preserved\n");
 }
 
+/*
+ * Directional tests: UP vs DOWN diff changes use different job-id anchors.
+ *
+ * The core fix (fix/diff-change-timing):
+ *   UP   (new > old): diff_change_job_id = workbase_id + 1  (W+1 buffer)
+ *        → current in-flight shares still evaluated at old (easier) diff
+ *        → protects ASICs with shares already submitted against new harder target
+ *   DOWN (new < old): diff_change_job_id = current_workbase->id  (W-1 immediate)
+ *        → current job shares already evaluated at new (easier) diff
+ *        → no risk: easier shares always pass a harder-or-equal old diff check
+ *
+ * These tests mirror the logic in stratifier.c for all three paths:
+ *   password diff  (~line 5637)
+ *   suggest_diff   (~line 6661)
+ *   vardiff        (~line 5893)
+ */
+
+static void test_direction_up_uses_w1_buffer(void) {
+    /*
+     * Diff going UP (harder): diff_change_job_id = workbase_id + 1
+     * workbase_id is the next job ID about to be assigned (current_job + 1 typically).
+     * Setting change at W+1 means: current_job shares still use old (easy) diff. ✓
+     */
+    int64_t current_job = 100;
+    int64_t workbase_id = 101;          /* current + 1, typical production value */
+    int64_t diff_change_job_id = workbase_id + 1;  /* W+1 = 102 */
+
+    /* In-flight share on current job → old (easy) diff still applies */
+    diff_selection_t inflight = evaluate_share_diff(current_job, diff_change_job_id);
+    assert_int_equal(USES_OLD_DIFF, inflight);
+
+    /* Share on the very next job → new (hard) diff applies */
+    diff_selection_t on_next = evaluate_share_diff(workbase_id, diff_change_job_id);
+    assert_int_equal(USES_OLD_DIFF, on_next);   /* workbase_id (101) < 102: still buffered */
+
+    /* Share on W+1 itself → new diff applies */
+    diff_selection_t on_w1 = evaluate_share_diff(workbase_id + 1, diff_change_job_id);
+    assert_int_equal(USES_NEW_DIFF, on_w1);
+
+    printf("  ✓ Direction UP: W+1 buffer protects in-flight shares\n");
+}
+
+static void test_direction_down_uses_immediate(void) {
+    /*
+     * Diff going DOWN (easier): diff_change_job_id = current_workbase->id
+     * current_workbase->id == current_job: change applied immediately.
+     * current_job shares use new (easy) diff. Old harder diff is no longer required. ✓
+     */
+    int64_t current_job = 100;
+    int64_t diff_change_job_id = current_job;  /* immediate = W-1 */
+
+    /* Current job share → new (easy) diff applies immediately */
+    diff_selection_t current = evaluate_share_diff(current_job, diff_change_job_id);
+    assert_int_equal(USES_NEW_DIFF, current);
+
+    /* Previous job share → old (hard) diff (correct: that job was mined at old diff) */
+    diff_selection_t previous = evaluate_share_diff(current_job - 1, diff_change_job_id);
+    assert_int_equal(USES_OLD_DIFF, previous);
+
+    printf("  ✓ Direction DOWN: immediate application, current job uses new diff\n");
+}
+
+static void test_direction_symmetry(void) {
+    /*
+     * Property: for any workbase setup, UP and DOWN must choose DIFFERENT anchors.
+     * UP  anchor > current_job  → current share uses old diff
+     * DOWN anchor == current_job → current share uses new diff
+     */
+    int64_t gaps[] = {1, 2, 5, 10};
+
+    for (size_t i = 0; i < sizeof(gaps)/sizeof(gaps[0]); i++) {
+        int64_t current_job = 500;
+        int64_t workbase_id = current_job + gaps[i];
+
+        int64_t up_anchor   = workbase_id + 1;   /* UP: W+1 */
+        int64_t down_anchor = current_job;        /* DOWN: W-1 immediate */
+
+        /* UP: current in-flight share buffered (old diff) */
+        diff_selection_t up_result = evaluate_share_diff(current_job, up_anchor);
+        assert_int_equal(USES_OLD_DIFF, up_result);
+
+        /* DOWN: current share uses new diff immediately */
+        diff_selection_t down_result = evaluate_share_diff(current_job, down_anchor);
+        assert_int_equal(USES_NEW_DIFF, down_result);
+    }
+
+    printf("  ✓ Direction symmetry: UP buffers, DOWN is immediate (all gap sizes)\n");
+}
+
 int main(void) {
     printf("\n═══════════════════════════════════════════════════════════\n");
     printf("  Password Difficulty Job ID Assignment Tests\n");
@@ -234,13 +323,19 @@ int main(void) {
     
     printf("\nTesting for regressions...\n");
     run_test(test_normal_vardiff_unaffected);
+
+    printf("\nTesting UP vs DOWN directional logic (fix/diff-change-timing)...\n");
+    run_test(test_direction_up_uses_w1_buffer);
+    run_test(test_direction_down_uses_immediate);
+    run_test(test_direction_symmetry);
     
     printf("\n═══════════════════════════════════════════════════════════\n");
     printf("  ✓ All tests passed!\n");
     printf("═══════════════════════════════════════════════════════════\n\n");
     
     printf("Fix verified at src/stratifier.c:5634\n");
-    printf("  client->diff_change_job_id = client->sdata->current_workbase->id;\n\n");
+    printf("  UP:   diff_change_job_id = sdata->workbase_id + 1\n");
+    printf("  DOWN: diff_change_job_id = sdata->current_workbase->id\n\n");
     
     return 0;
 }

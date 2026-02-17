@@ -1552,6 +1552,74 @@ static void test_idle_return_diff_reset(void)
 }
 
 /*******************************************************************************
+ * SECTION 8: DIFF CHANGE DIRECTION (fix/diff-change-timing)
+ *
+ * The core directional invariant for vardiff job-id anchor selection:
+ *
+ *   UP   (new_diff > client->diff):
+ *        diff_change_job_id = next_blockid  (workbase_id + 1, W+1)
+ *        → in-flight shares on current job still pass against old (easy) diff
+ *        → prevents rejections for ASICs with shares already in the pipeline
+ *
+ *   DOWN (new_diff < client->diff):
+ *        diff_change_job_id = current_blockid  (current_workbase->id, W-1)
+ *        → current job shares immediately evaluated at new (easy) diff
+ *        → no risk: an easy share always satisfies an equal-or-harder old diff
+ *
+ * Mirrors the logic in stratifier.c add_submit() ~line 5893.
+ ******************************************************************************/
+
+/* Share evaluation helper (same logic as stratifier.c line ~6316) */
+static int vardiff_share_uses_new_diff(int64_t share_job_id, int64_t diff_change_job_id) {
+	return (share_job_id >= diff_change_job_id) ? 1 : 0;
+}
+
+static void test_vardiff_direction_up_buffers(void) {
+	/*
+	 * Diff going UP: diff_change_job_id = next_blockid (workbase_id + 1).
+	 *
+	 * Scenario: miner is on current_job=100, new block just issued workbase_id=101.
+	 * Pool sets next_blockid = 102.  Any share with job_id < 102 still uses old diff.
+	 */
+	int64_t current_job  = 100;
+	int64_t workbase_id  = 101;                /* workbase_id = current + 1 */
+	int64_t next_blockid = workbase_id + 1;    /* W+1 = 102 */
+
+	/* In-flight share on current job: must use OLD diff (buffered) */
+	assert_int_equal(0, vardiff_share_uses_new_diff(current_job, next_blockid));
+
+	/* Share on workbase_id itself: still buffered */
+	assert_int_equal(0, vardiff_share_uses_new_diff(workbase_id, next_blockid));
+
+	/* Share on next_blockid (W+1): first to use new diff */
+	assert_int_equal(1, vardiff_share_uses_new_diff(next_blockid, next_blockid));
+
+	printf("  ✓ vardiff UP: W+1 buffer protects in-flight shares\n");
+}
+
+static void test_vardiff_direction_down_immediate(void) {
+	/*
+	 * Diff going DOWN: diff_change_job_id = current_blockid (current_workbase->id).
+	 *
+	 * Scenario: miner on current_job=100. Pool sets anchor = current_job.
+	 * Current and all future shares immediately use new (easy) diff.
+	 */
+	int64_t current_job     = 100;
+	int64_t current_blockid = current_job;     /* W-1 immediate */
+
+	/* Current job share: must use NEW diff immediately */
+	assert_int_equal(1, vardiff_share_uses_new_diff(current_job, current_blockid));
+
+	/* Previous job share: uses old diff (correct — mined under old diff) */
+	assert_int_equal(0, vardiff_share_uses_new_diff(current_job - 1, current_blockid));
+
+	/* Future job shares: also use new diff */
+	assert_int_equal(1, vardiff_share_uses_new_diff(current_job + 1, current_blockid));
+
+	printf("  ✓ vardiff DOWN: immediate application, current job uses new diff\n");
+}
+
+/*******************************************************************************
  * MAIN TEST RUNNER
  ******************************************************************************/
 
@@ -1633,9 +1701,15 @@ int main(void)
 	run_test(test_cpu_miner_stable_at_mindiff);
 	run_test(test_idle_return_diff_reset);
 	
+	/* Section 8: diff_change_job_id direction (fix/diff-change-timing) */
+	printf("\n[SECTION 8: DIFF CHANGE DIRECTION (UP vs DOWN)]\n");
+	printf("Testing vardiff job-id anchor selection\n");
+	run_test(test_vardiff_direction_up_buffers);
+	run_test(test_vardiff_direction_down_immediate);
+
 	printf("\n========================================\n");
 	printf("ALL VARDIFF TESTS PASSED!\n");
-	printf("Total tests: 35 + 3 perf (optional)\n");
+	printf("Total tests: 37 + 3 perf (optional)\n");
 	printf("========================================\n");
 	
 	return 0;

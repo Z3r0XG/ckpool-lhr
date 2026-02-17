@@ -5634,11 +5634,14 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 			client->suggest_diff = sdiff;
 			if (fabs(client->diff - sdiff) < DIFF_EPSILON)
 				goto skip_password_diff;
-			client->diff_change_job_id = client->sdata->current_workbase->id;
+			if (sdiff > client->diff)
+				client->diff_change_job_id = client->sdata->workbase_id + 1;      /* W+1: buffer for UP */
+			else
+				client->diff_change_job_id = client->sdata->current_workbase->id; /* W-1: immediate for DOWN */
 			client->old_diff = client->diff;
 			client->diff = sdiff;
-			LOGINFO("Applied difficulty suggestion %.10f from password for client %s",
-				sdiff, client->identity);
+			LOGINFO("Applied difficulty suggestion %.10f from password for client %s (diff_change_job_id=%ld)",
+				sdiff, client->identity, client->diff_change_job_id);
 			stratum_send_diff(ckp->sdata, client);
 			password_diff_sent = true;
 		}
@@ -5716,7 +5719,7 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	worker_instance_t *worker = client->worker_instance;
 	double tdiff, bdiff, dsps, drr, network_diff, bias, optimal;
 	user_instance_t *user = client->user_instance;
-	int64_t next_blockid;
+	int64_t next_blockid, current_blockid;
 	double mindiff;
 	tv_t now_t;
 
@@ -5739,6 +5742,7 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 
 	ck_rlock(&sdata->workbase_lock);
 	next_blockid = sdata->workbase_id + 1;
+	current_blockid = sdata->current_workbase->id;
 	if (ckp->proxy)
 		network_diff = sdata->current_workbase->diff;
 	else
@@ -5814,7 +5818,10 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	if (drr > 0.15 && drr < 0.4)
 		return;
 
-	/* Client suggest diff overrides worker mindiff */
+	/* Respect miner's hint as a floor: suggest_diff (mining.suggest_difficulty)
+	 * or worker mindiff (password diff=N) both express a lower bound preference.
+	 * The pool only needs to worry about spam (too-low diff = too many shares),
+	 * so we honour the hint going down but let vardiff adjust up freely. */
 	if (client->suggest_diff)
 		mindiff = client->suggest_diff;
 	else
@@ -5860,6 +5867,7 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	}
 
 	double new_diff = normalize_pool_diff(optimal);
+
 	if (fabs(client->diff - new_diff) < DIFF_EPSILON)
 		return;
 
@@ -5871,7 +5879,12 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	client->ssdc = 0;
 
 	copy_tv(&client->ldc, &now_t);
-	client->diff_change_job_id = next_blockid;
+	/* Going UP: buffer one job so in-flight easy shares aren't rejected against the new harder diff.
+	 * Going DOWN: apply immediately so easy shares aren't held to the old harder diff. */
+	if (new_diff > client->diff)
+		client->diff_change_job_id = next_blockid;    /* W: 1-job buffer */
+	else
+		client->diff_change_job_id = current_blockid; /* W-1: immediate */
 	client->old_diff = client->diff;
 	client->diff = new_diff;
 	stratum_send_diff(sdata, client);
@@ -6626,7 +6639,17 @@ static bool apply_suggest_diff(ckpool_t *ckp, stratum_instance_t *client, double
 	if (fabs(client->diff - sdiff) < epsilon)
 		return false;
 
-	client->diff_change_job_id = client->sdata->workbase_id + 1;
+	LOGINFO("Client %s suggest_difficulty: %.10f \u2192 %.10f (job_id=%ld, old_diff saved=%.10f)",
+		client->identity, client->diff, sdiff,
+		sdiff > client->diff ? client->sdata->workbase_id + 1 : client->sdata->current_workbase->id,
+		client->diff);
+
+	/* Going UP: buffer one job so in-flight easy shares aren't rejected against the new harder diff.
+	 * Going DOWN: apply immediately so easy shares aren't held to the old harder diff. */
+	if (sdiff > client->diff)
+		client->diff_change_job_id = client->sdata->workbase_id + 1;      /* W+1: main branch buffer */
+	else
+		client->diff_change_job_id = client->sdata->current_workbase->id; /* W-1: immediate */
 	client->old_diff = client->diff;
 	client->diff = sdiff;
 	return true;
@@ -6706,6 +6729,8 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 	}
 	if (!apply_suggest_diff(ckp, client, sdiff, DIFF_EPSILON))
 		return;
+	LOGINFO("Applied difficulty suggestion %.10f from mining.suggest_difficulty for client %s (diff_change_job_id=%ld)",
+		client->suggest_diff, client->identity, client->diff_change_job_id);
 	stratum_send_diff(ckp->sdata, client);
 }
 
