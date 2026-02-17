@@ -233,12 +233,12 @@ static void test_optimal_diff_normalization(void)
 		double raw;      /* expected raw before normalization */
 		bool expect_normalized;
 	} cases[] = {
-		{ 0.1,   3.33, 0.333, 0.333, false },
-		{ 0.3,   2.4,  0.72,  0.72,  false },
-		{ 1.0,   3.33, 3.0,   3.33,  true  },
-		{ 1.0,   2.4,  2.0,   2.4,   true  },
-		{ 10.0,  3.33, 33.0,  33.3,  true  },
-		{ 22.0,  2.4,  53.0,  52.8,  true  },
+		{ 0.1,   3.33, 0.3,  0.333, true  },  /* 0.333 → 0.3 (1 sig fig) */
+		{ 0.3,   2.4,  0.7,  0.72,  true  },  /* 0.72 → 0.7 (1 sig fig) */
+		{ 1.0,   3.33, 3.0,  3.33,  true  },
+		{ 1.0,   2.4,  2.0,  2.4,   true  },
+		{ 10.0,  3.33, 33.0, 33.3,  true  },
+		{ 22.0,  2.4,  53.0, 52.8,  true  },
 		{ 100.5, 3.33, 335.0, 334.665, true },
 	};
 
@@ -255,16 +255,17 @@ static void test_optimal_diff_normalization(void)
 	}
 }
 
-/* Test that lround truncation remains eliminated for sub-1 paths (preserve fractional) */
+/* Test that lround truncation remains eliminated - sub-1 values round to 1 sig fig, not to 0 */
 static void test_lround_elimination_sub1_only(void)
 {
 	struct {
 		double dsps;
 		double multiplier;
+		double expected_normalized;
 	} cases[] = {
-		{ 0.1, 3.33 },   /* 0.333 would become 0 with lround */
-		{ 0.2, 2.4 },    /* 0.48 would become 0 with lround */
-		{ 0.5, 3.33 },   /* 1.665 would normalize to 2; ensure raw still fractional pre-norm */
+		{ 0.1, 3.33, 0.3 },   /* 0.333 → 0.3 (not 0 with lround) */
+		{ 0.2, 2.4,  0.5 },   /* 0.48 → 0.5 (not 0 with lround) */
+		{ 0.5, 3.33, 2.0 },   /* 1.665 ≥ 1.0 → whole number */
 	};
 
 	int num = sizeof(cases) / sizeof(cases[0]);
@@ -273,13 +274,11 @@ static void test_lround_elimination_sub1_only(void)
 		long old_optimal = lround(raw);
 		double normalized = normalize_pool_diff(raw);
 
-		if (raw < 1.0) {
-			assert_true((double)old_optimal != raw);
-			assert_double_equal(normalized, raw, EPSILON_DIFF);
-		} else {
-			/* >=1 should normalize to a nearby whole number */
-			assert_true(fabs(normalized - raw) <= 1.0);
-		}
+		/* Verify we don't truncate to 0 like lround would */
+		assert_true(normalized > 0.0);
+		
+		/* Verify expected normalized value */
+		assert_double_equal(normalized, cases[i].expected_normalized, EPSILON_DIFF);
 	}
 }
 
