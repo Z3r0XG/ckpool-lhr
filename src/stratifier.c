@@ -5637,7 +5637,7 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 			if (sdiff > client->diff)
 				client->diff_change_job_id = client->sdata->workbase_id + 1;      /* W+1: 1-job buffer */
 			else
-				client->diff_change_job_id = client->sdata->current_workbase->id; /* W-1: immediate */
+				client->diff_change_job_id = client->sdata->current_workbase->id; /* current: immediate */
 			client->old_diff = client->diff;
 			client->diff = sdiff;
 			LOGINFO("Applied difficulty suggestion %.10f from password for client %s (diff_change_job_id=%ld)",
@@ -5884,7 +5884,7 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	if (new_diff > client->diff)
 		client->diff_change_job_id = next_blockid;    /* W+1: 1-job buffer */
 	else
-		client->diff_change_job_id = current_blockid; /* W-1: immediate */
+		client->diff_change_job_id = current_blockid; /* current: immediate */
 	client->old_diff = client->diff;
 	client->diff = new_diff;
 	stratum_send_diff(sdata, client);
@@ -6644,7 +6644,7 @@ static bool apply_suggest_diff(ckpool_t *ckp, stratum_instance_t *client, double
 	if (sdiff > client->diff)
 		client->diff_change_job_id = client->sdata->workbase_id + 1;      /* W+1: 1-job buffer */
 	else
-		client->diff_change_job_id = client->sdata->current_workbase->id; /* W-1: immediate */
+		client->diff_change_job_id = client->sdata->current_workbase->id; /* current: immediate */
 	client->old_diff = client->diff;
 	client->diff = sdiff;
 	LOGINFO("Client %s suggest_difficulty: %.10f \u2192 %.10f (diff_change_job_id=%ld)",
