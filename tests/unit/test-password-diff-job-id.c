@@ -225,9 +225,9 @@ static void test_normal_vardiff_unaffected(void) {
  *        → no risk: easier shares always pass a harder-or-equal old diff check
  *
  * These tests mirror the logic in stratifier.c for all three paths:
- *   password diff  (~line 5637)
- *   suggest_diff   (~line 6661)
- *   vardiff        (~line 5893)
+ *   parse_authorise()  (password diff)
+ *   suggest_diff()     (stratum suggest)
+ *   add_submit()       (vardiff)
  */
 
 static void test_direction_up_uses_w1_buffer(void) {

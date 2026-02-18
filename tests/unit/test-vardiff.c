@@ -1566,10 +1566,10 @@ static void test_idle_return_diff_reset(void)
  *        → current job shares immediately evaluated at new (easy) diff
  *        → no risk: an easy share always satisfies an equal-or-harder old diff
  *
- * Mirrors the logic in stratifier.c add_submit() ~line 5893.
+ * Mirrors the directional diff-change logic in add_submit() in stratifier.c.
  ******************************************************************************/
 
-/* Share evaluation helper (same logic as stratifier.c line ~6316) */
+/* Share evaluation helper: mirrors the id < diff_change_job_id check in add_submit() */
 static int vardiff_share_uses_new_diff(int64_t share_job_id, int64_t diff_change_job_id) {
 	return (share_job_id >= diff_change_job_id) ? 1 : 0;
 }
