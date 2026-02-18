@@ -5635,9 +5635,9 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 			if (fabs(client->diff - sdiff) < DIFF_EPSILON)
 				goto skip_password_diff;
 			if (sdiff > client->diff)
-				client->diff_change_job_id = client->sdata->workbase_id + 1;      /* W+1: buffer for UP */
+				client->diff_change_job_id = client->sdata->workbase_id + 1;      /* W+1: 1-job buffer */
 			else
-				client->diff_change_job_id = client->sdata->current_workbase->id; /* W-1: immediate for DOWN */
+				client->diff_change_job_id = client->sdata->current_workbase->id; /* W-1: immediate */
 			client->old_diff = client->diff;
 			client->diff = sdiff;
 			LOGINFO("Applied difficulty suggestion %.10f from password for client %s (diff_change_job_id=%ld)",
@@ -5882,7 +5882,7 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	/* Going UP: buffer one job so in-flight easy shares aren't rejected against the new harder diff.
 	 * Going DOWN: apply immediately so easy shares aren't held to the old harder diff. */
 	if (new_diff > client->diff)
-		client->diff_change_job_id = next_blockid;    /* W: 1-job buffer */
+		client->diff_change_job_id = next_blockid;    /* W+1: 1-job buffer */
 	else
 		client->diff_change_job_id = current_blockid; /* W-1: immediate */
 	client->old_diff = client->diff;
@@ -6639,19 +6639,16 @@ static bool apply_suggest_diff(ckpool_t *ckp, stratum_instance_t *client, double
 	if (fabs(client->diff - sdiff) < epsilon)
 		return false;
 
-	LOGINFO("Client %s suggest_difficulty: %.10f \u2192 %.10f (job_id=%ld, old_diff saved=%.10f)",
-		client->identity, client->diff, sdiff,
-		sdiff > client->diff ? client->sdata->workbase_id + 1 : client->sdata->current_workbase->id,
-		client->diff);
-
 	/* Going UP: buffer one job so in-flight easy shares aren't rejected against the new harder diff.
 	 * Going DOWN: apply immediately so easy shares aren't held to the old harder diff. */
 	if (sdiff > client->diff)
-		client->diff_change_job_id = client->sdata->workbase_id + 1;      /* W+1: main branch buffer */
+		client->diff_change_job_id = client->sdata->workbase_id + 1;      /* W+1: 1-job buffer */
 	else
 		client->diff_change_job_id = client->sdata->current_workbase->id; /* W-1: immediate */
 	client->old_diff = client->diff;
 	client->diff = sdiff;
+	LOGINFO("Client %s suggest_difficulty: %.10f \u2192 %.10f (diff_change_job_id=%ld)",
+		client->identity, client->old_diff, client->diff, client->diff_change_job_id);
 	return true;
 }
 
