@@ -102,12 +102,6 @@ void *stratifier(void *arg);
 /* UA normalization helper for tests and stats aggregation */
 #include "ua_utils.h"
 
-/* Test helper: apply suggest_diff logic without network side effects */
-bool suggest_diff_apply_for_test(double mindiff, double requested, double current_diff,
-				 double current_suggest, int64_t workbase_id, double epsilon,
-				 double *out_diff, double *out_suggest, int64_t *out_job_id,
-				 double *out_old_diff);
-
 /* Exported for unit testing */
 double time_bias(const double tdiff, const double period);
 

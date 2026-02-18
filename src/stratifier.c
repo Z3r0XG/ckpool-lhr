@@ -6652,36 +6652,6 @@ static bool apply_suggest_diff(ckpool_t *ckp, stratum_instance_t *client, double
 	return true;
 }
 
-/* Lightweight test helper that exercises apply_suggest_diff without sending messages. */
-bool suggest_diff_apply_for_test(double mindiff, double requested, double current_diff,
-				 double current_suggest, int64_t workbase_id, double epsilon,
-				 double *out_diff, double *out_suggest, int64_t *out_job_id,
-				 double *out_old_diff)
-{
-	ckpool_t ckp = {0};
-	struct stratifier_data sdata = {0};
-	stratum_instance_t client = {0};
-
-	ckp.mindiff = mindiff;
-	sdata.workbase_id = workbase_id;
-	client.ckp = &ckp;
-	client.sdata = &sdata;
-	client.diff = current_diff;
-	client.suggest_diff = current_suggest;
-
-	bool changed = apply_suggest_diff(&ckp, &client, requested, epsilon);
-
-	if (out_diff)
-		*out_diff = client.diff;
-	if (out_suggest)
-		*out_suggest = client.suggest_diff;
-	if (out_job_id)
-		*out_job_id = client.diff_change_job_id;
-	if (out_old_diff)
-		*out_old_diff = client.old_diff;
-
-	return changed;
-}
 
 static json_params_t
 *create_json_params(const int64_t client_id, const json_t *method, const json_t *params,
