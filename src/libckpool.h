@@ -220,7 +220,7 @@ void logmsg(int loglevel, const char *fmt, ...);
 		memcpy(tmp42, BUF + OFFSET, CPY); \
 		logmsg(__lvl, "%s", tmp42);\
 		OFFSET += CPY; \
-		LEN -= OFFSET; \
+		LEN -= CPY; \
 	} \
 	free(BUF); \
 } while(0)
