@@ -220,7 +220,7 @@ static void test_normal_vardiff_unaffected(void) {
  *   UP   (new > old): diff_change_job_id = workbase_id + 1  (W+1 buffer)
  *        → current in-flight shares still evaluated at old (easier) diff
  *        → protects ASICs with shares already submitted against new harder target
- *   DOWN (new < old): diff_change_job_id = current_workbase->id  (W-1 immediate)
+ *   DOWN (new < old): diff_change_job_id = current_workbase->id  (current: immediate)
  *        → current job shares already evaluated at new (easier) diff
  *        → no risk: easier shares always pass a harder-or-equal old diff check
  *
@@ -262,7 +262,7 @@ static void test_direction_down_uses_immediate(void) {
      * current_job shares use new (easy) diff. Old harder diff is no longer required. ✓
      */
     int64_t current_job = 100;
-    int64_t diff_change_job_id = current_job;  /* immediate = W-1 */
+    int64_t diff_change_job_id = current_job;  /* current: immediate */
 
     /* Current job share → new (easy) diff applies immediately */
     diff_selection_t current = evaluate_share_diff(current_job, diff_change_job_id);
@@ -288,7 +288,7 @@ static void test_direction_symmetry(void) {
         int64_t workbase_id = current_job + gaps[i];
 
         int64_t up_anchor   = workbase_id + 1;   /* UP: W+1 */
-        int64_t down_anchor = current_job;        /* DOWN: W-1 immediate */
+        int64_t down_anchor = current_job;        /* DOWN: current: immediate */
 
         /* UP: current in-flight share buffered (old diff) */
         diff_selection_t up_result = evaluate_share_diff(current_job, up_anchor);
