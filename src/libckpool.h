@@ -161,7 +161,9 @@ static inline double normalize_pool_diff(const double diff)
 	if (diff >= 1.0)
 		return round(diff);
 
-	/* Round sub-1.0 values to 1 significant figure */
+	/* Defensive guard: log10(0) = -inf, log10(negative) = NaN — both corrupt the
+	 * calculation below. All call sites clamp to ckp->mindiff (≥ 1.0) before calling,
+	 * so this branch is unreachable in practice. */
 	if (diff <= 0.0)
 		return diff;
 
