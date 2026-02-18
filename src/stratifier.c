@@ -5640,8 +5640,8 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 				client->diff_change_job_id = client->sdata->current_workbase->id; /* current: immediate */
 			client->old_diff = client->diff;
 			client->diff = sdiff;
-			LOGINFO("Applied difficulty suggestion %.10f from password for client %s (diff_change_job_id=%ld)",
-				sdiff, client->identity, client->diff_change_job_id);
+			LOGINFO("Client %s diff %.10f \u2192 %.10f from password (diff_change_job_id=%ld)",
+				client->identity, client->old_diff, client->diff, client->diff_change_job_id);
 			stratum_send_diff(ckp->sdata, client);
 			password_diff_sent = true;
 		}
@@ -6647,8 +6647,6 @@ static bool apply_suggest_diff(ckpool_t *ckp, stratum_instance_t *client, double
 		client->diff_change_job_id = client->sdata->current_workbase->id; /* current: immediate */
 	client->old_diff = client->diff;
 	client->diff = sdiff;
-	LOGINFO("Client %s suggest_difficulty: %.10f \u2192 %.10f (diff_change_job_id=%ld)",
-		client->identity, client->old_diff, client->diff, client->diff_change_job_id);
 	return true;
 }
 
@@ -6696,8 +6694,8 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 	}
 	if (!apply_suggest_diff(ckp, client, sdiff, DIFF_EPSILON))
 		return;
-	LOGINFO("Applied difficulty suggestion %.10f from mining.suggest_difficulty for client %s (diff_change_job_id=%ld)",
-		client->suggest_diff, client->identity, client->diff_change_job_id);
+	LOGINFO("Client %s diff %.10f \u2192 %.10f from mining.suggest_difficulty (diff_change_job_id=%ld)",
+		client->identity, client->old_diff, client->diff, client->diff_change_job_id);
 	stratum_send_diff(ckp->sdata, client);
 }
 
