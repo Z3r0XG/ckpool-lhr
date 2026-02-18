@@ -1562,7 +1562,7 @@ static void test_idle_return_diff_reset(void)
  *        → prevents rejections for ASICs with shares already in the pipeline
  *
  *   DOWN (new_diff < client->diff):
- *        diff_change_job_id = current_blockid  (current_workbase->id, W-1)
+ *        diff_change_job_id = current_blockid  (current_workbase->id, current: immediate)
  *        → current job shares immediately evaluated at new (easy) diff
  *        → no risk: an easy share always satisfies an equal-or-harder old diff
  *
@@ -1605,7 +1605,7 @@ static void test_vardiff_direction_down_immediate(void) {
 	 * Current and all future shares immediately use new (easy) diff.
 	 */
 	int64_t current_job     = 100;
-	int64_t current_blockid = current_job;     /* W-1 immediate */
+	int64_t current_blockid = current_job;     /* current: immediate */
 
 	/* Current job share: must use NEW diff immediately */
 	assert_int_equal(1, vardiff_share_uses_new_diff(current_job, current_blockid));
