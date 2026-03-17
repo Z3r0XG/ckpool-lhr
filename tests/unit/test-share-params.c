@@ -134,6 +134,72 @@ static void test_workername_validation(void)
     assert_true(!memcmp(workername, "_", 1));
 }
 
+/* Test that share_codes[] maps each share_err to a valid Stratum error code.
+ * Stratum protocol defines: 20=Other, 21=Job not found/Stale,
+ * 22=Duplicate, 23=Low difficulty, 24=Unauthorized, 25=Not subscribed. */
+static void test_share_error_codes(void)
+{
+    /* Verify array lengths match — same index scheme: (enum + 9) */
+    const int nerrs = sizeof(share_errs) / sizeof(share_errs[0]);
+    const int ncodes = sizeof(share_codes) / sizeof(share_codes[0]);
+    assert_int_equal(nerrs, ncodes);
+
+    /* Spot-check the codes most relevant to miner UX */
+    assert_int_equal(SHARE_CODE(SE_STALE),           21);
+    assert_int_equal(SHARE_CODE(SE_INVALID_JOBID),   21);
+    assert_int_equal(SHARE_CODE(SE_DUPE),            22);
+    assert_int_equal(SHARE_CODE(SE_HIGH_DIFF),       23);
+    assert_int_equal(SHARE_CODE(SE_NTIME_INVALID),   20);
+    assert_int_equal(SHARE_CODE(SE_WORKER_MISMATCH), 20);
+    assert_int_equal(SHARE_CODE(SE_NO_NONCE),        20);
+    assert_int_equal(SHARE_CODE(SE_NO_JOBID),        20);
+
+    /* SE_NONE maps to 0; all other codes must be recognised Stratum values (20-25) */
+    for (int i = 0; i < ncodes; i++) {
+        int code = share_codes[i];
+        assert_true(code == 0 || (code >= 20 && code <= 25));
+    }
+}
+
+/* Test that json_err_array() builds a compliant Stratum 3-element error array.
+ * Format required by spec: [code (integer), message (string), null]. */
+static void test_json_err_array_format(void)
+{
+    json_t *arr;
+    json_t *elem;
+
+    /* SE_STALE: code=21, message="Stale", third element null */
+    arr = json_err_array(SE_STALE);
+    assert_non_null(arr);
+    assert_int_equal((int)json_array_size(arr), 3);
+
+    elem = json_array_get(arr, 0);
+    assert_true(json_is_integer(elem));
+    assert_int_equal((int)json_integer_value(elem), 21);
+
+    elem = json_array_get(arr, 1);
+    assert_true(json_is_string(elem));
+    assert_non_null(json_string_value(elem));
+    assert_true(strlen(json_string_value(elem)) > 0);
+
+    elem = json_array_get(arr, 2);
+    assert_true(json_is_null(elem));
+    json_decref(arr);
+
+    /* SE_DUPE: code=22 */
+    arr = json_err_array(SE_DUPE);
+    assert_int_equal((int)json_array_size(arr), 3);
+    assert_int_equal((int)json_integer_value(json_array_get(arr, 0)), 22);
+    assert_true(json_is_null(json_array_get(arr, 2)));
+    json_decref(arr);
+
+    /* SE_HIGH_DIFF: code=23 */
+    arr = json_err_array(SE_HIGH_DIFF);
+    assert_int_equal((int)json_array_size(arr), 3);
+    assert_int_equal((int)json_integer_value(json_array_get(arr, 0)), 23);
+    json_decref(arr);
+}
+
 /* Test parameter array size validation */
 static void test_params_array_size(void)
 {
@@ -192,6 +258,8 @@ int main(void)
     test_ntime_validation();
     test_job_id_validation();
     test_workername_validation();
+    test_share_error_codes();
+    test_json_err_array_format();
     test_params_array_size();
 
     if (perf_tests_enabled()) {
