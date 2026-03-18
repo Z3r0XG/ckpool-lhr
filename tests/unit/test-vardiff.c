@@ -94,26 +94,12 @@ static void test_time_bias(void)
 /* Test optimal difficulty calculation logic */
 static void test_optimal_diff_calculation(void)
 {
-    /* Test the core calculation: optimal = lround(dsps * multiplier) */
-    /* With mindiff: multiplier = 2.4, without: multiplier = 3.33 */
+    /* Test the core calculation: optimal = dsps * 3.33 (uniform, regardless of mindiff).
+     * mindiff acts as a floor via MAX(optimal, mindiff), not as a gate or formula selector. */
     
     double dsps;
     int64_t optimal;
     
-    /* With mindiff (multiplier = 2.4) */
-    dsps = 10.0;
-    optimal = lround(dsps * 2.4);
-    assert_int_equal(optimal, 24);
-    
-    dsps = 0.5;
-    optimal = lround(dsps * 2.4);
-    assert_int_equal(optimal, 1);
-    
-    dsps = 100.0;
-    optimal = lround(dsps * 2.4);
-    assert_int_equal(optimal, 240);
-    
-    /* Without mindiff (multiplier = 3.33) */
     dsps = 10.0;
     optimal = lround(dsps * 3.33);
     assert_int_equal(optimal, 33);
@@ -125,6 +111,19 @@ static void test_optimal_diff_calculation(void)
     dsps = 100.0;
     optimal = lround(dsps * 3.33);
     assert_int_equal(optimal, 333);
+    
+    /* Low dsps with mindiff floor: optimal < mindiff, MAX enforces floor */
+    double mindiff = 10.0;
+    dsps = 0.5; /* optimal = 2, below mindiff=10 */
+    optimal = lround(dsps * 3.33);
+    optimal = MAX(optimal, (int64_t)mindiff);
+    assert_int_equal(optimal, 10);
+    
+    /* High dsps with mindiff: optimal > mindiff, floor has no effect */
+    dsps = 50.0; /* optimal = 167 */
+    optimal = lround(dsps * 3.33);
+    optimal = MAX(optimal, (int64_t)mindiff);
+    assert_int_equal(optimal, 167);
 }
 
 /* Test difficulty clamping logic */
