@@ -221,8 +221,9 @@ static void test_normal_vardiff_unaffected(void) {
  *        → current in-flight shares still evaluated at old (easier) diff
  *        → protects ASICs with shares already submitted against new harder target
  *   DOWN (new < old): diff_change_job_id = current_workbase->id  (current: immediate)
- *        → current job shares already evaluated at new (easier) diff
- *        → no risk: easier shares always pass a harder-or-equal old diff check
+ *        → if miner adjusts immediately: easier shares accepted at new (lower) diff
+ *        → if miner waits: old higher-diff shares trivially pass the new easier check
+ *        → either way: no rejection
  *
  * These tests mirror the logic in stratifier.c for all three paths:
  *   parse_authorise()  (password diff)

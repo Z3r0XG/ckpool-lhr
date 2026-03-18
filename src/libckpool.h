@@ -161,13 +161,13 @@ static inline double normalize_pool_diff(const double diff)
 	if (diff >= 1.0)
 		return round(diff);
 
-	/* Defensive guard: log10(0) = -inf, log10(negative) = NaN — both corrupt the
-	 * calculation below. All call sites clamp to ckp->mindiff (≥ 1.0) before calling,
-	 * so this branch is unreachable in practice. */
+	/* Defensive guard: log10(0) = -inf, log10(negative) = NaN - both corrupt the
+	 * calculation below. Sub-1.0 values are valid and handled by the rounding path
+	 * above; only zero/negative are pathological. */
 	if (diff <= 0.0)
 		return diff;
 
-	/* Calculate order of magnitude: e.g., 0.0037 → 0.001, 0.5 → 0.1 */
+	/* Calculate order of magnitude: e.g., 0.0037 => 0.001, 0.5 => 0.1 */
 	double magnitude = pow(10.0, floor(log10(diff)));
 
 	/* Round to 1 significant figure */

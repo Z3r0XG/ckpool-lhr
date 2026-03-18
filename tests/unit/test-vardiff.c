@@ -1563,8 +1563,9 @@ static void test_idle_return_diff_reset(void)
  *
  *   DOWN (new_diff < client->diff):
  *        diff_change_job_id = current_blockid  (current_workbase->id, current: immediate)
- *        → current job shares immediately evaluated at new (easy) diff
- *        → no risk: an easy share always satisfies an equal-or-harder old diff
+ *        → if miner adjusts immediately: easier shares accepted at new (lower) diff
+ *        → if miner waits: old higher-diff shares trivially pass the new easier check
+ *        → either way: no rejection
  *
  * Mirrors the directional diff-change logic in add_submit() in stratifier.c.
  ******************************************************************************/
