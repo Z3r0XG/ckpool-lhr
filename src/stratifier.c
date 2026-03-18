@@ -5640,7 +5640,7 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 				client->diff_change_job_id = client->sdata->current_workbase->id; /* current: immediate */
 			client->old_diff = client->diff;
 			client->diff = sdiff;
-			LOGINFO("Client %s diff %.10f \u2192 %.10f from password (diff_change_job_id=%ld)",
+			LOGINFO("Client %s diff %.10f -> %.10f from password (diff_change_job_id=%" PRId64 ")",
 				client->identity, client->old_diff, client->diff, client->diff_change_job_id);
 			stratum_send_diff(ckp->sdata, client);
 			password_diff_sent = true;
@@ -6694,7 +6694,7 @@ static void suggest_diff(ckpool_t *ckp, stratum_instance_t *client, const char *
 	}
 	if (!apply_suggest_diff(ckp, client, sdiff, DIFF_EPSILON))
 		return;
-	LOGINFO("Client %s diff %.10f \u2192 %.10f from mining.suggest_difficulty (diff_change_job_id=%ld)",
+	LOGINFO("Client %s diff %.10f -> %.10f from mining.suggest_difficulty (diff_change_job_id=%" PRId64 ")",
 		client->identity, client->old_diff, client->diff, client->diff_change_job_id);
 	stratum_send_diff(ckp->sdata, client);
 }
