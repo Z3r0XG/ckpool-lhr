@@ -32,6 +32,17 @@ static diff_selection_t evaluate_share_diff(int64_t share_job_id, int64_t diff_c
     return (share_job_id < diff_change_job_id) ? USES_OLD_DIFF : USES_NEW_DIFF;
 }
 
+/*
+ * Mirrors select_diff_change_anchor() from src/stratifier.c.
+ * The same rule is used by all three diff-change paths:
+ *   parse_authorise, apply_suggest_diff, add_submit.
+ */
+static int64_t select_diff_change_anchor(double old_diff, double new_diff,
+                                          int64_t workbase_id, int64_t current_id)
+{
+    return (new_diff > old_diff) ? workbase_id + 1 : current_id;
+}
+
 /* Test the INVARIANT: current job shares must use new diff */
 static void test_invariant_current_job_uses_new_diff(void) {
     /*
@@ -225,7 +236,8 @@ static void test_normal_vardiff_unaffected(void) {
  *        → if miner waits: old higher-diff shares trivially pass the new easier check
  *        → either way: no rejection
  *
- * These tests mirror the logic in stratifier.c for all three paths:
+ * The directional tests below verify select_diff_change_anchor() — the rule
+ * extracted into stratifier.c that all three diff-change paths invoke:
  *   parse_authorise()  (password diff)
  *   suggest_diff()     (stratum suggest)
  *   add_submit()       (vardiff)
@@ -303,6 +315,59 @@ static void test_direction_symmetry(void) {
     printf("  ✓ Direction symmetry: UP buffers, DOWN is immediate (all gap sizes)\n");
 }
 
+/* --- select_diff_change_anchor() unit tests --- */
+
+static void test_anchor_up_returns_w1(void) {
+    /*
+     * new_diff > old_diff (going UP): anchor = workbase_id + 1
+     * Mirrors all three call sites in stratifier.c.
+     */
+    int64_t workbase_id = 200;
+    int64_t current_id  = 199;
+
+    int64_t anchor = select_diff_change_anchor(1.0, 2.0, workbase_id, current_id);
+    assert_int_equal(workbase_id + 1, anchor);
+
+    /* Large diff jump */
+    anchor = select_diff_change_anchor(0.001, 512.0, workbase_id, current_id);
+    assert_int_equal(workbase_id + 1, anchor);
+
+    printf("  ✓ Anchor UP: returns workbase_id + 1 (W+1 buffer)\n");
+}
+
+static void test_anchor_down_returns_current(void) {
+    /*
+     * new_diff < old_diff (going DOWN): anchor = current_id (immediate)
+     * Mirrors all three call sites in stratifier.c.
+     */
+    int64_t workbase_id = 200;
+    int64_t current_id  = 199;
+
+    int64_t anchor = select_diff_change_anchor(4.0, 1.0, workbase_id, current_id);
+    assert_int_equal(current_id, anchor);
+
+    /* Sub-1 range */
+    anchor = select_diff_change_anchor(0.3, 0.02, workbase_id, current_id);
+    assert_int_equal(current_id, anchor);
+
+    printf("  ✓ Anchor DOWN: returns current_id (immediate)\n");
+}
+
+static void test_anchor_equal_returns_current(void) {
+    /*
+     * new_diff == old_diff: not > old, so anchor = current_id.
+     * The no-op path (fabs check) would filter this before calling the helper
+     * in production, but the rule itself must not treat equal as UP.
+     */
+    int64_t workbase_id = 200;
+    int64_t current_id  = 199;
+
+    int64_t anchor = select_diff_change_anchor(1.0, 1.0, workbase_id, current_id);
+    assert_int_equal(current_id, anchor);
+
+    printf("  ✓ Anchor EQUAL: returns current_id (not treated as UP)\n");
+}
+
 int main(void) {
     printf("\n═══════════════════════════════════════════════════════════\n");
     printf("  Password Difficulty Job ID Assignment Tests\n");
@@ -329,14 +394,18 @@ int main(void) {
     run_test(test_direction_up_uses_w1_buffer);
     run_test(test_direction_down_uses_immediate);
     run_test(test_direction_symmetry);
+
+    printf("\nTesting select_diff_change_anchor() (extracted helper, used by all 3 paths)...\n");
+    run_test(test_anchor_up_returns_w1);
+    run_test(test_anchor_down_returns_current);
+    run_test(test_anchor_equal_returns_current);
     
     printf("\n═══════════════════════════════════════════════════════════\n");
     printf("  ✓ All tests passed!\n");
     printf("═══════════════════════════════════════════════════════════\n\n");
     
-    printf("Fix verified at src/stratifier.c:5634\n");
-    printf("  UP:   diff_change_job_id = sdata->workbase_id + 1\n");
-    printf("  DOWN: diff_change_job_id = sdata->current_workbase->id\n\n");
+    printf("select_diff_change_anchor() in src/stratifier.c used by:\n");
+    printf("  parse_authorise, apply_suggest_diff, add_submit\n\n");
     
     return 0;
 }

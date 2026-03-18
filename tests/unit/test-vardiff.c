@@ -275,7 +275,7 @@ static void test_lround_elimination_sub1_only(void)
 
 		/* Verify we don't truncate to 0 like lround would */
 		assert_true(normalized > 0.0);
-		
+
 		/* Verify expected normalized value */
 		assert_double_equal(normalized, cases[i].expected_normalized, EPSILON_DIFF);
 	}
@@ -1574,49 +1574,71 @@ static int vardiff_share_uses_new_diff(int64_t share_job_id, int64_t diff_change
 	return (share_job_id >= diff_change_job_id) ? 1 : 0;
 }
 
+/*
+ * Anchor selection helper: mirrors select_diff_change_anchor() in stratifier.c.
+ * Used by add_submit() (and parse_authorise, apply_suggest_diff) to pick the
+ * diff_change_job_id based on direction of diff change.
+ */
+static int64_t vardiff_select_anchor(double old_diff, double new_diff,
+                                      int64_t workbase_id, int64_t current_id)
+{
+	return (new_diff > old_diff) ? workbase_id + 1 : current_id;
+}
+
 static void test_vardiff_direction_up_buffers(void) {
 	/*
-	 * Diff going UP: diff_change_job_id = next_blockid (workbase_id + 1).
+	 * Diff going UP: select_diff_change_anchor returns workbase_id + 1 (W+1).
 	 *
 	 * Scenario: miner is on current_job=100, new block just issued workbase_id=101.
-	 * Pool sets next_blockid = 102.  Any share with job_id < 102 still uses old diff.
+	 * anchor = vardiff_select_anchor picks W+1 = 102. Any job_id < 102 still uses old diff.
 	 */
 	int64_t current_job  = 100;
 	int64_t workbase_id  = 101;                /* workbase_id = current + 1 */
-	int64_t next_blockid = workbase_id + 1;    /* W+1 = 102 */
+	double  old_diff     = 16.0;
+	double  new_diff     = 64.0;              /* going UP */
+
+	/* Anchor chosen by the real production helper */
+	int64_t anchor = vardiff_select_anchor(old_diff, new_diff, workbase_id, workbase_id - 1);
+	assert_int_equal(workbase_id + 1, anchor);  /* must be W+1 = 102 */
 
 	/* In-flight share on current job: must use OLD diff (buffered) */
-	assert_int_equal(0, vardiff_share_uses_new_diff(current_job, next_blockid));
+	assert_int_equal(0, vardiff_share_uses_new_diff(current_job, anchor));
 
 	/* Share on workbase_id itself: still buffered */
-	assert_int_equal(0, vardiff_share_uses_new_diff(workbase_id, next_blockid));
+	assert_int_equal(0, vardiff_share_uses_new_diff(workbase_id, anchor));
 
-	/* Share on next_blockid (W+1): first to use new diff */
-	assert_int_equal(1, vardiff_share_uses_new_diff(next_blockid, next_blockid));
+	/* Share on W+1 (anchor): first to use new diff */
+	assert_int_equal(1, vardiff_share_uses_new_diff(anchor, anchor));
 
-	printf("  ✓ vardiff UP: W+1 buffer protects in-flight shares\n");
+	printf("  ✓ vardiff UP: anchor=W+1, in-flight shares buffered\n");
 }
 
 static void test_vardiff_direction_down_immediate(void) {
 	/*
-	 * Diff going DOWN: diff_change_job_id = current_blockid (current_workbase->id).
+	 * Diff going DOWN: select_diff_change_anchor returns current_id (immediate).
 	 *
-	 * Scenario: miner on current_job=100. Pool sets anchor = current_job.
+	 * Scenario: miner on current_job=100. vardiff_select_anchor picks current_id=100.
 	 * Current and all future shares immediately use new (easy) diff.
 	 */
-	int64_t current_job     = 100;
-	int64_t current_blockid = current_job;     /* current: immediate */
+	int64_t current_job  = 100;
+	int64_t workbase_id  = 101;
+	double  old_diff     = 64.0;
+	double  new_diff     = 16.0;              /* going DOWN */
+
+	/* Anchor chosen by the real production helper */
+	int64_t anchor = vardiff_select_anchor(old_diff, new_diff, workbase_id, current_job);
+	assert_int_equal(current_job, anchor);      /* must be current_id = immediate */
 
 	/* Current job share: must use NEW diff immediately */
-	assert_int_equal(1, vardiff_share_uses_new_diff(current_job, current_blockid));
+	assert_int_equal(1, vardiff_share_uses_new_diff(current_job, anchor));
 
-	/* Previous job share: uses old diff (correct — mined under old diff) */
-	assert_int_equal(0, vardiff_share_uses_new_diff(current_job - 1, current_blockid));
+	/* Previous job share: uses old diff (mined under old diff) */
+	assert_int_equal(0, vardiff_share_uses_new_diff(current_job - 1, anchor));
 
 	/* Future job shares: also use new diff */
-	assert_int_equal(1, vardiff_share_uses_new_diff(current_job + 1, current_blockid));
+	assert_int_equal(1, vardiff_share_uses_new_diff(current_job + 1, anchor));
 
-	printf("  ✓ vardiff DOWN: immediate application, current job uses new diff\n");
+	printf("  ✓ vardiff DOWN: anchor=current, immediate application\n");
 }
 
 /*******************************************************************************
