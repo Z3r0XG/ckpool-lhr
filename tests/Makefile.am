@@ -36,7 +36,8 @@ check_PROGRAMS = \
 	unit/test-worker-ua-recalc \
 	unit/test-persistent-ua-tracking \
 	unit/test-zombie-cleanup \
-	unit/test-auth-rejection
+	unit/test-auth-rejection \
+	unit/test-logmsg
 
 TESTS = $(check_PROGRAMS)
 
@@ -160,6 +161,10 @@ unit_test_persistent_ua_tracking_SOURCES = \
 # Zombie cleanup logic tests
 unit_test_zombie_cleanup_SOURCES = \
 	unit/test-zombie-cleanup.c
+
+# LOGMSGSIZ chunking / log truncation fix tests
+unit_test_logmsg_SOURCES = \
+	unit/test-logmsg.c
 
 # All tests depend on libckpool
 $(check_PROGRAMS): $(top_builddir)/src/libckpool.a
