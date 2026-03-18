@@ -5820,19 +5820,12 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 
 	/* Respect miner's hint as a floor: suggest_diff (mining.suggest_difficulty)
 	 * or worker mindiff (password diff=N) both express a lower bound preference.
-	 * The pool only needs to worry about spam (too-low diff = too many shares),
-	 * so we honour the hint going down but let vardiff adjust up freely. */
+	 * The floor is enforced below via MAX(optimal, mindiff); vardiff adjusts up freely. */
 	if (client->suggest_diff)
 		mindiff = client->suggest_diff;
 	else
 		mindiff = worker->mindiff;
-	/* Allow slightly lower diffs when users choose their own mindiff */
-	if (mindiff) {
-		if (drr < 0.5)
-			return;
-		optimal = dsps * 2.4;
-	} else
-		optimal = dsps * 3.33;
+	optimal = dsps * 3.33;
 
 	/* Clamp to mindiff ~ network_diff */
 
