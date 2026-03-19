@@ -61,18 +61,22 @@ Building ckpool-lhr requires basic build tools and yasm on any Linux installatio
 ### Building with ZMQ (recommended)
 
 ```bash
-sudo apt-get install build-essential yasm libzmq3-dev
+sudo apt-get install build-essential yasm libzmq3-dev libcmocka-dev
 ./configure
 make
 ```
+
+> `libcmocka-dev` is only required for `make check` (unit tests). Omit it if you don't intend to run the test suite.
 
 ### Basic build (without ZMQ)
 
 ```bash
-sudo apt-get install build-essential yasm
+sudo apt-get install build-essential yasm libcmocka-dev
 ./configure
 make
 ```
+
+> `libcmocka-dev` is only required for `make check` (unit tests). Omit it if you don't intend to run the test suite.
 
 ### Building from git
 
@@ -81,7 +85,7 @@ Requires additional autotools:
 ```bash
 git clone https://github.com/Z3r0XG/ckpool-lhr.git
 cd ckpool-lhr
-sudo apt-get install build-essential yasm autoconf automake libtool libzmq3-dev pkgconf
+sudo apt-get install build-essential yasm autoconf automake libtool libzmq3-dev pkgconf libcmocka-dev
 ./autogen.sh
 ./configure
 make
