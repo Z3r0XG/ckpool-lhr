@@ -5884,10 +5884,13 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	client->ssdc = 0;
 
 	copy_tv(&client->ldc, &now_t);
-	/* Pass next_blockid (W+1) so UP changes anchor at W+2, giving miners one extra job
-	 * to flush in-flight work hashed at the old easier diff before the new harder diff
-	 * takes effect. Pool-initiated changes need this buffer; miner-initiated changes
-	 * (password/suggest_difficulty) do not because the miner already knows its new diff. */
+	/* Pass next_blockid (W+1) so UP changes anchor at W+2, giving miners two jobs
+	 * to flush in-flight work at the old easier diff. Pool-initiated vardiff changes
+	 * need this extra buffer because the miner has no advance notice. By contrast:
+	 *   - password diff (parse_authorise): applied at auth before mining starts, so
+	 *     no in-flight shares exist; any buffer is harmless but unnecessary (W+1).
+	 *   - mining.suggest_difficulty (apply_suggest_diff): miner-requested mid-session,
+	 *     so W+1 buffer (via workbase_id) covers shares in-flight at the old diff. */
 	client->diff_change_job_id = select_diff_change_anchor(client->diff, new_diff,
 		next_blockid, current_blockid);
 	client->old_diff = client->diff;

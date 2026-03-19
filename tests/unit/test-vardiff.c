@@ -1555,18 +1555,20 @@ static void test_idle_return_diff_reset(void)
  *
  * The core directional invariant for vardiff job-id anchor selection:
  *
- *   UP   (new_diff > client->diff):
- *        diff_change_job_id = next_blockid  (workbase_id + 1, W+1)
- *        → in-flight shares on current job still pass against old (easy) diff
- *        → prevents rejections for ASICs with shares already in the pipeline
+ *   UP   (new_diff > old_diff):
+ *        returns workbase_id_arg + 1
+ *        → shares for job_id < anchor still use old (easy) diff
+ *        → in-flight shares on the current job are buffered against rejection
  *
- *   DOWN (new_diff < client->diff):
- *        diff_change_job_id = current_blockid  (current_workbase->id, current: immediate)
- *        → if miner adjusts immediately: easier shares accepted at new (lower) diff
- *        → if miner waits: old higher-diff shares trivially pass the new easier check
- *        → either way: no rejection
+ *   DOWN (new_diff < old_diff):
+ *        returns current_id_arg  (immediate)
+ *        → shares immediately accepted at new (lower) diff
+ *        → old higher-diff shares trivially pass the easier check anyway
  *
- * Mirrors the directional diff-change logic in add_submit() in stratifier.c.
+ * Note: add_submit() passes next_blockid (sdata->workbase_id+1) as the workbase_id
+ * arg, giving UP changes a W+2 anchor (two-job buffer; miner has no advance notice).
+ * parse_authorise() and apply_suggest_diff() pass workbase_id directly -> W+1 anchor.
+ * Tests below verify the abstract helper property in isolation.
  ******************************************************************************/
 
 /* Share evaluation helper: mirrors the id < diff_change_job_id check in add_submit() */
@@ -1575,9 +1577,9 @@ static int vardiff_share_uses_new_diff(int64_t share_job_id, int64_t diff_change
 }
 
 /*
- * Anchor selection helper: mirrors select_diff_change_anchor() in stratifier.c.
- * Used by add_submit() (and parse_authorise, apply_suggest_diff) to pick the
- * diff_change_job_id based on direction of diff change.
+ * Anchor selection helper: local reimplementation of select_diff_change_anchor()
+ * from stratifier.c for unit-testing the abstract directional property in isolation,
+ * without pulling in production dependencies.
  */
 static int64_t vardiff_select_anchor(double old_diff, double new_diff,
                                       int64_t workbase_id, int64_t current_id)
@@ -1597,9 +1599,9 @@ static void test_vardiff_direction_up_buffers(void) {
 	double  old_diff     = 16.0;
 	double  new_diff     = 64.0;              /* going UP */
 
-	/* Anchor chosen by the real production helper */
+	/* Anchor chosen by the local helper (mirrors select_diff_change_anchor logic) */
 	int64_t anchor = vardiff_select_anchor(old_diff, new_diff, workbase_id, workbase_id - 1);
-	assert_int_equal(workbase_id + 1, anchor);  /* must be W+1 = 102 */
+	assert_int_equal(workbase_id + 1, anchor);  /* workbase_id_arg + 1 = 102 */
 
 	/* In-flight share on current job: must use OLD diff (buffered) */
 	assert_int_equal(0, vardiff_share_uses_new_diff(current_job, anchor));
@@ -1625,9 +1627,9 @@ static void test_vardiff_direction_down_immediate(void) {
 	double  old_diff     = 64.0;
 	double  new_diff     = 16.0;              /* going DOWN */
 
-	/* Anchor chosen by the real production helper */
+	/* Anchor chosen by the local helper (mirrors select_diff_change_anchor logic) */
 	int64_t anchor = vardiff_select_anchor(old_diff, new_diff, workbase_id, current_job);
-	assert_int_equal(current_job, anchor);      /* must be current_id = immediate */
+	assert_int_equal(current_job, anchor);      /* current_id_arg = immediate */
 
 	/* Current job share: must use NEW diff immediately */
 	assert_int_equal(1, vardiff_share_uses_new_diff(current_job, anchor));

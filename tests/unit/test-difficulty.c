@@ -15,7 +15,7 @@
 #include "libckpool.h"
 #include "sha2.h"
 
-/* Test normalize_pool_diff helper (whole numbers for >=1, unchanged below) */
+/* Test normalize_pool_diff helper (whole numbers for >=1, 1 sig fig for <1) */
 static void test_normalize_pool_diff(void)
 {
     struct {

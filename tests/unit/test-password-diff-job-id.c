@@ -1,11 +1,20 @@
 /*
  * Test password difficulty job ID assignment
- * 
- * Tests the critical invariant: When password diff is applied during mining.authorize,
- * shares submitted for the CURRENT job must use the new difficulty, not old_diff.
- * 
- * This tests the fix for the bug at stratifier.c line 5634 where shares were
- * incorrectly evaluated at old_diff instead of the requested password difficulty.
+ *
+ * Tests the directional anchor invariants introduced by select_diff_change_anchor():
+ *
+ *   DOWN (new_diff < old_diff): diff_change_job_id = current_workbase->id
+ *     → current-job shares use new (easier) diff immediately.
+ *     → This is the relevant path for password diff at auth: miner hasn't sent
+ *       any shares yet, so "immediate" is correct and safe.
+ *
+ *   UP (new_diff > old_diff): diff_change_job_id = workbase_id + 1 (W+1 buffer)
+ *     → current in-flight shares still evaluate at old (easier) diff.
+ *     → Protects against rejections when diff increases mid-session.
+ *
+ * Also tests the original bug: before select_diff_change_anchor() was introduced,
+ * parse_authorise used workbase_id+1 unconditionally (always UP-style), causing
+ * password-DOWN shares on the current job to be incorrectly evaluated at old_diff.
  */
 
 #include <stdio.h>
@@ -33,9 +42,12 @@ static diff_selection_t evaluate_share_diff(int64_t share_job_id, int64_t diff_c
 }
 
 /*
- * Mirrors select_diff_change_anchor() from src/stratifier.c.
- * The same rule is used by all three diff-change paths:
- *   parse_authorise, apply_suggest_diff, add_submit.
+ * Local reimplementation of select_diff_change_anchor() from src/stratifier.c
+ * for unit-testing the directional anchor logic in isolation.
+ *
+ * Note: add_submit() passes next_blockid (sdata->workbase_id+1) as the workbase_id
+ * arg, giving UP changes a W+2 effective anchor (two-job buffer; pool-initiated).
+ * parse_authorise() and apply_suggest_diff() pass workbase_id directly → W+1.
  */
 static int64_t select_diff_change_anchor(double old_diff, double new_diff,
                                           int64_t workbase_id, int64_t current_id)
@@ -43,14 +55,15 @@ static int64_t select_diff_change_anchor(double old_diff, double new_diff,
     return (new_diff > old_diff) ? workbase_id + 1 : current_id;
 }
 
-/* Test the INVARIANT: current job shares must use new diff */
+/* Test the DOWN-direction invariant: current-job shares use new diff immediately */
 static void test_invariant_current_job_uses_new_diff(void) {
     /*
-     * INVARIANT: When password diff is set, shares for the current mining job
-     * must be evaluated at the NEW difficulty (client->diff), not old_diff.
-     * 
-     * The fix ensures: diff_change_job_id = current_workbase->id
+     * DOWN-direction invariant (new_diff < old_diff):
+     * diff_change_job_id = current_workbase->id (immediate)
      * So: (current_job_id < current_job_id) = FALSE → uses new diff ✓
+     *
+     * This is the path taken by password diff at auth time — the miner has
+     * not yet submitted any shares, so immediate application is correct.
      */
     
     int64_t current_job = 100;
@@ -62,22 +75,26 @@ static void test_invariant_current_job_uses_new_diff(void) {
     printf("  ✓ INVARIANT: Current job shares use new diff\n");
 }
 
-/* Test that the BUG violated the invariant */
+/* Test that the pre-refactor code violated the DOWN-direction invariant */
 static void test_bug_violated_invariant(void) {
     /*
-     * BUG: diff_change_job_id = workbase_id + 1
+     * Pre-refactor bug (password DOWN path): diff_change_job_id = workbase_id + 1
      * In production: workbase_id = current_job + 1 (next job to be assigned)
-     * This caused: (current_job_id < workbase_id + 1) = TRUE → uses old_diff ✗
+     * Result: (current_job_id < workbase_id + 1) = TRUE → uses old_diff ✗
+     *
+     * Note: workbase_id+1 is the correct anchor for UP direction (W+1 buffer),
+     * but was wrong when unconditionally applied to a DOWN password-diff change.
+     * select_diff_change_anchor() now selects the anchor based on direction.
      */
-    
+
     int64_t current_job = 100;
     int64_t workbase_id = current_job + 1;
-    int64_t diff_change_job_id_buggy = workbase_id + 1;  // 102
-    
+    int64_t diff_change_job_id_buggy = workbase_id + 1;  /* 102: UP-style anchor */
+
     diff_selection_t result = evaluate_share_diff(current_job, diff_change_job_id_buggy);
     assert_int_equal(USES_OLD_DIFF, result);
-    
-    printf("  ✓ Bug correctly fails invariant (uses old_diff)\n");
+
+    printf("  ✓ Pre-refactor anchor (W+1 for DOWN) correctly shows old_diff used\n");
 }
 
 /* Test boundary: job_id == diff_change_job_id */
