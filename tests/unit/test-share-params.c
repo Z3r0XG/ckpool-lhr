@@ -139,7 +139,7 @@ static void test_workername_validation(void)
  * 22=Duplicate, 23=Low difficulty, 24=Unauthorized, 25=Not subscribed. */
 static void test_share_error_codes(void)
 {
-    /* Verify array lengths match — same index scheme: (enum + 9) */
+    /* Verify array lengths match; same index scheme: (enum + 9) */
     const int nerrs = sizeof(share_errs) / sizeof(share_errs[0]);
     const int ncodes = sizeof(share_codes) / sizeof(share_codes[0]);
     assert_int_equal(nerrs, ncodes);

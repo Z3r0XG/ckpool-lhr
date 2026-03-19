@@ -5646,12 +5646,18 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 		if (pass_diff > 0) {
 			double sdiff = pass_diff;
 
-			/* Respect mindiff - clamp to pool minimum */
-			if (sdiff < ckp->mindiff)
-				sdiff = ckp->mindiff;
-			/* Respect maxdiff - clamp to pool maximum */
-			if (ckp->maxdiff && sdiff > ckp->maxdiff)
-				sdiff = ckp->maxdiff;
+			/* Clamp to effective normalized bounds before normalize_pool_diff().
+			 * Raw mindiff/maxdiff may not be normalized, so compare against the
+			 * ceil/floor normalized value directly: any sdiff within the safe
+			 * range is already <= eff_maxdiff, so normalize() is idempotent. */
+			double eff_mindiff = normalize_pool_diff_ceil(ckp->mindiff);
+			if (sdiff < eff_mindiff)
+				sdiff = eff_mindiff;
+			if (ckp->maxdiff) {
+				double eff_maxdiff = normalize_pool_diff_floor(ckp->maxdiff);
+				if (sdiff > eff_maxdiff)
+					sdiff = eff_maxdiff;
+			}
 			sdiff = normalize_pool_diff(sdiff);
 
 			/* Mark password diff as set immediately - blocks all stratum suggests in this session */
@@ -5860,15 +5866,15 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 
 	/* Clamp to mindiff ~ network_diff */
 
-	/* Set to higher of pool mindiff and optimal */
-	optimal = MAX(optimal, ckp->mindiff);
+	/* Clamp to effective normalized bounds: compare against ceil/floor of config
+	 * values so normalize_pool_diff() cannot push the result outside operator limits. */
+	optimal = MAX(optimal, normalize_pool_diff_ceil(ckp->mindiff));
 
 	/* Set to higher of optimal and user chosen diff */
 	optimal = MAX(optimal, mindiff);
 
-	/* Set to lower of optimal and pool maxdiff */
 	if (ckp->maxdiff)
-		optimal = MIN(optimal, ckp->maxdiff);
+		optimal = MIN(optimal, normalize_pool_diff_floor(ckp->maxdiff));
 
 	/* Set to lower of optimal and network_diff */
 	optimal = MIN(optimal, network_diff);
@@ -6655,10 +6661,17 @@ static bool apply_suggest_diff(ckpool_t *ckp, stratum_instance_t *client, double
 {
 	double sdiff = requested;
 
-	if (sdiff < ckp->mindiff)
-		sdiff = ckp->mindiff;
-	if (ckp->maxdiff && sdiff > ckp->maxdiff)
-		sdiff = ckp->maxdiff;
+	/* Clamp to effective normalized bounds before normalize_pool_diff():
+	 * compare against ceil/floor of config values so normalize() cannot
+	 * push the result outside operator limits. */
+	double eff_mindiff = normalize_pool_diff_ceil(ckp->mindiff);
+	if (sdiff < eff_mindiff)
+		sdiff = eff_mindiff;
+	if (ckp->maxdiff) {
+		double eff_maxdiff = normalize_pool_diff_floor(ckp->maxdiff);
+		if (sdiff > eff_maxdiff)
+			sdiff = eff_maxdiff;
+	}
 	sdiff = normalize_pool_diff(sdiff);
 	/* No-op if suggested diff unchanged */
 	if (fabs(sdiff - client->suggest_diff) < epsilon)
