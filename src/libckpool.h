@@ -329,6 +329,42 @@ static const char __maybe_unused *share_errs[] = {
 
 #define SHARE_ERR(x) share_errs[((x) + 9)]
 
+/* Standard Stratum error codes for each share_err value.
+ * Indexed same as share_errs: (enum value + 9). */
+static const int __maybe_unused share_codes[] = {
+	20, /* SE_INVALID_NONCE2 */
+	20, /* SE_WORKER_MISMATCH */
+	20, /* SE_NO_NONCE */
+	20, /* SE_NO_NTIME */
+	20, /* SE_NO_NONCE2 */
+	20, /* SE_NO_JOBID */
+	20, /* SE_NO_USERNAME */
+	20, /* SE_INVALID_SIZE */
+	20, /* SE_NOT_ARRAY */
+	 0, /* SE_NONE */
+	21, /* SE_INVALID_JOBID */
+	21, /* SE_STALE */
+	20, /* SE_NTIME_INVALID */
+	22, /* SE_DUPE */
+	23, /* SE_HIGH_DIFF */
+	20, /* SE_INVALID_VERSION_MASK */
+};
+
+#define SHARE_CODE(x) share_codes[((x) + 9)]
+
+/* Build a standard Stratum error array [code, "message", null].
+ * Miners (e.g. BitAxe) parse error[1] for the human message; a bare string
+ * causes them to fall back to "unknown".  Defined here (not in stratifier.c)
+ * so unit tests can verify the array structure without linking stratifier. */
+static inline json_t *json_err_array(const enum share_err err)
+{
+	json_t *arr = json_array();
+	json_array_append_new(arr, json_integer(SHARE_CODE(err)));
+	json_array_append_new(arr, json_string(SHARE_ERR(err)));
+	json_array_append_new(arr, json_null());
+	return arr;
+}
+
 typedef struct ckmutex mutex_t;
 
 struct ckmutex {

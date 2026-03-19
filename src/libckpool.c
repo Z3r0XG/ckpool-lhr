@@ -70,7 +70,7 @@ void create_pthread(pthread_t *thread, void *(*start_routine)(void *), void *arg
 	int ret = pthread_create(thread, NULL, start_routine,  arg);
 
 	if (unlikely(ret))
-		quit(1, "Failed to pthread_create");
+		quit(1, "Failed to pthread_create (%d): %s", ret, strerror(ret));
 }
 
 void join_pthread(pthread_t thread)
