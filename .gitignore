@@ -32,7 +32,6 @@ config.h
 
 # Compiled object files and libraries
 **/*.o
-**/*.i
 **/*.lo
 **/*.la
 **/*.a
