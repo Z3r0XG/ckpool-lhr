@@ -104,6 +104,13 @@ struct pool_stats {
 
 	double network_diff;
 	double best_diff;
+
+	/* Count-based (not diff-weighted) share tallies since last block found.
+	 * These are immune to diff misconfiguration inflating reject stats. */
+	int64_t unaccounted_round_accepted;
+	int64_t unaccounted_round_rejected;
+	int64_t round_accepted;
+	int64_t round_rejected;
 };
 
 typedef struct pool_stats pool_stats_t;
@@ -3552,6 +3559,8 @@ static void reset_bestshares(sdata_t *sdata)
 	sdata->stats.accounted_shares =
 	sdata->stats.accounted_rejects = 0;
 	sdata->stats.best_diff = 0;
+	sdata->stats.round_accepted =
+	sdata->stats.round_rejected = 0;
 
 	ck_rlock(&sdata->instance_lock);
 	HASH_ITER(hh, sdata->stratum_instances, client, tmp) {
@@ -4405,10 +4414,13 @@ out:
 static void get_poolstats(sdata_t *sdata, int *sockd)
 {
 	pool_stats_t *stats = &sdata->stats;
+	char share_count_buf[64];
 	json_t *val;
 
 	mutex_lock(&sdata->stats_lock);
-	JSON_CPACK(val, "{si,si,si,si,si,sI,sf,sf,sf,sf,sI,sI,sf,sf,sf,sf,sf,sf,sf}",
+	snprintf(share_count_buf, sizeof(share_count_buf), "%"PRId64":%"PRId64,
+		 stats->round_accepted, stats->round_rejected);
+	JSON_CPACK(val, "{si,si,si,si,si,sI,sf,sf,sf,sf,sI,sI,sf,sf,sf,sf,sf,sf,sf,ss}",
 		   "start", stats->start_time.tv_sec, "update", stats->last_update.tv_sec,
 	    "workers", stats->workers + stats->remote_workers, "users", stats->users + stats->remote_users,
 	    "disconnected", stats->disconnected,
@@ -4416,7 +4428,8 @@ static void get_poolstats(sdata_t *sdata, int *sockd)
 	    "sps15", stats->sps15, "sps60", stats->sps60, "accepted", stats->accounted_diff_shares,
 	    "rejected", stats->accounted_rejects, "dsps1", stats->dsps1, "dsps5", stats->dsps5,
 	    "dsps15", stats->dsps15, "dsps60", stats->dsps60, "dsps360", stats->dsps360,
-	    "dsps1440", stats->dsps1440, "dsps10080", stats->dsps10080);
+	    "dsps1440", stats->dsps1440, "dsps10080", stats->dsps10080,
+	    "share_count", share_count_buf);
 	mutex_unlock(&sdata->stats_lock);
 
 	send_api_response(val, *sockd);
@@ -5636,6 +5649,9 @@ static json_t *parse_authorise(stratum_instance_t *client, const json_t *params_
 			/* Respect mindiff - clamp to pool minimum */
 			if (sdiff < ckp->mindiff)
 				sdiff = ckp->mindiff;
+			/* Respect maxdiff - clamp to pool maximum */
+			if (ckp->maxdiff && sdiff > ckp->maxdiff)
+				sdiff = ckp->maxdiff;
 			sdiff = normalize_pool_diff(sdiff);
 
 			/* Mark password diff as set immediately - blocks all stratum suggests in this session */
@@ -5738,8 +5754,11 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	if (valid) {
 		ckp_sdata->stats.unaccounted_shares++;
 		ckp_sdata->stats.unaccounted_diff_shares += diff;
-	} else
+		ckp_sdata->stats.unaccounted_round_accepted++;
+	} else {
 		ckp_sdata->stats.unaccounted_rejects += diff;
+		ckp_sdata->stats.unaccounted_round_rejected++;
+	}
 	mutex_unlock(&ckp_sdata->uastats_lock);
 
 	/* Count only accepted and stale rejects in diff calculation. */
@@ -6638,6 +6657,8 @@ static bool apply_suggest_diff(ckpool_t *ckp, stratum_instance_t *client, double
 
 	if (sdiff < ckp->mindiff)
 		sdiff = ckp->mindiff;
+	if (ckp->maxdiff && sdiff > ckp->maxdiff)
+		sdiff = ckp->maxdiff;
 	sdiff = normalize_pool_diff(sdiff);
 	/* No-op if suggested diff unchanged */
 	if (fabs(sdiff - client->suggest_diff) < epsilon)
@@ -8579,7 +8600,10 @@ static void *statsupdate(void *arg)
 
 		/* Round to 4 significant digits */
 		percent = round(stats->accounted_diff_shares * 10000 / stats->network_diff) / 100;
-		JSON_CPACK(val, "{sf,sf,sf,sf,sf,sf,sf,sf,sf}",
+		char share_count_buf[64];
+		snprintf(share_count_buf, sizeof(share_count_buf), "%"PRId64":%"PRId64,
+			 stats->round_accepted, stats->round_rejected);
+		JSON_CPACK(val, "{sf,sf,sf,sf,sf,sf,sf,sf,sf,ss}",
 			        "diff", percent,
 				"netdiff", stats->network_diff,
 				"accepted", stats->accounted_diff_shares,
@@ -8588,7 +8612,8 @@ static void *statsupdate(void *arg)
 				"SPS1m", stats->sps1,
 				"SPS5m", stats->sps5,
 				"SPS15m", stats->sps15,
-				"SPS1h", stats->sps60);
+				"SPS1h", stats->sps60,
+				"share_count", share_count_buf);
 		s = json_dumps(val, JSON_NO_UTF8 | JSON_PRESERVE_ORDER | JSON_REAL_PRECISION(6));
 		json_decref(val);
 		LOGNOTICE("Pool:%s", s);
@@ -8678,7 +8703,9 @@ out_status:
 		 * displaying status every minute. */
 		for (i = 0; i < 32; i++) {
 			int64_t unaccounted_shares,
-				unaccounted_rejects;
+				unaccounted_rejects,
+				unaccounted_round_accepted,
+				unaccounted_round_rejected;
 			double unaccounted_diff_shares;
 
 			ts_to_tv(&diff, &stats->last_update);
@@ -8693,15 +8720,21 @@ out_status:
 			unaccounted_shares = stats->unaccounted_shares;
 			unaccounted_diff_shares = stats->unaccounted_diff_shares;
 			unaccounted_rejects = stats->unaccounted_rejects;
+			unaccounted_round_accepted = stats->unaccounted_round_accepted;
+			unaccounted_round_rejected = stats->unaccounted_round_rejected;
 			stats->unaccounted_shares =
 			stats->unaccounted_diff_shares =
 			stats->unaccounted_rejects = 0;
+			stats->unaccounted_round_accepted =
+			stats->unaccounted_round_rejected = 0;
 			mutex_unlock(&sdata->uastats_lock);
 
 			mutex_lock(&sdata->stats_lock);
 			stats->accounted_shares += unaccounted_shares;
 			stats->accounted_diff_shares += unaccounted_diff_shares;
 			stats->accounted_rejects += unaccounted_rejects;
+			stats->round_accepted += unaccounted_round_accepted;
+			stats->round_rejected += unaccounted_round_rejected;
 
 			decay_time(&stats->sps1, unaccounted_shares, per_tdiff, MIN1);
 			decay_time(&stats->sps5, unaccounted_shares, per_tdiff, MIN5);

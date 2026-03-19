@@ -33,7 +33,6 @@
 
 /*
  * Mirrors the password difficulty parsing logic in stratifier.c parse_authorise()
- * (cleaned version: clamps to mindiff only, no maxdiff clamp)
  *
  * NOTE: This function only tests the parsing. The actual stratifier.c code also checks:
  *   - if (sdiff == client->suggest_diff) goto skip; (avoid redundant updates)
@@ -301,6 +300,38 @@ static void test_clamp_to_mindiff(void)
 
     result = parse_password_diff("diff=50", 100.0);
     assert_double_equal(result, 100.0, EPSILON_DIFF);
+}
+
+/* Test: Clamp to maxdiff (upper bound) — mirrors the guard in parse_authorise
+ * and apply_suggest_diff: if (ckp->maxdiff && sdiff > ckp->maxdiff) sdiff = ckp->maxdiff */
+static void test_clamp_to_maxdiff(void)
+{
+    double sdiff, maxdiff;
+
+    /* Typical: miner sends diff=1, pool maxdiff=0.01 -> clamped down */
+    sdiff = 1.0; maxdiff = 0.01;
+    if (maxdiff && sdiff > maxdiff) sdiff = maxdiff;
+    assert_double_equal(sdiff, 0.01, EPSILON_DIFF);
+
+    /* Exactly at maxdiff: no clamp */
+    sdiff = 0.01; maxdiff = 0.01;
+    if (maxdiff && sdiff > maxdiff) sdiff = maxdiff;
+    assert_double_equal(sdiff, 0.01, EPSILON_DIFF);
+
+    /* Below maxdiff: passes through unchanged */
+    sdiff = 0.005; maxdiff = 0.01;
+    if (maxdiff && sdiff > maxdiff) sdiff = maxdiff;
+    assert_double_equal(sdiff, 0.005, EPSILON_DIFF);
+
+    /* maxdiff=0 means disabled: large value passes through */
+    sdiff = 1e9; maxdiff = 0.0;
+    if (maxdiff && sdiff > maxdiff) sdiff = maxdiff;
+    assert_double_equal(sdiff, 1e9, EPSILON_DIFF);
+
+    /* Scientific notation: huge suggest-diff clamped */
+    sdiff = 1e10; maxdiff = 0.01;
+    if (maxdiff && sdiff > maxdiff) sdiff = maxdiff;
+    assert_double_equal(sdiff, 0.01, EPSILON_DIFF);
 }
 
 /* Test: No diff= found returns 0 */
@@ -897,6 +928,7 @@ int main(void)
     run_test(test_word_boundary_enforcement);
     run_test(test_accept_valid_delimiters);
     run_test(test_clamp_to_mindiff);
+    run_test(test_clamp_to_maxdiff);
     run_test(test_no_diff_returns_zero);
     run_test(test_null_empty_password);
     run_test(test_reject_negative_values);
