@@ -94,26 +94,12 @@ static void test_time_bias(void)
 /* Test optimal difficulty calculation logic */
 static void test_optimal_diff_calculation(void)
 {
-    /* Test the core calculation: optimal = lround(dsps * multiplier) */
-    /* With mindiff: multiplier = 2.4, without: multiplier = 3.33 */
+    /* Test the core calculation: optimal = dsps * 3.33 (uniform, regardless of mindiff).
+     * mindiff acts as a floor via MAX(optimal, mindiff), not as a gate or formula selector. */
     
     double dsps;
     int64_t optimal;
     
-    /* With mindiff (multiplier = 2.4) */
-    dsps = 10.0;
-    optimal = lround(dsps * 2.4);
-    assert_int_equal(optimal, 24);
-    
-    dsps = 0.5;
-    optimal = lround(dsps * 2.4);
-    assert_int_equal(optimal, 1);
-    
-    dsps = 100.0;
-    optimal = lround(dsps * 2.4);
-    assert_int_equal(optimal, 240);
-    
-    /* Without mindiff (multiplier = 3.33) */
     dsps = 10.0;
     optimal = lround(dsps * 3.33);
     assert_int_equal(optimal, 33);
@@ -125,6 +111,19 @@ static void test_optimal_diff_calculation(void)
     dsps = 100.0;
     optimal = lround(dsps * 3.33);
     assert_int_equal(optimal, 333);
+    
+    /* Low dsps with mindiff floor: optimal < mindiff, MAX enforces floor */
+    double mindiff = 10.0;
+    dsps = 0.5; /* optimal = 2, below mindiff=10 */
+    optimal = lround(dsps * 3.33);
+    optimal = MAX(optimal, (int64_t)mindiff);
+    assert_int_equal(optimal, 10);
+    
+    /* High dsps with mindiff: optimal > mindiff, floor has no effect */
+    dsps = 50.0; /* optimal = 167 */
+    optimal = lround(dsps * 3.33);
+    optimal = MAX(optimal, (int64_t)mindiff);
+    assert_int_equal(optimal, 167);
 }
 
 /* Test difficulty clamping logic */
@@ -233,12 +232,12 @@ static void test_optimal_diff_normalization(void)
 		double raw;      /* expected raw before normalization */
 		bool expect_normalized;
 	} cases[] = {
-		{ 0.1,   3.33, 0.333, 0.333, false },
-		{ 0.3,   2.4,  0.72,  0.72,  false },
-		{ 1.0,   3.33, 3.0,   3.33,  true  },
-		{ 1.0,   2.4,  2.0,   2.4,   true  },
-		{ 10.0,  3.33, 33.0,  33.3,  true  },
-		{ 22.0,  2.4,  53.0,  52.8,  true  },
+		{ 0.1,   3.33, 0.3,  0.333, true  },  /* 0.333 → 0.3 (1 sig fig) */
+		{ 0.3,   2.4,  0.7,  0.72,  true  },  /* 0.72 → 0.7 (1 sig fig) */
+		{ 1.0,   3.33, 3.0,  3.33,  true  },
+		{ 1.0,   2.4,  2.0,  2.4,   true  },
+		{ 10.0,  3.33, 33.0, 33.3,  true  },
+		{ 22.0,  2.4,  53.0, 52.8,  true  },
 		{ 100.5, 3.33, 335.0, 334.665, true },
 	};
 
@@ -255,16 +254,17 @@ static void test_optimal_diff_normalization(void)
 	}
 }
 
-/* Test that lround truncation remains eliminated for sub-1 paths (preserve fractional) */
+/* Test that lround truncation remains eliminated - sub-1 values round to 1 sig fig, not to 0 */
 static void test_lround_elimination_sub1_only(void)
 {
 	struct {
 		double dsps;
 		double multiplier;
+		double expected_normalized;
 	} cases[] = {
-		{ 0.1, 3.33 },   /* 0.333 would become 0 with lround */
-		{ 0.2, 2.4 },    /* 0.48 would become 0 with lround */
-		{ 0.5, 3.33 },   /* 1.665 would normalize to 2; ensure raw still fractional pre-norm */
+		{ 0.1, 3.33, 0.3 },   /* 0.333 → 0.3 (not 0 with lround) */
+		{ 0.2, 2.4,  0.5 },   /* 0.48 → 0.5 (not 0 with lround) */
+		{ 0.5, 3.33, 2.0 },   /* 1.665 ≥ 1.0 → whole number */
 	};
 
 	int num = sizeof(cases) / sizeof(cases[0]);
@@ -273,13 +273,11 @@ static void test_lround_elimination_sub1_only(void)
 		long old_optimal = lround(raw);
 		double normalized = normalize_pool_diff(raw);
 
-		if (raw < 1.0) {
-			assert_true((double)old_optimal != raw);
-			assert_double_equal(normalized, raw, EPSILON_DIFF);
-		} else {
-			/* >=1 should normalize to a nearby whole number */
-			assert_true(fabs(normalized - raw) <= 1.0);
-		}
+		/* Verify we don't truncate to 0 like lround would */
+		assert_true(normalized > 0.0);
+
+		/* Verify expected normalized value */
+		assert_double_equal(normalized, cases[i].expected_normalized, EPSILON_DIFF);
 	}
 }
 
@@ -1553,6 +1551,99 @@ static void test_idle_return_diff_reset(void)
 }
 
 /*******************************************************************************
+ * SECTION 8: DIFF CHANGE DIRECTION (fix/diff-change-timing)
+ *
+ * The core directional invariant for vardiff job-id anchor selection:
+ *
+ *   UP   (new_diff > old_diff):
+ *        returns workbase_id_arg + 1
+ *        → shares for job_id < anchor still use old (easy) diff
+ *        → in-flight shares on the current job are buffered against rejection
+ *
+ *   DOWN (new_diff < old_diff):
+ *        returns current_id_arg  (immediate)
+ *        → shares immediately accepted at new (lower) diff
+ *        → old higher-diff shares trivially pass the easier check anyway
+ *
+ * Note: add_submit() passes next_blockid (sdata->workbase_id+1) as the workbase_id
+ * arg, giving UP changes a W+2 anchor (two-job buffer; miner has no advance notice).
+ * parse_authorise() and apply_suggest_diff() pass workbase_id directly -> W+1 anchor.
+ * Tests below verify the abstract helper property in isolation.
+ ******************************************************************************/
+
+/* Share evaluation helper: mirrors the id < diff_change_job_id check in add_submit() */
+static int vardiff_share_uses_new_diff(int64_t share_job_id, int64_t diff_change_job_id) {
+	return (share_job_id >= diff_change_job_id) ? 1 : 0;
+}
+
+/*
+ * Anchor selection helper: local reimplementation of select_diff_change_anchor()
+ * from stratifier.c for unit-testing the abstract directional property in isolation,
+ * without pulling in production dependencies.
+ */
+static int64_t vardiff_select_anchor(double old_diff, double new_diff,
+                                      int64_t workbase_id, int64_t current_id)
+{
+	return (new_diff > old_diff) ? workbase_id + 1 : current_id;
+}
+
+static void test_vardiff_direction_up_buffers(void) {
+	/*
+	 * Diff going UP: select_diff_change_anchor returns workbase_id + 1 (W+1).
+	 *
+	 * Scenario: miner is on current_job=100, new block just issued workbase_id=101.
+	 * anchor = vardiff_select_anchor picks W+1 = 102. Any job_id < 102 still uses old diff.
+	 */
+	int64_t current_job  = 100;
+	int64_t workbase_id  = 101;                /* workbase_id = current + 1 */
+	double  old_diff     = 16.0;
+	double  new_diff     = 64.0;              /* going UP */
+
+	/* Anchor chosen by the local helper (mirrors select_diff_change_anchor logic) */
+	int64_t anchor = vardiff_select_anchor(old_diff, new_diff, workbase_id, workbase_id - 1);
+	assert_int_equal(workbase_id + 1, anchor);  /* workbase_id_arg + 1 = 102 */
+
+	/* In-flight share on current job: must use OLD diff (buffered) */
+	assert_int_equal(0, vardiff_share_uses_new_diff(current_job, anchor));
+
+	/* Share on workbase_id itself: still buffered */
+	assert_int_equal(0, vardiff_share_uses_new_diff(workbase_id, anchor));
+
+	/* Share on W+1 (anchor): first to use new diff */
+	assert_int_equal(1, vardiff_share_uses_new_diff(anchor, anchor));
+
+	printf("  ✓ vardiff UP: anchor=W+1, in-flight shares buffered\n");
+}
+
+static void test_vardiff_direction_down_immediate(void) {
+	/*
+	 * Diff going DOWN: select_diff_change_anchor returns current_id (immediate).
+	 *
+	 * Scenario: miner on current_job=100. vardiff_select_anchor picks current_id=100.
+	 * Current and all future shares immediately use new (easy) diff.
+	 */
+	int64_t current_job  = 100;
+	int64_t workbase_id  = 101;
+	double  old_diff     = 64.0;
+	double  new_diff     = 16.0;              /* going DOWN */
+
+	/* Anchor chosen by the local helper (mirrors select_diff_change_anchor logic) */
+	int64_t anchor = vardiff_select_anchor(old_diff, new_diff, workbase_id, current_job);
+	assert_int_equal(current_job, anchor);      /* current_id_arg = immediate */
+
+	/* Current job share: must use NEW diff immediately */
+	assert_int_equal(1, vardiff_share_uses_new_diff(current_job, anchor));
+
+	/* Previous job share: uses old diff (mined under old diff) */
+	assert_int_equal(0, vardiff_share_uses_new_diff(current_job - 1, anchor));
+
+	/* Future job shares: also use new diff */
+	assert_int_equal(1, vardiff_share_uses_new_diff(current_job + 1, anchor));
+
+	printf("  ✓ vardiff DOWN: anchor=current, immediate application\n");
+}
+
+/*******************************************************************************
  * MAIN TEST RUNNER
  ******************************************************************************/
 
@@ -1634,9 +1725,15 @@ int main(void)
 	run_test(test_cpu_miner_stable_at_mindiff);
 	run_test(test_idle_return_diff_reset);
 	
+	/* Section 8: diff_change_job_id direction (fix/diff-change-timing) */
+	printf("\n[SECTION 8: DIFF CHANGE DIRECTION (UP vs DOWN)]\n");
+	printf("Testing vardiff job-id anchor selection\n");
+	run_test(test_vardiff_direction_up_buffers);
+	run_test(test_vardiff_direction_down_immediate);
+
 	printf("\n========================================\n");
 	printf("ALL VARDIFF TESTS PASSED!\n");
-	printf("Total tests: 35 + 3 perf (optional)\n");
+	printf("Total tests: 37 + 3 perf (optional)\n");
 	printf("========================================\n");
 	
 	return 0;

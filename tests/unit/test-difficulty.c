@@ -15,7 +15,7 @@
 #include "libckpool.h"
 #include "sha2.h"
 
-/* Test normalize_pool_diff helper (whole numbers for >=1, unchanged below) */
+/* Test normalize_pool_diff helper (whole numbers for >=1, 1 sig fig for <1) */
 static void test_normalize_pool_diff(void)
 {
     struct {
@@ -23,7 +23,13 @@ static void test_normalize_pool_diff(void)
         double out;
     } cases[] = {
         { 0.5, 0.5 },
-        { 0.999, 0.999 },
+        { 0.125, 0.1 },
+        { 0.867, 0.9 },
+        { 0.999, 1.0 },  /* Rounds to 1 sig fig → 1.0 */
+        { 0.0037180534, 0.004 },  /* Production example - 2 leading zeros */
+        { 0.0003718, 0.0004 },    /* Three leading zeros */
+        { 0.00003718, 0.00004 },  /* Four leading zeros */
+        { 0.000003718, 0.000004 }, /* Five leading zeros */
         { 1.0, 1.0 },
         { 1.001, 1.0 },
         { 1.4, 1.0 },

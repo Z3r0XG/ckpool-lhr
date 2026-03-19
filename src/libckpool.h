@@ -153,11 +153,25 @@ static inline void flip_80(void *dest_p, const void *src_p)
 /* Epsilon for floating-point difficulty comparisons */
 #define DIFF_EPSILON 1e-6
 
-inline double normalize_pool_diff(const double diff)
+/* Round difficulty to 1 significant figure for sub-1.0 values to improve
+ * miner compatibility. Many miners have limited precision and truncate
+ * values like 0.0037180534 to 0.003, causing share rejections. */
+static inline double normalize_pool_diff(const double diff)
 {
 	if (diff >= 1.0)
 		return round(diff);
-	return diff;
+
+	/* Defensive guard: log10(0) = -inf, log10(negative) = NaN - both corrupt the
+	 * calculation below. Sub-1.0 values are valid and handled by the rounding path
+	 * above; only zero/negative are pathological. */
+	if (diff <= 0.0)
+		return diff;
+
+	/* Calculate order of magnitude: e.g., 0.0037 => 0.001, 0.5 => 0.1 */
+	double magnitude = pow(10.0, floor(log10(diff)));
+
+	/* Round to 1 significant figure */
+	return round(diff / magnitude) * magnitude;
 }
 
 #define cond_wait(_cond, _lock) _cond_wait(_cond, _lock, __FILE__, __func__, __LINE__)
