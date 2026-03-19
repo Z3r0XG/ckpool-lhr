@@ -159,8 +159,7 @@ detect_distro
 $UPDATE_CMD
 
 # Install dependencies (for Bitcoin Core, CKPool build, rpcauth.py, tarball verification, and jq for sync check)
-# libcmocka-dev is required for make check (unit tests)
-$INSTALL_CMD build-essential git autoconf automake libtool pkg-config yasm libzmq3-dev libcmocka-dev curl screen libevent-dev libssl-dev bsdmainutils python3 gnupg jq
+$INSTALL_CMD build-essential git autoconf automake libtool pkg-config yasm libzmq3-dev curl screen libevent-dev libssl-dev bsdmainutils python3 gnupg jq
 
 # Enable persistent journald storage
 echo "Enabling persistent journal storage for easier log access..."
