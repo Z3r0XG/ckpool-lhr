@@ -257,7 +257,7 @@ static void test_direction_up_uses_w1_buffer(void) {
     diff_selection_t inflight = evaluate_share_diff(current_job, diff_change_job_id);
     assert_int_equal(USES_OLD_DIFF, inflight);
 
-    /* Share on the very next job → new (hard) diff applies */
+    /* Share on workbase_id (W) → still within buffer window, old (easy) diff applies */
     diff_selection_t on_next = evaluate_share_diff(workbase_id, diff_change_job_id);
     assert_int_equal(USES_OLD_DIFF, on_next);   /* workbase_id (101) < 102: still buffered */
 
