@@ -103,6 +103,15 @@ Installation is **not required** and ckpool can be run directly from the build d
 sudo make install
 ```
 
+### Running tests
+
+`libcmocka-dev` is required to run the unit test suite:
+
+```bash
+sudo apt-get install libcmocka-dev
+make check
+```
+
 ---
 
 # Solo Mode
