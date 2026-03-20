@@ -174,6 +174,30 @@ static inline double normalize_pool_diff(const double diff)
 	return round(diff / magnitude) * magnitude;
 }
 
+/* Largest normalized value <= diff. Use when clamping to maxdiff so that
+ * normalize_pool_diff() cannot push the result above the operator's limit. */
+static inline double normalize_pool_diff_floor(const double diff)
+{
+	if (diff >= 1.0)
+		return floor(diff);
+	if (diff <= 0.0)
+		return diff;
+	double magnitude = pow(10.0, floor(log10(diff)));
+	return floor(diff / magnitude) * magnitude;
+}
+
+/* Smallest normalized value >= diff. Use when clamping to mindiff so that
+ * normalize_pool_diff() cannot push the result below the operator's limit. */
+static inline double normalize_pool_diff_ceil(const double diff)
+{
+	if (diff >= 1.0)
+		return ceil(diff);
+	if (diff <= 0.0)
+		return diff;
+	double magnitude = pow(10.0, floor(log10(diff)));
+	return ceil(diff / magnitude) * magnitude;
+}
+
 #define cond_wait(_cond, _lock) _cond_wait(_cond, _lock, __FILE__, __func__, __LINE__)
 #define cond_timedwait(_cond, _lock, _abstime) _cond_timedwait(_cond, _lock, _abstime, __FILE__, __func__, __LINE__)
 #define mutex_timedlock(_lock, _timeout) _mutex_timedlock(_lock, _timeout, __FILE__, __func__, __LINE__)

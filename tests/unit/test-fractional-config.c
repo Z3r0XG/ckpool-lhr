@@ -162,6 +162,35 @@ static void test_validate_maxdiff_helper(void)
 	}
 }
 
+/* Test that maxdiff < mindiff is rejected at startup (misconfiguration guard).
+ * Production code calls quit() for this; here we verify the condition directly. */
+static void test_maxdiff_less_than_mindiff_rejected(void)
+{
+	/* maxdiff=0 means disabled -- never a conflict */
+	double mindiff = 0.008, maxdiff = 0.0;
+	assert_true(validate_mindiff(&mindiff));
+	assert_true(validate_maxdiff(&maxdiff));
+	assert_false(maxdiff != 0.0 && maxdiff < mindiff); /* not rejected */
+
+	/* maxdiff < mindiff: condition that production quit()s on */
+	maxdiff = 0.007;
+	assert_true(maxdiff != 0.0 && maxdiff < mindiff); /* rejected */
+
+	/* maxdiff == mindiff: boundary, allowed */
+	maxdiff = 0.008;
+	assert_false(maxdiff != 0.0 && maxdiff < mindiff); /* not rejected */
+
+	/* maxdiff > mindiff: normal case */
+	maxdiff = 0.01;
+	assert_false(maxdiff != 0.0 && maxdiff < mindiff); /* not rejected */
+
+	/* Above-1 inversion: mindiff=2, maxdiff=1 */
+	mindiff = 2.0; maxdiff = 1.0;
+	assert_true(validate_mindiff(&mindiff));
+	assert_true(validate_maxdiff(&maxdiff));
+	assert_true(maxdiff != 0.0 && maxdiff < mindiff); /* rejected */
+}
+
 /* Test combined validation helper returns failure codes instead of exiting */
 static void test_validate_diff_config_combined(void)
 {
@@ -431,6 +460,51 @@ static bool suggest_diff_apply_local(double mindiff, double requested, double cu
 	return true;
 }
 
+/* Test the full normalized bounds clamp: eff_mindiff (ceil) and eff_maxdiff (floor).
+ * Mirrors the clamp block used in parse_authorise() and apply_suggest_diff():
+ *   eff_mindiff = normalize_pool_diff_ceil(mindiff);  if sdiff < eff_mindiff -> clamp up
+ *   eff_maxdiff = normalize_pool_diff_floor(maxdiff); if sdiff > eff_maxdiff -> clamp down
+ *   sdiff = normalize_pool_diff(sdiff)
+ */
+static void test_maxdiff_clamp_normalized(void)
+{
+	/* Helper: apply the production clamp + normalize sequence */
+#define APPLY_CLAMP(sdiff_, mindiff_, maxdiff_) ({						\
+		double _s = (sdiff_);								\
+		double _emn = normalize_pool_diff_ceil(mindiff_);				\
+		if (_s < _emn) _s = _emn;							\
+		if ((maxdiff_) != 0.0) {							\
+			double _emx = normalize_pool_diff_floor(maxdiff_);			\
+			if (_s > _emx) _s = _emx;						\
+		}										\
+		normalize_pool_diff(_s);							\
+	})
+
+	/* sdiff above maxdiff -> clamped down to eff_maxdiff (floor) */
+	/* maxdiff=0.009 -> eff_maxdiff=floor(9)x0.001=0.009; sdiff=0.015 -> 0.009 */
+	assert_double_equal(APPLY_CLAMP(0.015, 0.001, 0.009), 0.009, EPSILON_DIFF);
+
+	/* sdiff below mindiff -> clamped up to eff_mindiff (ceil) */
+	/* mindiff=0.0044 -> eff_mindiff=ceil(4.4)x0.001=0.005; sdiff=0.002 -> 0.005 */
+	assert_double_equal(APPLY_CLAMP(0.002, 0.0044, 0.01), 0.005, EPSILON_DIFF);
+
+	/* sdiff within bounds -> only normalize_pool_diff() rounding applied */
+	/* sdiff=0.0055 -> normalize to 1 sig fig -> 0.006 */
+	assert_double_equal(APPLY_CLAMP(0.0055, 0.001, 0.01), 0.006, EPSILON_DIFF);
+
+	/* maxdiff=0 (disabled) -> no upper clamp; sdiff=100 with mindiff=1 -> 100 */
+	assert_double_equal(APPLY_CLAMP(100.0, 1.0, 0.0), 100.0, EPSILON_DIFF);
+
+	/* Integer diffs: sdiff=5, mindiff=1, maxdiff=10 -> 5 (already normalized) */
+	assert_double_equal(APPLY_CLAMP(5.0, 1.0, 10.0), 5.0, EPSILON_DIFF);
+
+	/* sdiff exactly at maxdiff boundary -> allowed (not clamped) */
+	/* maxdiff=0.009 -> eff_maxdiff=0.009; sdiff=0.009 -> 0.009 */
+	assert_double_equal(APPLY_CLAMP(0.009, 0.001, 0.009), 0.009, EPSILON_DIFF);
+
+#undef APPLY_CLAMP
+}
+
 /* Test the stratifier apply helper for side effects without network churn */
 static void test_suggest_diff_apply_helper(void)
 {
@@ -473,12 +547,14 @@ int main(void)
 	run_test(test_validate_highdiff_helper);
 	run_test(test_validate_maxdiff_helper);
 	run_test(test_validate_diff_config_combined);
+	run_test(test_maxdiff_less_than_mindiff_rejected);
 	run_test(test_suggest_diff_fractional_parsing);
 	run_test(test_json_number_value_vs_real_value);
 	run_test(test_suggest_diff_old_int64_fails_fractional);
 	run_test(test_mindiff_validation_consistency);
 	run_test(test_suggest_diff_double_comparison);
 	run_test(test_suggest_diff_clamp_and_noop);
+	run_test(test_maxdiff_clamp_normalized);
 	run_test(test_suggest_diff_apply_helper);
 	
 	printf("\nAll fractional config tests passed!\n");

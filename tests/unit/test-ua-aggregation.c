@@ -61,7 +61,7 @@ static void test_normalize_basic()
     normalize_ua_buf("LuckyMiner/BM1366/1.2.0", out, sizeof(out));
     assert(strcmp(out, "LuckyMiner") == 0);
 
-    /* BM suffix on NerdQAxe comes via slash — name preserved intact */
+    /* BM suffix on NerdQAxe comes via slash, name preserved intact */
     normalize_ua_buf("NerdQAxe++/BM1370/v1.0.36", out, sizeof(out));
     assert(strcmp(out, "NerdQAxe++") == 0);
 

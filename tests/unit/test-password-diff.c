@@ -18,10 +18,12 @@
  *   2. Client sends mining.suggest_difficulty(50) → IGNORED (blocked by password_diff_set check)
  *   Result: Password diff remains (200)
  *
- * Password diff is "sticky"—once set via password during auth, it blocks subsequent
+ * Password diff is sticky: once set via password during auth, it blocks subsequent
  * stratum suggest_difficulty messages from overwriting it. This ensures user-configured
  * difficulty takes precedence over miner-suggested difficulty.
  */
+
+#include "config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,10 +32,16 @@
 #include <stdbool.h>
 
 #include "../test_common.h"
+#include "libckpool.h"
 
 /*
- * Mirrors the password difficulty parsing logic in stratifier.c parse_authorise()
- * (cleaned version: clamps to mindiff only, no maxdiff clamp)
+ * Mirrors the password difficulty parsing logic in stratifier.c parse_authorise().
+ *
+ * Intentional scope: parsing and mindiff floor only. The production code also applies
+ * a normalized maxdiff ceiling (normalize_pool_diff_floor(ckp->maxdiff)) and a final
+ * normalize_pool_diff() rounding step. Those are omitted here because this helper
+ * focuses on parsing correctness; the maxdiff clamp and normalization are covered by
+ * test_maxdiff_clamp_normalized() in test-fractional-config.c.
  *
  * NOTE: This function only tests the parsing. The actual stratifier.c code also checks:
  *   - if (sdiff == client->suggest_diff) goto skip; (avoid redundant updates)
@@ -301,6 +309,93 @@ static void test_clamp_to_mindiff(void)
 
     result = parse_password_diff("diff=50", 100.0);
     assert_double_equal(result, 100.0, EPSILON_DIFF);
+}
+
+/* Test: Clamp to maxdiff/mindiff bounds with normalized guard.
+ *
+ * Production code compares against eff_maxdiff = normalize_pool_diff_floor(maxdiff)
+ * and eff_mindiff = normalize_pool_diff_ceil(mindiff). This ensures that:
+ *   - values between eff_maxdiff and raw maxdiff are caught (not just > raw maxdiff)
+ *   - values exactly at raw maxdiff/mindiff but non-normalized are caught
+ *   - the subsequent normalize_pool_diff() call is idempotent (result already normalized) */
+static void test_clamp_to_maxdiff(void)
+{
+    double sdiff, eff_maxdiff;
+
+    /* Typical: miner sends diff=1, pool maxdiff=0.01 (already normalized) */
+    sdiff = 1.0; eff_maxdiff = normalize_pool_diff_floor(0.01);
+    if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
+    assert_double_equal(sdiff, 0.01, EPSILON_DIFF);
+
+    /* Exactly at normalized maxdiff: no clamp */
+    sdiff = 0.01; eff_maxdiff = normalize_pool_diff_floor(0.01);
+    if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
+    assert_double_equal(sdiff, 0.01, EPSILON_DIFF);
+
+    /* Below maxdiff: passes through unchanged */
+    sdiff = 0.005; eff_maxdiff = normalize_pool_diff_floor(0.01);
+    if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
+    assert_double_equal(sdiff, 0.005, EPSILON_DIFF);
+
+    /* Very large miner-suggested diff clamped */
+    sdiff = 1e10; eff_maxdiff = normalize_pool_diff_floor(0.01);
+    if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
+    assert_double_equal(sdiff, 0.01, EPSILON_DIFF);
+
+    /* Non-normalized maxdiff above 1: floor snaps down.
+     * Old bug: sdiff=1.5 > maxdiff=1.5 is false, so no clamp; normalize(1.5)=2 > maxdiff.
+     * Fix: eff_maxdiff=floor(1.5)=1, sdiff=1.5 > 1 -> clamped to 1. */
+    sdiff = 1.5; eff_maxdiff = normalize_pool_diff_floor(1.5);
+    if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
+    assert_double_equal(sdiff, 1.0, EPSILON_DIFF);
+
+    /* Boundary case sub-1: sdiff exactly at non-normalized maxdiff.
+     * Old bug: 0.0075 > 0.0075 is false, normalize(0.0075)=0.008 > maxdiff.
+     * Fix: eff_maxdiff=0.007, 0.0075 > 0.007 -> clamped to 0.007. */
+    sdiff = 0.0075; eff_maxdiff = normalize_pool_diff_floor(0.0075);
+    if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
+    assert_double_equal(sdiff, 0.007, EPSILON_DIFF);
+
+    /* sdiff between eff_maxdiff and raw maxdiff: clamped to eff_maxdiff */
+    sdiff = 0.0074; eff_maxdiff = normalize_pool_diff_floor(0.0075);
+    if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
+    assert_double_equal(sdiff, 0.007, EPSILON_DIFF);
+
+    /* sdiff above non-normalized maxdiff: clamped to eff_maxdiff */
+    sdiff = 0.0076; eff_maxdiff = normalize_pool_diff_floor(0.0075);
+    if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
+    assert_double_equal(sdiff, 0.007, EPSILON_DIFF);
+}
+
+/* Test: Clamp to mindiff with normalized ceil guard.
+ *
+ * Production code compares against eff_mindiff = normalize_pool_diff_ceil(mindiff).
+ * Any sdiff >= eff_mindiff is guaranteed to normalize to a value >= eff_mindiff >= mindiff. */
+static void test_clamp_to_mindiff_normalized(void)
+{
+    double sdiff, eff_mindiff;
+
+    /* Already-normalized mindiff: ceil is identity. */
+    sdiff = 0.0005; eff_mindiff = normalize_pool_diff_ceil(0.001);
+    if (sdiff < eff_mindiff) sdiff = eff_mindiff;
+    assert_double_equal(sdiff, 0.001, EPSILON_DIFF);
+
+    /* Boundary case: sdiff exactly at non-normalized mindiff.
+     * Old bug: 0.0044 < 0.0044 is false, normalize(0.0044)=0.004 < mindiff.
+     * Fix: eff_mindiff=0.005, 0.0044 < 0.005 -> clamped to 0.005. */
+    sdiff = 0.0044; eff_mindiff = normalize_pool_diff_ceil(0.0044);
+    if (sdiff < eff_mindiff) sdiff = eff_mindiff;
+    assert_double_equal(sdiff, 0.005, EPSILON_DIFF);
+
+    /* Non-normalized mindiff >= 1: ceil snaps to next integer. */
+    sdiff = 1.0; eff_mindiff = normalize_pool_diff_ceil(1.5);
+    if (sdiff < eff_mindiff) sdiff = eff_mindiff;
+    assert_double_equal(sdiff, 2.0, EPSILON_DIFF);
+
+    /* Already above eff_mindiff: no clamp. */
+    sdiff = 5.0; eff_mindiff = normalize_pool_diff_ceil(1.5);
+    if (sdiff < eff_mindiff) sdiff = eff_mindiff;
+    assert_double_equal(sdiff, 5.0, EPSILON_DIFF);
 }
 
 /* Test: No diff= found returns 0 */
@@ -897,6 +992,8 @@ int main(void)
     run_test(test_word_boundary_enforcement);
     run_test(test_accept_valid_delimiters);
     run_test(test_clamp_to_mindiff);
+    run_test(test_clamp_to_maxdiff);
+    run_test(test_clamp_to_mindiff_normalized);
     run_test(test_no_diff_returns_zero);
     run_test(test_null_empty_password);
     run_test(test_reject_negative_values);

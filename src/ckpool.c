@@ -1850,6 +1850,8 @@ int main(int argc, char **argv)
 		quit(0, "highdiff must not be negative");
 	if (!validate_maxdiff(&ckp.maxdiff))
 		quit(0, "maxdiff must not be negative");
+	if (ckp.maxdiff && ckp.maxdiff < ckp.mindiff)
+		quit(0, "maxdiff %.10g must not be less than mindiff %.10g", ckp.maxdiff, ckp.mindiff);
 
 	if (!ckp.logdir)
 		ckp.logdir = strdup("logs");

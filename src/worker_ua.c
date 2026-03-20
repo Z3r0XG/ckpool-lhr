@@ -22,7 +22,7 @@ void recalc_worker_useragent(sdata_t *sdata, user_instance_t *user, worker_insta
 	}
 
 	if (worker->instance_count > 1) {
-		/* Multiple active instances — set to generic token if it changed */
+		/* Multiple active instances: set to generic token if it changed */
 		if (!worker->useragent || strcmp(worker->useragent, "Other") != 0) {
 			if (worker->useragent)
 				free(worker->useragent);
@@ -52,7 +52,7 @@ void recalc_worker_useragent(sdata_t *sdata, user_instance_t *user, worker_insta
 		if (ua_key != worker->norm_useragent)
 			strcpy(worker->norm_useragent, ua_key);
 	} else {
-		/* Empty UA from client — map to Other */
+		/* Empty UA from client: map to Other */
 		if (worker->useragent)
 			free(worker->useragent);
 		worker->useragent = ckzalloc(1);

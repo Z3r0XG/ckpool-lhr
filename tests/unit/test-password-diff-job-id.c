@@ -62,7 +62,7 @@ static void test_invariant_current_job_uses_new_diff(void) {
      * diff_change_job_id = current_workbase->id (immediate)
      * So: (current_job_id < current_job_id) = FALSE → uses new diff ✓
      *
-     * This is the path taken by password diff at auth time — the miner has
+     * This is the path taken by password diff at auth time. The miner has
      * not yet submitted any shares, so immediate application is correct.
      */
     
@@ -253,7 +253,7 @@ static void test_normal_vardiff_unaffected(void) {
  *        → if miner waits: old higher-diff shares trivially pass the new easier check
  *        → either way: no rejection
  *
- * The directional tests below verify select_diff_change_anchor() — the rule
+ * The directional tests below verify select_diff_change_anchor(): the rule
  * extracted into stratifier.c that all three diff-change paths invoke:
  *   parse_authorise()  (password diff)
  *   suggest_diff()     (stratum suggest)

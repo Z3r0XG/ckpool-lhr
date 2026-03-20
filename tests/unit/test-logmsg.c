@@ -3,7 +3,7 @@
  *
  * LOGMSGSIZ splits messages longer than DEFLOGBUFSIZ-2 (510) bytes into
  * multiple chunks, each delivered via logmsg(). This test verifies that
- * long messages are fully delivered — no trailing content is dropped.
+ * long messages are fully delivered; no trailing content is dropped.
  *
  * Bug context: the original loop used `LEN -= OFFSET` (cumulative) instead
  * of `LEN -= CPY` (bytes copied this pass), causing messages over ~1020
@@ -115,7 +115,7 @@ static void test_medium_message_complete(void)
 
 /*
  * Long message (> 1020 bytes).
- * This is the case that the LEN -= OFFSET bug broke — it would exit the
+ * This is the case that the LEN -= OFFSET bug broke; it would exit the
  * loop after chunk 2, silently dropping everything beyond ~1020 bytes.
  * Expect: 3+ chunks, full content delivered.
  */
