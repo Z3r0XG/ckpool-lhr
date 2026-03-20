@@ -4417,7 +4417,7 @@ static void get_poolstats(sdata_t *sdata, int *sockd)
 	json_t *val;
 
 	mutex_lock(&sdata->stats_lock);
-	JSON_CPACK(val, "{si,si,si,si,si,sI,sf,sf,sf,sf,sI,sI,sf,sf,sf,sf,sf,sf,sf,sI,sI}",
+	JSON_CPACK(val, "{si,si,si,si,si,sf,sf,sf,sf,sf,sf,sf,sf,sf,sf,sf,sf,sf,sf,sI,sI}",
 		   "start", stats->start_time.tv_sec, "update", stats->last_update.tv_sec,
 	    "workers", stats->workers + stats->remote_workers, "users", stats->users + stats->remote_users,
 	    "disconnected", stats->disconnected,
