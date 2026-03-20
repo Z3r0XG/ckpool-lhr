@@ -356,12 +356,15 @@ static void test_clamp_to_maxdiff(void)
     if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
     assert_double_equal(sdiff, 0.007, EPSILON_DIFF);
 
-    /* In-between case: sdiff between eff_maxdiff and raw maxdiff.
-     * Old bug: 0.0074 > 0.0075 is false, normalize(0.0074)=0.007 -> ok accidentally.
-     * But 0.0076 > 0.0075 is true -> clamped. Let's test eff catches both. */
+    /* sdiff between eff_maxdiff and raw maxdiff: clamped to eff_maxdiff */
     sdiff = 0.0074; eff_maxdiff = normalize_pool_diff_floor(0.0075);
     if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
-    assert_double_equal(sdiff, 0.007, EPSILON_DIFF); /* 0.0074 > 0.007 -> clamped */
+    assert_double_equal(sdiff, 0.007, EPSILON_DIFF);
+
+    /* sdiff above non-normalized maxdiff: clamped to eff_maxdiff */
+    sdiff = 0.0076; eff_maxdiff = normalize_pool_diff_floor(0.0075);
+    if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
+    assert_double_equal(sdiff, 0.007, EPSILON_DIFF);
 }
 
 /* Test: Clamp to mindiff with normalized ceil guard.
