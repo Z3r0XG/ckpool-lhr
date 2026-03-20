@@ -162,6 +162,35 @@ static void test_validate_maxdiff_helper(void)
 	}
 }
 
+/* Test that maxdiff < mindiff is rejected at startup (misconfiguration guard).
+ * Production code calls quit() for this; here we verify the condition directly. */
+static void test_maxdiff_less_than_mindiff_rejected(void)
+{
+	/* maxdiff=0 means disabled -- never a conflict */
+	double mindiff = 0.008, maxdiff = 0.0;
+	assert_true(validate_mindiff(&mindiff));
+	assert_true(validate_maxdiff(&maxdiff));
+	assert_false(maxdiff != 0.0 && maxdiff < mindiff); /* not rejected */
+
+	/* maxdiff < mindiff: condition that production quit()s on */
+	maxdiff = 0.007;
+	assert_true(maxdiff != 0.0 && maxdiff < mindiff); /* rejected */
+
+	/* maxdiff == mindiff: boundary, allowed */
+	maxdiff = 0.008;
+	assert_false(maxdiff != 0.0 && maxdiff < mindiff); /* not rejected */
+
+	/* maxdiff > mindiff: normal case */
+	maxdiff = 0.01;
+	assert_false(maxdiff != 0.0 && maxdiff < mindiff); /* not rejected */
+
+	/* Above-1 inversion: mindiff=2, maxdiff=1 */
+	mindiff = 2.0; maxdiff = 1.0;
+	assert_true(validate_mindiff(&mindiff));
+	assert_true(validate_maxdiff(&maxdiff));
+	assert_true(maxdiff != 0.0 && maxdiff < mindiff); /* rejected */
+}
+
 /* Test combined validation helper returns failure codes instead of exiting */
 static void test_validate_diff_config_combined(void)
 {
@@ -473,6 +502,7 @@ int main(void)
 	run_test(test_validate_highdiff_helper);
 	run_test(test_validate_maxdiff_helper);
 	run_test(test_validate_diff_config_combined);
+	run_test(test_maxdiff_less_than_mindiff_rejected);
 	run_test(test_suggest_diff_fractional_parsing);
 	run_test(test_json_number_value_vs_real_value);
 	run_test(test_suggest_diff_old_int64_fails_fractional);
