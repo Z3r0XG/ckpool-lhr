@@ -4414,13 +4414,10 @@ out:
 static void get_poolstats(sdata_t *sdata, int *sockd)
 {
 	pool_stats_t *stats = &sdata->stats;
-	char share_count_buf[64];
 	json_t *val;
 
 	mutex_lock(&sdata->stats_lock);
-	snprintf(share_count_buf, sizeof(share_count_buf), "%"PRId64":%"PRId64,
-		 stats->round_accepted, stats->round_rejected);
-	JSON_CPACK(val, "{si,si,si,si,si,sI,sf,sf,sf,sf,sI,sI,sf,sf,sf,sf,sf,sf,sf,ss}",
+	JSON_CPACK(val, "{si,si,si,si,si,sI,sf,sf,sf,sf,sI,sI,sf,sf,sf,sf,sf,sf,sf,sI,sI}",
 		   "start", stats->start_time.tv_sec, "update", stats->last_update.tv_sec,
 	    "workers", stats->workers + stats->remote_workers, "users", stats->users + stats->remote_users,
 	    "disconnected", stats->disconnected,
@@ -4429,7 +4426,7 @@ static void get_poolstats(sdata_t *sdata, int *sockd)
 	    "rejected", stats->accounted_rejects, "dsps1", stats->dsps1, "dsps5", stats->dsps5,
 	    "dsps15", stats->dsps15, "dsps60", stats->dsps60, "dsps360", stats->dsps360,
 	    "dsps1440", stats->dsps1440, "dsps10080", stats->dsps10080,
-	    "share_count", share_count_buf);
+	    "accepted_count", stats->round_accepted, "rejected_count", stats->round_rejected);
 	mutex_unlock(&sdata->stats_lock);
 
 	send_api_response(val, *sockd);
@@ -8613,10 +8610,7 @@ static void *statsupdate(void *arg)
 
 		/* Round to 4 significant digits */
 		percent = round(stats->accounted_diff_shares * 10000 / stats->network_diff) / 100;
-		char share_count_buf[64];
-		snprintf(share_count_buf, sizeof(share_count_buf), "%"PRId64":%"PRId64,
-			 stats->round_accepted, stats->round_rejected);
-		JSON_CPACK(val, "{sf,sf,sf,sf,sf,sf,sf,sf,sf,ss}",
+		JSON_CPACK(val, "{sf,sf,sf,sf,sf,sf,sf,sf,sf,sI,sI}",
 			        "diff", percent,
 				"netdiff", stats->network_diff,
 				"accepted", stats->accounted_diff_shares,
@@ -8626,7 +8620,8 @@ static void *statsupdate(void *arg)
 				"SPS5m", stats->sps5,
 				"SPS15m", stats->sps15,
 				"SPS1h", stats->sps60,
-				"share_count", share_count_buf);
+				"accepted_count", stats->round_accepted,
+				"rejected_count", stats->round_rejected);
 		s = json_dumps(val, JSON_NO_UTF8 | JSON_PRESERVE_ORDER | JSON_REAL_PRECISION(6));
 		json_decref(val);
 		LOGNOTICE("Pool:%s", s);
@@ -8843,6 +8838,8 @@ static void read_poolstats(ckpool_t *ckp, int *tvsec_diff)
 	json_get_double(&stats->accounted_diff_shares, val, "accepted");
 	json_get_double(&stats->accounted_rejects, val, "rejected");
 	json_get_double(&stats->best_diff, val, "bestshare");
+	json_get_int64(&stats->round_accepted, val, "accepted_count");
+	json_get_int64(&stats->round_rejected, val, "rejected_count");
 	json_decref(val);
 
 	LOGINFO("Successfully read pool sps: %s", sps);
