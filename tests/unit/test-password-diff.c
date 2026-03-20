@@ -23,6 +23,8 @@
  * difficulty takes precedence over miner-suggested difficulty.
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,9 +32,16 @@
 #include <stdbool.h>
 
 #include "../test_common.h"
+#include "libckpool.h"
 
 /*
- * Mirrors the password difficulty parsing logic in stratifier.c parse_authorise()
+ * Mirrors the password difficulty parsing logic in stratifier.c parse_authorise().
+ *
+ * Intentional scope: parsing and mindiff floor only. The production code also applies
+ * a normalized maxdiff ceiling (normalize_pool_diff_floor(ckp->maxdiff)) and a final
+ * normalize_pool_diff() rounding step. Those are omitted here because this helper
+ * focuses on parsing correctness; the maxdiff clamp and normalization are covered by
+ * test_maxdiff_clamp_normalized() in test-fractional-config.c.
  *
  * NOTE: This function only tests the parsing. The actual stratifier.c code also checks:
  *   - if (sdiff == client->suggest_diff) goto skip; (avoid redundant updates)
@@ -302,22 +311,6 @@ static void test_clamp_to_mindiff(void)
     assert_double_equal(result, 100.0, EPSILON_DIFF);
 }
 
-/* Local copies of normalize helpers from libckpool.h for standalone test use. */
-static double normalize_pool_diff_floor_test(double diff)
-{
-    if (diff >= 1.0) return floor(diff);
-    if (diff <= 0.0) return diff;
-    double mag = pow(10.0, floor(log10(diff)));
-    return floor(diff / mag) * mag;
-}
-static double normalize_pool_diff_ceil_test(double diff)
-{
-    if (diff >= 1.0) return ceil(diff);
-    if (diff <= 0.0) return diff;
-    double mag = pow(10.0, floor(log10(diff)));
-    return ceil(diff / mag) * mag;
-}
-
 /* Test: Clamp to maxdiff/mindiff bounds with normalized guard.
  *
  * Production code compares against eff_maxdiff = normalize_pool_diff_floor(maxdiff)
@@ -330,43 +323,43 @@ static void test_clamp_to_maxdiff(void)
     double sdiff, eff_maxdiff;
 
     /* Typical: miner sends diff=1, pool maxdiff=0.01 (already normalized) */
-    sdiff = 1.0; eff_maxdiff = normalize_pool_diff_floor_test(0.01);
+    sdiff = 1.0; eff_maxdiff = normalize_pool_diff_floor(0.01);
     if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
     assert_double_equal(sdiff, 0.01, EPSILON_DIFF);
 
     /* Exactly at normalized maxdiff: no clamp */
-    sdiff = 0.01; eff_maxdiff = normalize_pool_diff_floor_test(0.01);
+    sdiff = 0.01; eff_maxdiff = normalize_pool_diff_floor(0.01);
     if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
     assert_double_equal(sdiff, 0.01, EPSILON_DIFF);
 
     /* Below maxdiff: passes through unchanged */
-    sdiff = 0.005; eff_maxdiff = normalize_pool_diff_floor_test(0.01);
+    sdiff = 0.005; eff_maxdiff = normalize_pool_diff_floor(0.01);
     if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
     assert_double_equal(sdiff, 0.005, EPSILON_DIFF);
 
     /* Very large miner-suggested diff clamped */
-    sdiff = 1e10; eff_maxdiff = normalize_pool_diff_floor_test(0.01);
+    sdiff = 1e10; eff_maxdiff = normalize_pool_diff_floor(0.01);
     if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
     assert_double_equal(sdiff, 0.01, EPSILON_DIFF);
 
     /* Non-normalized maxdiff above 1: floor snaps down.
-     * Old bug: sdiff=0.0075 > maxdiff=1.5 is false, normalize(1.5)=2 > 1.5.
+     * Old bug: sdiff=1.5 > maxdiff=1.5 is false, so no clamp; normalize(1.5)=2 > maxdiff.
      * Fix: eff_maxdiff=floor(1.5)=1, sdiff=1.5 > 1 -> clamped to 1. */
-    sdiff = 1.5; eff_maxdiff = normalize_pool_diff_floor_test(1.5);
+    sdiff = 1.5; eff_maxdiff = normalize_pool_diff_floor(1.5);
     if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
     assert_double_equal(sdiff, 1.0, EPSILON_DIFF);
 
     /* Boundary case sub-1: sdiff exactly at non-normalized maxdiff.
      * Old bug: 0.0075 > 0.0075 is false, normalize(0.0075)=0.008 > maxdiff.
      * Fix: eff_maxdiff=0.007, 0.0075 > 0.007 -> clamped to 0.007. */
-    sdiff = 0.0075; eff_maxdiff = normalize_pool_diff_floor_test(0.0075);
+    sdiff = 0.0075; eff_maxdiff = normalize_pool_diff_floor(0.0075);
     if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
     assert_double_equal(sdiff, 0.007, EPSILON_DIFF);
 
     /* In-between case: sdiff between eff_maxdiff and raw maxdiff.
      * Old bug: 0.0074 > 0.0075 is false, normalize(0.0074)=0.007 -> ok accidentally.
      * But 0.0076 > 0.0075 is true -> clamped. Let's test eff catches both. */
-    sdiff = 0.0074; eff_maxdiff = normalize_pool_diff_floor_test(0.0075);
+    sdiff = 0.0074; eff_maxdiff = normalize_pool_diff_floor(0.0075);
     if (sdiff > eff_maxdiff) sdiff = eff_maxdiff;
     assert_double_equal(sdiff, 0.007, EPSILON_DIFF); /* 0.0074 > 0.007 -> clamped */
 }
@@ -380,24 +373,24 @@ static void test_clamp_to_mindiff_normalized(void)
     double sdiff, eff_mindiff;
 
     /* Already-normalized mindiff: ceil is identity. */
-    sdiff = 0.0005; eff_mindiff = normalize_pool_diff_ceil_test(0.001);
+    sdiff = 0.0005; eff_mindiff = normalize_pool_diff_ceil(0.001);
     if (sdiff < eff_mindiff) sdiff = eff_mindiff;
     assert_double_equal(sdiff, 0.001, EPSILON_DIFF);
 
     /* Boundary case: sdiff exactly at non-normalized mindiff.
      * Old bug: 0.0044 < 0.0044 is false, normalize(0.0044)=0.004 < mindiff.
      * Fix: eff_mindiff=0.005, 0.0044 < 0.005 -> clamped to 0.005. */
-    sdiff = 0.0044; eff_mindiff = normalize_pool_diff_ceil_test(0.0044);
+    sdiff = 0.0044; eff_mindiff = normalize_pool_diff_ceil(0.0044);
     if (sdiff < eff_mindiff) sdiff = eff_mindiff;
     assert_double_equal(sdiff, 0.005, EPSILON_DIFF);
 
     /* Non-normalized mindiff >= 1: ceil snaps to next integer. */
-    sdiff = 1.0; eff_mindiff = normalize_pool_diff_ceil_test(1.5);
+    sdiff = 1.0; eff_mindiff = normalize_pool_diff_ceil(1.5);
     if (sdiff < eff_mindiff) sdiff = eff_mindiff;
     assert_double_equal(sdiff, 2.0, EPSILON_DIFF);
 
     /* Already above eff_mindiff: no clamp. */
-    sdiff = 5.0; eff_mindiff = normalize_pool_diff_ceil_test(1.5);
+    sdiff = 5.0; eff_mindiff = normalize_pool_diff_ceil(1.5);
     if (sdiff < eff_mindiff) sdiff = eff_mindiff;
     assert_double_equal(sdiff, 5.0, EPSILON_DIFF);
 }
