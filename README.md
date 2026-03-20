@@ -323,29 +323,31 @@ All configuration options are listed below.
 - Type: Double
 - Values: Any positive number
 - Default: 1
-- Note: Supports sub-"1" values (e.g., 0.0005) for low hash rate miners.
+- Note: Supports sub-1 values (e.g., 0.0005) for low hash rate miners.
 - Example: `"mindiff" : 1` or `"mindiff" : 0.0005`
 
 **"startdiff"** : Starting difficulty for new clients. **OPTIONAL**
 - Type: Double
 - Values: Any positive number
 - Default: 42
-- Note: Can be set below 1 for low hash rate miners.
+- Note: Supports sub-1 values (e.g., 0.0005) for low hash rate miners.
+- Note: Cannot be lower than `mindiff`.
 - Example: `"startdiff" : 42` or `"startdiff" : 0.0005`
 
 **"maxdiff"** : Maximum difficulty for vardiff. **OPTIONAL**
 - Type: Double
 - Values: Any positive number, or 0 for no maximum
 - Default: 0 (no maximum)
-- Note: Caps vardiff adjustments to prevent difficulty from growing too high.
+- Note: Must be greater than `mindiff`.
 - Example: `"maxdiff" : 10000000` or `"maxdiff" : 0`
 
-**"highdiff"** : Starting difficulty for high-hashrate server ports. **OPTIONAL**
+**"highdiff"** : Starting difficulty for designated high-diff server ports. **OPTIONAL**
 - Type: Double
 - Values: Any positive number
 - Default: 1000000
-- Note: Used when specific server ports are designated as "highdiff" ports.
-- Example: `"highdiff" : 100000`
+- Note: Automatically applied to any port > 4000 in `serverurl`.
+- Note: Clamped at `mindiff` and `maxdiff`.
+- Example: `"highdiff" : 10000`
 
 **"allow_low_diff"** : Remove minimum network difficulty floor (for regtest). **OPTIONAL**
 - Type: Boolean
